@@ -1,0 +1,47 @@
+{
+  "name": "waiter-ai",
+  "version": "0.1.0",
+  "description": "QR-based restaurant ordering platform MVP",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "@supabase/supabase-js": "^2.38.0",
+    "@supabase/ssr": "^0.0.9",
+    "react-hook-form": "^7.48.0",
+    "zod": "^3.22.0",
+    "uuid": "^9.0.0",
+    "tailwindcss": "^3.3.0",
+    "shadcn-ui": "^0.8.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.0",
+    "@types/node": "^20.5.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.1.0",
+    "vitest": "^0.34.0",
+    "@playwright/test": "^1.38.0",
+    "prettier": "^3.0.0",
+    "eslint": "^8.48.0",
+    "eslint-config-next": "^15.0.0",
+    "@tailwindcss/forms": "^0.5.6"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
