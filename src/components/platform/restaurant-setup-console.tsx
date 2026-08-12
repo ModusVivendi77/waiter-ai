@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import QRCode from 'qrcode'
 
 import { getClientUserContext } from '@/lib/auth/client'
 import { createClient } from '@/lib/supabase/client'
@@ -14,6 +15,11 @@ type RestaurantTable = {
 }
 
 type Category = {
+  id: string
+  name: string
+}
+
+type RestaurantOption = {
   id: string
   name: string
 }
@@ -50,6 +56,9 @@ export function RestaurantSetupConsole() {
   const [saving, setSaving] = useState(false)
   const [restaurantId, setRestaurantId] = useState<string | null>(null)
   const [restaurantName, setRestaurantName] = useState<string | null>(null)
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+  const [restaurantOptions, setRestaurantOptions] = useState<RestaurantOption[]>([])
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState('')
   const [tables, setTables] = useState<RestaurantTable[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [items, setItems] = useState<MenuItem[]>([])
@@ -62,11 +71,13 @@ export function RestaurantSetupConsole() {
   const [itemPrice, setItemPrice] = useState('')
   const [itemCategoryId, setItemCategoryId] = useState('')
   const [csvText, setCsvText] = useState('')
+  const [csvReport, setCsvReport] = useState<string | null>(null)
+  const [qrDownloadingFor, setQrDownloadingFor] = useState<string | null>(null)
 
   const supabase = useMemo(() => createClient(), [])
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
-  async function loadData() {
+  async function loadData(restaurantOverrideId?: string) {
     const context = await getClientUserContext()
 
     if (!context.user) {
@@ -74,38 +85,68 @@ export function RestaurantSetupConsole() {
       return
     }
 
-    const membership =
-      context.memberships.find((entry) => entry.role === 'OWNER' || entry.role === 'MANAGER') ?? context.memberships[0]
+    setIsPlatformAdmin(context.isPlatformAdmin)
 
-    if (!membership) {
-      setError(
-        context.isPlatformAdmin
-          ? 'SUPER_ADMIN account detected but no restaurant membership is linked. Add at least one restaurant membership to use setup tools.'
-          : 'You need OWNER or MANAGER access to edit restaurant setup.'
-      )
-      setLoading(false)
-      return
+    let activeRestaurantId: string | null = null
+    let activeRestaurantName: string | null = null
+
+    if (context.isPlatformAdmin) {
+      const { data: restaurants, error: restaurantsError } = await supabase.from('restaurants').select('id, name').order('name')
+
+      if (restaurantsError || !restaurants || restaurants.length === 0) {
+        setError(restaurantsError?.message || 'No restaurants found for platform administration.')
+        setLoading(false)
+        return
+      }
+
+      const typedRestaurants = (restaurants as RestaurantOption[]) || []
+      setRestaurantOptions(typedRestaurants)
+
+      const savedRestaurantId = typeof window !== 'undefined' ? localStorage.getItem('platformAdminRestaurantId') || '' : ''
+      const candidateId = restaurantOverrideId || selectedRestaurantId || savedRestaurantId || context.memberships[0]?.restaurantId || ''
+      const selectedRestaurant = typedRestaurants.find((entry) => entry.id === candidateId) ?? typedRestaurants[0]
+
+      activeRestaurantId = selectedRestaurant.id
+      activeRestaurantName = selectedRestaurant.name
+      setSelectedRestaurantId(selectedRestaurant.id)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('platformAdminRestaurantId', selectedRestaurant.id)
+      }
+    } else {
+      const membership =
+        context.memberships.find((entry) => entry.role === 'OWNER' || entry.role === 'MANAGER') ?? context.memberships[0]
+
+      if (!membership) {
+        setError('You need OWNER or MANAGER access to edit restaurant setup.')
+        setLoading(false)
+        return
+      }
+
+      activeRestaurantId = membership.restaurantId
+      activeRestaurantName = membership.restaurantName
+      setRestaurantOptions([])
+      setSelectedRestaurantId('')
     }
 
-    setRestaurantId(membership.restaurantId)
-    setRestaurantName(membership.restaurantName)
+    setRestaurantId(activeRestaurantId)
+    setRestaurantName(activeRestaurantName)
 
     const [{ data: tableRows, error: tableError }, { data: categoryRows, error: categoryError }, { data: itemRows, error: itemError }] =
       await Promise.all([
         supabase
           .from('restaurant_tables')
           .select('id, name, qr_token, active')
-          .eq('restaurant_id', membership.restaurantId)
+          .eq('restaurant_id', activeRestaurantId)
           .order('name'),
         supabase
           .from('menu_categories')
           .select('id, name')
-          .eq('restaurant_id', membership.restaurantId)
+          .eq('restaurant_id', activeRestaurantId)
           .order('sort_order'),
         supabase
           .from('menu_items')
           .select('id, name, price, available, category_id, menu_categories(name)')
-          .eq('restaurant_id', membership.restaurantId)
+          .eq('restaurant_id', activeRestaurantId)
           .order('created_at', { ascending: false })
           .limit(50),
       ])
@@ -128,6 +169,81 @@ export function RestaurantSetupConsole() {
     void loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  async function handleRestaurantSelection(nextRestaurantId: string) {
+    setSelectedRestaurantId(nextRestaurantId)
+    await loadData(nextRestaurantId)
+  }
+
+  async function handleDownloadQr(table: RestaurantTable) {
+    setQrDownloadingFor(table.id)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const qrUrl = `${appUrl}/t/${table.qr_token}`
+      const svg = await QRCode.toString(qrUrl, { type: 'svg', margin: 1, width: 512 })
+      const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+      const objectUrl = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = objectUrl
+      anchor.download = `${table.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'table'}-qr.svg`
+      anchor.click()
+      URL.revokeObjectURL(objectUrl)
+      setNotice(`Downloaded QR SVG for ${table.name}.`)
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : 'Failed to generate QR code.')
+    } finally {
+      setQrDownloadingFor(null)
+    }
+  }
+
+  function parseCsvRows(rawText: string) {
+    const seenKeys = new Set<string>()
+    const rows: Array<{ category: string; name: string; description: string; price: number }> = []
+    const errors: string[] = []
+
+    rawText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line, index) => {
+        const lineNumber = index + 1
+        const parts = line.split(',').map((value) => value.trim())
+
+        if (parts.length < 4) {
+          errors.push(`Line ${lineNumber}: expected at least 4 comma-separated values.`)
+          return
+        }
+
+        const category = parts[0]
+        const name = parts[1]
+        const priceRaw = parts[parts.length - 1]
+        const description = parts.slice(2, -1).join(',')
+        const price = Number(priceRaw)
+
+        if (!category || !name) {
+          errors.push(`Line ${lineNumber}: category and name are required.`)
+          return
+        }
+
+        if (!Number.isFinite(price) || price < 0) {
+          errors.push(`Line ${lineNumber}: invalid price "${priceRaw}".`)
+          return
+        }
+
+        const key = `${category.toLowerCase()}::${name.toLowerCase()}`
+        if (seenKeys.has(key)) {
+          errors.push(`Line ${lineNumber}: duplicate item "${name}" in category "${category}".`)
+          return
+        }
+        seenKeys.add(key)
+
+        rows.push({ category, name, description, price })
+      })
+
+    return { rows, errors }
+  }
 
   async function handleAddTable(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -375,29 +491,20 @@ export function RestaurantSetupConsole() {
     setError(null)
     setNotice(null)
 
-    const lines = csvText
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
+    setCsvReport(null)
 
-    const parsed = lines
-      .map((line) => line.split(',').map((entry) => entry.trim()))
-      .filter((segments) => segments.length >= 4)
-      .map(([category, name, description, price]) => ({
-        category,
-        name,
-        description,
-        price: Number(price),
-      }))
-      .filter((row) => row.category && row.name && Number.isFinite(row.price) && row.price >= 0)
+    const { rows: parsedRows, errors: parseErrors } = parseCsvRows(csvText)
 
-    if (parsed.length === 0) {
+    if (parsedRows.length === 0) {
       setSaving(false)
-      setError('CSV must be in the format: category,name,description,price')
+      setError(parseErrors[0] || 'CSV must be in the format: category,name,description,price')
+      if (parseErrors.length > 1) {
+        setCsvReport(parseErrors.slice(0, 10).join('\n'))
+      }
       return
     }
 
-    const uniqueCategoryNames = Array.from(new Set(parsed.map((row) => row.category)))
+    const uniqueCategoryNames = Array.from(new Set(parsedRows.map((row) => row.category)))
 
     const { error: categoryUpsertError } = await supabase.from('menu_categories').upsert(
       uniqueCategoryNames.map((name, index) => ({
@@ -428,18 +535,52 @@ export function RestaurantSetupConsole() {
 
     const categoryMap = new Map(refreshedCategories.map((category) => [category.name, category.id]))
 
-    const { error: itemInsertError } = await supabase.from('menu_items').insert(
-      parsed
-        .map((row) => ({
-          restaurant_id: restaurantId,
-          category_id: categoryMap.get(row.category),
-          name: row.name,
-          description: row.description || null,
-          price: row.price,
-          available: true,
-        }))
-        .filter((row) => Boolean(row.category_id))
+    const { data: existingItems, error: existingItemsError } = await supabase
+      .from('menu_items')
+      .select('category_id, name')
+      .eq('restaurant_id', restaurantId)
+
+    if (existingItemsError) {
+      setSaving(false)
+      setError(existingItemsError.message)
+      return
+    }
+
+    const existingKeys = new Set(
+      ((existingItems as Array<{ category_id: string; name: string }>) || []).map(
+        (row) => `${row.category_id}::${row.name.toLowerCase()}`
+      )
     )
+
+    const rowsToInsert = parsedRows
+      .map((row) => ({
+        restaurant_id: restaurantId,
+        category_id: categoryMap.get(row.category),
+        name: row.name,
+        description: row.description || null,
+        price: row.price,
+        available: true,
+      }))
+      .filter((row) => Boolean(row.category_id))
+      .filter((row) => {
+        const key = `${row.category_id as string}::${row.name.toLowerCase()}`
+        if (existingKeys.has(key)) {
+          return false
+        }
+        existingKeys.add(key)
+        return true
+      })
+
+    if (rowsToInsert.length === 0) {
+      setSaving(false)
+      setNotice('No new menu items imported. All parsed rows already exist.')
+      if (parseErrors.length > 0) {
+        setCsvReport(parseErrors.slice(0, 10).join('\n'))
+      }
+      return
+    }
+
+    const { error: itemInsertError } = await supabase.from('menu_items').insert(rowsToInsert)
 
     setSaving(false)
 
@@ -449,7 +590,11 @@ export function RestaurantSetupConsole() {
     }
 
     setCsvText('')
-    setNotice(`Imported ${parsed.length} rows from CSV.`)
+    const skipped = parsedRows.length - rowsToInsert.length
+    setNotice(`Imported ${rowsToInsert.length} rows from CSV.${skipped > 0 ? ` Skipped ${skipped} duplicate row(s).` : ''}`)
+    if (parseErrors.length > 0) {
+      setCsvReport(parseErrors.slice(0, 10).join('\n'))
+    }
     await loadData()
   }
 
@@ -471,6 +616,23 @@ export function RestaurantSetupConsole() {
           Configure tables, generate QR links, and manage categories and menu items for
           {restaurantName ? ` ${restaurantName}` : ' your restaurant'}.
         </p>
+        {isPlatformAdmin && restaurantOptions.length > 0 ? (
+          <div className="field">
+            <label htmlFor="adminRestaurantSelector">Restaurant context (SUPER_ADMIN)</label>
+            <select
+              id="adminRestaurantSelector"
+              value={selectedRestaurantId}
+              onChange={(event) => void handleRestaurantSelection(event.target.value)}
+              disabled={saving}
+            >
+              {restaurantOptions.map((restaurant) => (
+                <option key={restaurant.id} value={restaurant.id}>
+                  {restaurant.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         {notice ? <div className="success">{notice}</div> : null}
         {error ? <div className="error-box">{error}</div> : null}
       </section>
@@ -506,6 +668,14 @@ export function RestaurantSetupConsole() {
                 </button>
                 <button className="button" type="button" disabled={saving} onClick={() => void handleDeleteTable(table)}>
                   Delete table
+                </button>
+                <button
+                  className="button"
+                  type="button"
+                  disabled={saving || qrDownloadingFor === table.id}
+                  onClick={() => void handleDownloadQr(table)}
+                >
+                  {qrDownloadingFor === table.id ? 'Preparing QR...' : 'Download QR (SVG)'}
                 </button>
               </div>
             </li>
@@ -645,6 +815,7 @@ export function RestaurantSetupConsole() {
             {saving ? 'Importing...' : 'Import CSV'}
           </button>
         </form>
+        {csvReport ? <pre className="muted" style={{ whiteSpace: 'pre-wrap' }}>{csvReport}</pre> : null}
       </section>
     </>
   )

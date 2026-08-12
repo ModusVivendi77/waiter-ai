@@ -144,11 +144,14 @@
 - [x] Menu item creation
 - [x] Menu item availability toggle and item deletion
 - [x] CSV text import for menu bootstrap (`category,name,description,price`)
+- [x] Downloadable QR SVG per table
+- [x] SUPER_ADMIN restaurant context selector for setup workspace
+- [x] CSV parser validation with duplicate detection and row-level error reporting
 
 **What still needs to happen:**
 1. Add edit/rename flows for tables, categories, and menu items
 2. Add downloadable/printable QR code rendering
-3. Add robust CSV parsing/validation and duplicate handling
+3. Add quoted-field CSV support and import preview before write
 4. Add E2E coverage for setup workflows
 
 ---
@@ -171,7 +174,8 @@
 ### Phase 7: Analytics & Admin (Week 7)
 - [ ] Restaurant analytics
 - [x] SUPER_ADMIN account foundation (schema + admin route guard)
-- [ ] Platform admin panel
+- [x] Platform admin assignment UI (grant/revoke SUPER_ADMIN)
+- [ ] Full platform admin panel (tenant analytics and controls)
 
 ---
 
@@ -197,10 +201,10 @@
 | 1. Foundation | 🟢 100% | Supabase and Vercel deployment complete |
 | 2. Database | 🟢 100% | Schema applied and seeded on the live Supabase project |
 | 3. Auth | 🟡 95% | Registration email hook added; reset-password end-to-end still pending inbox confirmation |
-| 4. Restaurant Setup | 🟡 50% | Setup workspace now supports create/toggle/delete flows plus CSV bootstrap |
+| 4. Restaurant Setup | 🟡 65% | Setup workspace now supports create/toggle/delete flows, QR SVG download, and validated CSV import |
 | 5. Customer Ordering | ⚪ 0% | Waiting on restaurant setup |
 | 6. Real-Time & Dashboard | ⚪ 0% | Waiting on ordering |
-| 7. Analytics & Admin | ⚪ 0% | Waiting on orders |
+| 7. Analytics & Admin | 🟡 20% | SUPER_ADMIN model and assignment management now live |
 | 8. Testing | ⚪ 0% | Throughout development |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
@@ -222,7 +226,7 @@
 #    https://waiter-ai-iota.vercel.app/platform
 
 # 3. Continue Phase 4 hardening
-#    Add rename/edit flows, QR rendering, and stronger CSV validation
+#    Add rename/edit flows, QR print layout, and quoted-CSV import preview
 ```
 
 ### After Supabase Setup Confirmed
@@ -270,5 +274,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** `ace015d`
-**Next commit:** Add Phase 4 setup polish (rename flows, QR rendering, CSV validation)
+**Last commit:** `1a9b59b`
+**Next commit:** Add Phase 4 setup polish (rename flows, QR print layout, import preview)
