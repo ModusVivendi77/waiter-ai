@@ -28,8 +28,8 @@ test.describe('platform setup workspace', () => {
     await page.getByRole('button', { name: 'Preview CSV' }).click()
 
     await expect(page.getByText('Preview ready for 2 CSV row(s).')).toBeVisible()
-    await expect(page.getByText('Tonic, Zero')).toBeVisible()
-    await expect(page.getByText('Sugar-free mixer, bottled')).toBeVisible()
-    await expect(page.getByText('EUR 4.50')).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'Tonic, Zero' })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'Sugar-free mixer, bottled' })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'EUR 4.50' })).toBeVisible()
   })
 })
