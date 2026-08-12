@@ -42,6 +42,17 @@ done
 
 echo ""
 
+supabase_url=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' .env.local | cut -d'=' -f2- | tr -d ' ')
+
+if [[ "$supabase_url" == *"/rest/v1"* ]] || [[ "$supabase_url" == *"/rest/v1/"* ]]; then
+    echo "❌ NEXT_PUBLIC_SUPABASE_URL must be the project base URL, not the REST endpoint"
+    echo ""
+    echo "Use this format instead:"
+    echo "   https://your-project-ref.supabase.co"
+    echo ""
+    exit 1
+fi
+
 if [ ${#missing_vars[@]} -gt 0 ]; then
     echo "⚠️  Missing or empty variables:"
     for var in "${missing_vars[@]}"; do
@@ -55,9 +66,9 @@ fi
 
 echo "✅ All environment variables configured!"
 echo ""
-echo "🚀 You're ready to proceed with Task 1.3 (Vercel Setup)"
+echo "🚀 Your environment is ready for live app verification and deployment setup"
 echo ""
 echo "Next steps:"
 echo "  1. npm run dev        (start dev server)"
-echo "  2. Check console for Supabase connection errors"
-echo "  3. Proceed to database migrations (Phase 2)"
+echo "  2. Test /platform/signup and /login against Supabase Auth"
+echo "  3. Proceed to Task 1.3 (Vercel Setup)"

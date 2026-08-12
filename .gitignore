@@ -9,6 +9,7 @@ yarn-error.log*
 out/
 dist/
 build/
+*.tsbuildinfo
 
 # Dependencies
 package-lock.json
