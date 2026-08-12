@@ -1,7 +1,7 @@
 # Waiter AI — Task Status Tracker
 
 **Last Updated:** August 12, 2026
-**Current Phase:** 3 — Authentication
+**Current Phase:** 4 — Restaurant Setup
 
 ---
 
@@ -170,6 +170,7 @@
 
 ### Phase 7: Analytics & Admin (Week 7)
 - [ ] Restaurant analytics
+- [x] SUPER_ADMIN account foundation (schema + admin route guard)
 - [ ] Platform admin panel
 
 ---

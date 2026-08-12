@@ -58,12 +58,29 @@ export async function getMemberships(userId: string): Promise<RestaurantMembersh
     })
 }
 
+export async function isPlatformAdmin(userId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('platform_admin_users')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (error) {
+    return false
+  }
+
+  return Boolean(data)
+}
+
 export async function getCurrentUserContext() {
   const user = await requireUser()
+  const platformAdmin = await isPlatformAdmin(user.id)
   const memberships = await getMemberships(user.id)
 
   return {
     user,
+    isPlatformAdmin: platformAdmin,
     memberships,
     primaryMembership: memberships[0] ?? null,
   }
@@ -71,6 +88,14 @@ export async function getCurrentUserContext() {
 
 export async function requireRole(allowedRoles: UserRole[]) {
   const context = await getCurrentUserContext()
+
+  if (context.isPlatformAdmin) {
+    return {
+      ...context,
+      membership: context.primaryMembership,
+    }
+  }
+
   const allowedMembership = context.memberships.find((membership) => allowedRoles.includes(membership.role))
 
   if (!allowedMembership) {
@@ -81,4 +106,14 @@ export async function requireRole(allowedRoles: UserRole[]) {
     ...context,
     membership: allowedMembership,
   }
+}
+
+export async function requirePlatformAdmin() {
+  const context = await getCurrentUserContext()
+
+  if (!context.isPlatformAdmin) {
+    redirect('/platform?error=insufficient-role')
+  }
+
+  return context
 }

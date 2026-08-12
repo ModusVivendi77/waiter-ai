@@ -9,6 +9,7 @@ import type { RestaurantMembership } from '@/lib/auth/types'
 export default function TeamPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
   const [membership, setMembership] = useState<RestaurantMembership | null>(null)
 
   useEffect(() => {
@@ -27,8 +28,9 @@ export default function TeamPage() {
       }
 
       const nextMembership = context.memberships.find((item) => item.role === 'OWNER') ?? null
+      setIsPlatformAdmin(context.isPlatformAdmin)
 
-      if (!nextMembership) {
+      if (!nextMembership && !context.isPlatformAdmin) {
         router.replace('/platform?error=insufficient-role')
         return
       }
@@ -44,7 +46,7 @@ export default function TeamPage() {
     }
   }, [router])
 
-  if (loading || !membership) {
+  if (loading) {
     return (
       <main className="page-shell">
         <div className="page-grid">
@@ -62,11 +64,11 @@ export default function TeamPage() {
       <div className="page-grid">
         <section className="panel stack">
           <span className="eyebrow">Team Access</span>
-          <h1 className="section-title">Owner-only access confirmed.</h1>
+          <h1 className="section-title">Owner or SUPER_ADMIN access confirmed.</h1>
           <p className="lead">
-            This route exists to prove the OWNER role gate before team management CRUD is added in a later phase.
+            This route exists to prove elevated access before team management CRUD is added in a later phase.
           </p>
-          <div className="badge">{membership.restaurantName}</div>
+          <div className="badge">{membership?.restaurantName ?? (isPlatformAdmin ? 'Platform administration context' : 'No restaurant selected')}</div>
         </section>
       </div>
     </main>

@@ -22,6 +22,7 @@ type RawMembership = {
 
 export type ClientUserContext = {
   user: User | null
+  isPlatformAdmin: boolean
   memberships: RestaurantMembership[]
   error: string | null
 }
@@ -36,10 +37,19 @@ export async function getClientUserContext(): Promise<ClientUserContext> {
   if (userError || !user) {
     return {
       user: null,
+      isPlatformAdmin: false,
       memberships: [],
       error: userError?.message ?? 'Auth session missing!',
     }
   }
+
+  const { data: adminRow, error: adminError } = await supabase
+    .from('platform_admin_users')
+    .select('user_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  const isPlatformAdmin = Boolean(adminRow) && !adminError
 
   const { data, error: membershipError } = await supabase
     .from('restaurant_users')
@@ -49,6 +59,7 @@ export async function getClientUserContext(): Promise<ClientUserContext> {
   if (membershipError || !data) {
     return {
       user,
+      isPlatformAdmin,
       memberships: [],
       error: membershipError?.message ?? null,
     }
@@ -71,6 +82,7 @@ export async function getClientUserContext(): Promise<ClientUserContext> {
 
   return {
     user,
+    isPlatformAdmin,
     memberships,
     error: null,
   }

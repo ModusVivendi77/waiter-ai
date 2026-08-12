@@ -9,6 +9,7 @@ import type { RestaurantMembership } from '@/lib/auth/types'
 export default function SettingsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
   const [membership, setMembership] = useState<RestaurantMembership | null>(null)
 
   useEffect(() => {
@@ -27,8 +28,9 @@ export default function SettingsPage() {
       }
 
       const nextMembership = context.memberships.find((item) => ['OWNER', 'MANAGER'].includes(item.role)) ?? null
+      setIsPlatformAdmin(context.isPlatformAdmin)
 
-      if (!nextMembership) {
+      if (!nextMembership && !context.isPlatformAdmin) {
         router.replace('/platform?error=insufficient-role')
         return
       }
@@ -44,7 +46,7 @@ export default function SettingsPage() {
     }
   }, [router])
 
-  if (loading || !membership) {
+  if (loading) {
     return (
       <main className="page-shell">
         <div className="page-grid">
@@ -62,9 +64,11 @@ export default function SettingsPage() {
       <div className="page-grid">
         <section className="panel stack">
           <span className="eyebrow">Settings</span>
-          <h1 className="section-title">Configuration access for {membership.restaurantName}.</h1>
+          <h1 className="section-title">
+            Configuration access for {membership?.restaurantName ?? (isPlatformAdmin ? 'platform administration context' : 'your restaurant')}.
+          </h1>
           <p className="lead">
-            Managers and owners can access restaurant configuration surfaces. Staff are intentionally blocked here.
+            Managers and owners can access restaurant configuration surfaces. SUPER_ADMIN accounts can access this route for operational support.
           </p>
         </section>
       </div>

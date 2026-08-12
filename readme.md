@@ -373,12 +373,19 @@ MANAGER
 STAFF
 ```
 
+Platform super role:
+
+```text
+SUPER_ADMIN
+```
+
 Constraints:
 
 ```text
 OWNER   → full access
 MANAGER → operational + menu/table access
 STAFF   → orders only
+SUPER_ADMIN → platform-wide administration across restaurants
 ```
 
 ---

@@ -42,6 +42,7 @@ Platform owners    →  Recurring revenue through subscription model
 - ✅ Accept/reject/update order status
 - ✅ View order history and analytics
 - ✅ Manage staff roles (OWNER, MANAGER, STAFF)
+- ✅ Platform administration via SUPER_ADMIN accounts
 
 #### Platform
 - ✅ Role-based access control (RBAC)
@@ -249,6 +250,10 @@ Customer sees each status change (real-time)
 - Links users to restaurants
 - Roles: OWNER, MANAGER, STAFF
 
+#### `platform_admin_users`
+- Maps auth users to SUPER_ADMIN access
+- Grants service-level visibility and operational controls across tenants
+
 #### `restaurant_tables`
 - Table name and unique QR token
 - Active/inactive status
@@ -294,6 +299,7 @@ Customer sees each status change (real-time)
 ### Authentication
 - **Customers:** No auth required (anonymous access via QR token)
 - **Restaurant staff:** Email/password via Supabase Auth
+- **Platform admins:** Email/password via Supabase Auth + SUPER_ADMIN assignment
 - **Sessions:** Managed by Supabase
 
 ### Authorization (RLS)

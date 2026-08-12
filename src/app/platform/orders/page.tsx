@@ -9,6 +9,7 @@ import type { RestaurantMembership } from '@/lib/auth/types'
 export default function OrdersPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
   const [membership, setMembership] = useState<RestaurantMembership | null>(null)
 
   useEffect(() => {
@@ -27,8 +28,9 @@ export default function OrdersPage() {
       }
 
       const nextMembership = context.memberships.find((item) => ['OWNER', 'MANAGER', 'STAFF'].includes(item.role)) ?? null
+      setIsPlatformAdmin(context.isPlatformAdmin)
 
-      if (!nextMembership) {
+      if (!nextMembership && !context.isPlatformAdmin) {
         router.replace('/platform?error=insufficient-role')
         return
       }
@@ -44,7 +46,7 @@ export default function OrdersPage() {
     }
   }, [router])
 
-  if (loading || !membership) {
+  if (loading) {
     return (
       <main className="page-shell">
         <div className="page-grid">
@@ -62,16 +64,18 @@ export default function OrdersPage() {
       <div className="page-grid">
         <section className="panel stack">
           <span className="eyebrow">Orders Dashboard</span>
-          <h1 className="section-title">Live operational surface for {membership.restaurantName}.</h1>
+          <h1 className="section-title">
+            Live operational surface for {membership?.restaurantName ?? (isPlatformAdmin ? 'all restaurants (admin mode)' : 'your restaurant')}.
+          </h1>
           <p className="lead">
-            The route is protected for any staff role. The realtime order feed lands in the next phase.
+            The route is protected for staff roles and SUPER_ADMIN accounts. The realtime order feed lands in the next phase.
           </p>
         </section>
 
         <section className="panel">
           <ul className="list">
-            <li>Role granted: {membership.role}</li>
-            <li>Restaurant: {membership.restaurantName}</li>
+            <li>Role granted: {membership?.role ?? (isPlatformAdmin ? 'SUPER_ADMIN' : 'UNKNOWN')}</li>
+            <li>Restaurant: {membership?.restaurantName ?? 'Not pinned (platform-wide account)'}</li>
             <li>Next implementation target: realtime order subscriptions and status transitions.</li>
           </ul>
         </section>

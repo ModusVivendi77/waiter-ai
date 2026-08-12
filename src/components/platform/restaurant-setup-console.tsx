@@ -74,10 +74,15 @@ export function RestaurantSetupConsole() {
       return
     }
 
-    const membership = context.memberships.find((entry) => entry.role === 'OWNER' || entry.role === 'MANAGER')
+    const membership =
+      context.memberships.find((entry) => entry.role === 'OWNER' || entry.role === 'MANAGER') ?? context.memberships[0]
 
     if (!membership) {
-      setError('You need OWNER or MANAGER access to edit restaurant setup.')
+      setError(
+        context.isPlatformAdmin
+          ? 'SUPER_ADMIN account detected but no restaurant membership is linked. Add at least one restaurant membership to use setup tools.'
+          : 'You need OWNER or MANAGER access to edit restaurant setup.'
+      )
       setLoading(false)
       return
     }

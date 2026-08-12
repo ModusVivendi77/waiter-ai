@@ -74,6 +74,35 @@ Before deploying migrations, enable RLS on your Supabase project:
 
 ---
 
+## Step 6: Assign the Initial SUPER_ADMIN Account
+
+After running migrations, assign at least one platform super admin:
+
+1. Go to Supabase Dashboard → SQL Editor
+2. Run the statement below with the email you use for platform operations:
+
+```sql
+insert into public.platform_admin_users (user_id)
+select id
+from auth.users
+where email = 'your-admin-email@example.com'
+on conflict (user_id) do nothing;
+```
+
+3. Confirm assignment:
+
+```sql
+select pau.user_id, u.email, pau.created_at
+from public.platform_admin_users pau
+join auth.users u on u.id = pau.user_id;
+```
+
+Notes:
+- SUPER_ADMIN is a platform-level role and is separate from restaurant OWNER/MANAGER/STAFF roles.
+- A SUPER_ADMIN can still be added to restaurant memberships when restaurant-scoped workflows are needed.
+
+---
+
 ## Next Steps After Supabase Setup
 
 Once you have the credentials and `.env.local` is updated:

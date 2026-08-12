@@ -12,6 +12,7 @@ export default function PlatformHomePage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [email, setEmail] = useState<string | null>(null)
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
   const [memberships, setMemberships] = useState<RestaurantMembership[]>([])
   const [error, setError] = useState<string | null>(null)
 
@@ -31,6 +32,7 @@ export default function PlatformHomePage() {
       }
 
       setEmail(context.user.email ?? null)
+      setIsPlatformAdmin(context.isPlatformAdmin)
       setMemberships(context.memberships)
       setError(context.error)
       setLoading(false)
@@ -73,7 +75,9 @@ export default function PlatformHomePage() {
           <p className="lead">
             {primaryMembership
               ? `Primary restaurant: ${primaryMembership.restaurantName}.`
-              : 'No restaurant membership is linked to this user yet.'}
+              : isPlatformAdmin
+                ? 'Platform admin account detected. You can access service-level administration.'
+                : 'No restaurant membership is linked to this user yet.'}
           </p>
 
           {error ? <div className="error-box">{error}</div> : null}
@@ -91,6 +95,11 @@ export default function PlatformHomePage() {
             <Link className="button-secondary" href="/platform/team">
               Team access
             </Link>
+            {isPlatformAdmin ? (
+              <Link className="button-secondary" href="/admin">
+                Admin console
+              </Link>
+            ) : null}
           </div>
         </section>
 
@@ -105,6 +114,12 @@ export default function PlatformHomePage() {
                   <p className="muted">Slug: {membership.restaurantSlug}</p>
                 </article>
               ))
+            ) : isPlatformAdmin ? (
+              <article className="metric">
+                <span className="badge">SUPER_ADMIN</span>
+                <strong>Platform-level access enabled</strong>
+                <p className="muted">Assign restaurant memberships only when you need scoped operational views.</p>
+              </article>
             ) : (
               <article className="metric">
                 <strong>No memberships found</strong>

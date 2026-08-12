@@ -482,6 +482,7 @@ export type OrderItem = {
 }
 
 export type UserRole = 'OWNER' | 'MANAGER' | 'STAFF'
+export type PlatformRole = 'SUPER_ADMIN'
 ```
 
 **Expected outcome:** Type definitions for all major entities

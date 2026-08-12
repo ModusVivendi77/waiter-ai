@@ -144,6 +144,7 @@ waiter-ai/
 - ✅ Order status workflow (NEW → ACCEPTED → PREPARING → READY → SERVED)
 - ✅ Order history & basic analytics
 - ✅ Staff role management (OWNER, MANAGER, STAFF)
+- ✅ Platform super-admin layer (SUPER_ADMIN) for service operations
 
 ### Platform
 - ✅ Row-level security (RLS) on all data
@@ -217,7 +218,8 @@ Intentionally excluded from MVP (but designed for future addition):
 
 - **Customers:** Public QR access (no auth)
 - **Staff:** Email/password via Supabase Auth
-- **Roles:** OWNER (full access), MANAGER (operational), STAFF (orders only)
+- **Restaurant Roles:** OWNER (full access), MANAGER (operational), STAFF (orders only)
+- **Platform Role:** SUPER_ADMIN (service-level administration across tenants)
 - **Data Access:** Enforced by RLS policies at database level
 
 ---
