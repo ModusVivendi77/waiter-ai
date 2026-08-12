@@ -138,12 +138,15 @@
 **What's ready:**
 - [x] Owner/manager-only setup workspace at `/platform/setup`
 - [x] Table creation with generated QR tokens and shareable table URLs
+- [x] Table activation/deactivation and table deletion
 - [x] Menu category creation
+- [x] Guarded category deletion (blocked when linked items exist)
 - [x] Menu item creation
+- [x] Menu item availability toggle and item deletion
 - [x] CSV text import for menu bootstrap (`category,name,description,price`)
 
 **What still needs to happen:**
-1. Add edit/delete flows for tables, categories, and menu items
+1. Add edit/rename flows for tables, categories, and menu items
 2. Add downloadable/printable QR code rendering
 3. Add robust CSV parsing/validation and duplicate handling
 4. Add E2E coverage for setup workflows
@@ -193,7 +196,7 @@
 | 1. Foundation | 🟢 100% | Supabase and Vercel deployment complete |
 | 2. Database | 🟢 100% | Schema applied and seeded on the live Supabase project |
 | 3. Auth | 🟡 95% | Registration email hook added; reset-password end-to-end still pending inbox confirmation |
-| 4. Restaurant Setup | 🟡 35% | Setup workspace and core create/import flows scaffolded |
+| 4. Restaurant Setup | 🟡 50% | Setup workspace now supports create/toggle/delete flows plus CSV bootstrap |
 | 5. Customer Ordering | ⚪ 0% | Waiting on restaurant setup |
 | 6. Real-Time & Dashboard | ⚪ 0% | Waiting on ordering |
 | 7. Analytics & Admin | ⚪ 0% | Waiting on orders |
@@ -218,7 +221,7 @@
 #    https://waiter-ai-iota.vercel.app/platform
 
 # 3. Continue Phase 4 hardening
-#    Add edit/delete flows, QR rendering, and stronger CSV validation
+#    Add rename/edit flows, QR rendering, and stronger CSV validation
 ```
 
 ### After Supabase Setup Confirmed
@@ -266,5 +269,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** `48a1b38`
-**Next commit:** Add Phase 4 setup hardening (edit/delete, QR rendering, CSV validation)
+**Last commit:** `ace015d`
+**Next commit:** Add Phase 4 setup polish (rename flows, QR rendering, CSV validation)

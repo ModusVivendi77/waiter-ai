@@ -23,6 +23,7 @@ type MenuItem = {
   name: string
   price: number
   available: boolean
+  category_id: string
   menu_categories?:
     | {
         name: string
@@ -98,7 +99,7 @@ export function RestaurantSetupConsole() {
           .order('sort_order'),
         supabase
           .from('menu_items')
-          .select('id, name, price, available, menu_categories(name)')
+          .select('id, name, price, available, category_id, menu_categories(name)')
           .eq('restaurant_id', membership.restaurantId)
           .order('created_at', { ascending: false })
           .limit(50),
@@ -154,6 +155,58 @@ export function RestaurantSetupConsole() {
     await loadData()
   }
 
+  async function handleToggleTableActive(table: RestaurantTable) {
+    if (!restaurantId) {
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('restaurant_tables')
+      .update({ active: !table.active })
+      .eq('id', table.id)
+      .eq('restaurant_id', restaurantId)
+
+    setSaving(false)
+
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+
+    setNotice(`Table ${table.name} is now ${table.active ? 'inactive' : 'active'}.`)
+    await loadData()
+  }
+
+  async function handleDeleteTable(table: RestaurantTable) {
+    if (!restaurantId) {
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: deleteError } = await supabase
+      .from('restaurant_tables')
+      .delete()
+      .eq('id', table.id)
+      .eq('restaurant_id', restaurantId)
+
+    setSaving(false)
+
+    if (deleteError) {
+      setError(deleteError.message)
+      return
+    }
+
+    setNotice(`Table ${table.name} deleted.`)
+    await loadData()
+  }
+
   async function handleAddCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!restaurantId || !categoryName.trim()) {
@@ -181,6 +234,38 @@ export function RestaurantSetupConsole() {
 
     setCategoryName('')
     setNotice('Category created.')
+    await loadData()
+  }
+
+  async function handleDeleteCategory(category: Category) {
+    if (!restaurantId) {
+      return
+    }
+
+    const hasLinkedItems = items.some((item) => item.category_id === category.id)
+    if (hasLinkedItems) {
+      setError('Cannot delete this category while menu items still reference it.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: deleteError } = await supabase
+      .from('menu_categories')
+      .delete()
+      .eq('id', category.id)
+      .eq('restaurant_id', restaurantId)
+
+    setSaving(false)
+
+    if (deleteError) {
+      setError(deleteError.message)
+      return
+    }
+
+    setNotice(`Category ${category.name} deleted.`)
     await loadData()
   }
 
@@ -220,6 +305,58 @@ export function RestaurantSetupConsole() {
     setItemDescription('')
     setItemPrice('')
     setNotice('Menu item created.')
+    await loadData()
+  }
+
+  async function handleToggleMenuItemAvailability(item: MenuItem) {
+    if (!restaurantId) {
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('menu_items')
+      .update({ available: !item.available })
+      .eq('id', item.id)
+      .eq('restaurant_id', restaurantId)
+
+    setSaving(false)
+
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+
+    setNotice(`${item.name} is now ${item.available ? 'unavailable' : 'available'}.`)
+    await loadData()
+  }
+
+  async function handleDeleteMenuItem(item: MenuItem) {
+    if (!restaurantId) {
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: deleteError } = await supabase
+      .from('menu_items')
+      .delete()
+      .eq('id', item.id)
+      .eq('restaurant_id', restaurantId)
+
+    setSaving(false)
+
+    if (deleteError) {
+      setError(deleteError.message)
+      return
+    }
+
+    setNotice(`Menu item ${item.name} deleted.`)
     await loadData()
   }
 
@@ -355,8 +492,17 @@ export function RestaurantSetupConsole() {
           {tables.map((table) => (
             <li key={table.id}>
               <strong>{table.name}</strong>
+              <p className="muted">Status: {table.active ? 'Active' : 'Inactive'}</p>
               <p className="muted">Token: {table.qr_token}</p>
               <p className="muted">QR URL: {`${appUrl}/t/${table.qr_token}`}</p>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button className="button" type="button" disabled={saving} onClick={() => void handleToggleTableActive(table)}>
+                  {table.active ? 'Deactivate' : 'Activate'}
+                </button>
+                <button className="button" type="button" disabled={saving} onClick={() => void handleDeleteTable(table)}>
+                  Delete table
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -382,7 +528,14 @@ export function RestaurantSetupConsole() {
 
         <ul className="list">
           {categories.map((category) => (
-            <li key={category.id}>{category.name}</li>
+            <li key={category.id}>
+              <strong>{category.name}</strong>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button className="button" type="button" disabled={saving} onClick={() => void handleDeleteCategory(category)}>
+                  Delete category
+                </button>
+              </div>
+            </li>
           ))}
         </ul>
       </section>
@@ -455,6 +608,15 @@ export function RestaurantSetupConsole() {
               <strong>{item.name}</strong>
               <p className="muted">Category: {getCategoryName(item)}</p>
               <p className="muted">Price: EUR {Number(item.price).toFixed(2)}</p>
+              <p className="muted">Status: {item.available ? 'Available' : 'Unavailable'}</p>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button className="button" type="button" disabled={saving} onClick={() => void handleToggleMenuItemAvailability(item)}>
+                  {item.available ? 'Mark unavailable' : 'Mark available'}
+                </button>
+                <button className="button" type="button" disabled={saving} onClick={() => void handleDeleteMenuItem(item)}>
+                  Delete item
+                </button>
+              </div>
             </li>
           ))}
         </ul>
