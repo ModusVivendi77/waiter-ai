@@ -24,6 +24,13 @@ type RestaurantOption = {
   name: string
 }
 
+type CsvPreviewRow = {
+  category: string
+  name: string
+  description: string
+  price: number
+}
+
 type MenuItem = {
   id: string
   name: string
@@ -44,6 +51,38 @@ type MenuItem = {
 function createQrToken() {
   const random = crypto.getRandomValues(new Uint8Array(8))
   return Array.from(random, (value) => value.toString(36)).join('').slice(0, 10)
+}
+
+function parseCsvLine(line: string) {
+  const result: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index]
+    const nextCharacter = line[index + 1]
+
+    if (character === '"') {
+      if (inQuotes && nextCharacter === '"') {
+        current += '"'
+        index += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+
+    if (character === ',' && !inQuotes) {
+      result.push(current.trim())
+      current = ''
+      continue
+    }
+
+    current += character
+  }
+
+  result.push(current.trim())
+  return result
 }
 
 function getCategoryName(item: MenuItem) {
@@ -73,7 +112,10 @@ export function RestaurantSetupConsole() {
   const [itemCategoryId, setItemCategoryId] = useState('')
   const [csvText, setCsvText] = useState('')
   const [csvReport, setCsvReport] = useState<string | null>(null)
+  const [csvPreviewRows, setCsvPreviewRows] = useState<CsvPreviewRow[]>([])
+  const [csvPreviewSource, setCsvPreviewSource] = useState('')
   const [qrDownloadingFor, setQrDownloadingFor] = useState<string | null>(null)
+  const [qrSvgMap, setQrSvgMap] = useState<Record<string, string>>({})
   const [editingTableId, setEditingTableId] = useState<string | null>(null)
   const [editingTableName, setEditingTableName] = useState('')
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
@@ -180,6 +222,35 @@ export function RestaurantSetupConsole() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadQrMarkup() {
+      if (tables.length === 0) {
+        setQrSvgMap({})
+        return
+      }
+
+      const entries = await Promise.all(
+        tables.map(async (table) => {
+          const qrUrl = `${appUrl}/t/${table.qr_token}`
+          const svg = await QRCode.toString(qrUrl, { type: 'svg', margin: 1, width: 256 })
+          return [table.id, svg] as const
+        })
+      )
+
+      if (!cancelled) {
+        setQrSvgMap(Object.fromEntries(entries))
+      }
+    }
+
+    void loadQrMarkup()
+
+    return () => {
+      cancelled = true
+    }
+  }, [appUrl, tables])
+
   async function handleRestaurantSelection(nextRestaurantId: string) {
     setSelectedRestaurantId(nextRestaurantId)
     await loadData(nextRestaurantId)
@@ -191,8 +262,7 @@ export function RestaurantSetupConsole() {
     setNotice(null)
 
     try {
-      const qrUrl = `${appUrl}/t/${table.qr_token}`
-      const svg = await QRCode.toString(qrUrl, { type: 'svg', margin: 1, width: 512 })
+      const svg = qrSvgMap[table.id] || (await QRCode.toString(`${appUrl}/t/${table.qr_token}`, { type: 'svg', margin: 1, width: 512 }))
       const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
       const objectUrl = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
@@ -208,9 +278,13 @@ export function RestaurantSetupConsole() {
     }
   }
 
+  function handlePrintQrSheet() {
+    window.print()
+  }
+
   function parseCsvRows(rawText: string) {
     const seenKeys = new Set<string>()
-    const rows: Array<{ category: string; name: string; description: string; price: number }> = []
+    const rows: CsvPreviewRow[] = []
     const errors: string[] = []
 
     rawText
@@ -219,7 +293,7 @@ export function RestaurantSetupConsole() {
       .filter(Boolean)
       .forEach((line, index) => {
         const lineNumber = index + 1
-        const parts = line.split(',').map((value) => value.trim())
+        const parts = parseCsvLine(line)
 
         if (parts.length < 4) {
           errors.push(`Line ${lineNumber}: expected at least 4 comma-separated values.`)
@@ -253,6 +327,23 @@ export function RestaurantSetupConsole() {
       })
 
     return { rows, errors }
+  }
+
+  function handlePreviewCsv() {
+    setError(null)
+    setNotice(null)
+
+    const { rows, errors } = parseCsvRows(csvText)
+    setCsvPreviewRows(rows)
+    setCsvPreviewSource(csvText)
+    setCsvReport(errors.length > 0 ? errors.slice(0, 10).join('\n') : null)
+
+    if (rows.length === 0) {
+      setError(errors[0] || 'CSV must be in the format: category,name,description,price')
+      return
+    }
+
+    setNotice(`Preview ready for ${rows.length} CSV row(s).`)
   }
 
   async function handleAddTable(event: FormEvent<HTMLFormElement>) {
@@ -595,22 +686,16 @@ export function RestaurantSetupConsole() {
       return
     }
 
+    if (csvPreviewSource !== csvText || csvPreviewRows.length === 0) {
+      setError('Preview the CSV before importing.')
+      return
+    }
+
     setSaving(true)
     setError(null)
     setNotice(null)
 
-    setCsvReport(null)
-
-    const { rows: parsedRows, errors: parseErrors } = parseCsvRows(csvText)
-
-    if (parsedRows.length === 0) {
-      setSaving(false)
-      setError(parseErrors[0] || 'CSV must be in the format: category,name,description,price')
-      if (parseErrors.length > 1) {
-        setCsvReport(parseErrors.slice(0, 10).join('\n'))
-      }
-      return
-    }
+    const parsedRows = csvPreviewRows
 
     const uniqueCategoryNames = Array.from(new Set(parsedRows.map((row) => row.category)))
 
@@ -682,9 +767,6 @@ export function RestaurantSetupConsole() {
     if (rowsToInsert.length === 0) {
       setSaving(false)
       setNotice('No new menu items imported. All parsed rows already exist.')
-      if (parseErrors.length > 0) {
-        setCsvReport(parseErrors.slice(0, 10).join('\n'))
-      }
       return
     }
 
@@ -698,11 +780,11 @@ export function RestaurantSetupConsole() {
     }
 
     setCsvText('')
+    setCsvPreviewRows([])
+    setCsvPreviewSource('')
     const skipped = parsedRows.length - rowsToInsert.length
     setNotice(`Imported ${rowsToInsert.length} rows from CSV.${skipped > 0 ? ` Skipped ${skipped} duplicate row(s).` : ''}`)
-    if (parseErrors.length > 0) {
-      setCsvReport(parseErrors.slice(0, 10).join('\n'))
-    }
+    setCsvReport(null)
     await loadData()
   }
 
@@ -831,6 +913,27 @@ export function RestaurantSetupConsole() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="panel stack">
+        <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+          <div>
+            <span className="eyebrow">QR Sheet</span>
+            <h2 className="section-title">Printable multi-table QR layout</h2>
+          </div>
+          <button className="button" type="button" onClick={handlePrintQrSheet} disabled={tables.length === 0}>
+            Print QR sheet
+          </button>
+        </div>
+        <div className="qr-sheet">
+          {tables.map((table) => (
+            <article className="qr-card" key={`sheet-${table.id}`}>
+              <strong>{table.name}</strong>
+              <div className="qr-svg" dangerouslySetInnerHTML={{ __html: qrSvgMap[table.id] || '' }} />
+              <p className="muted">{`${appUrl}/t/${table.qr_token}`}</p>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="panel stack">
@@ -1077,22 +1180,57 @@ export function RestaurantSetupConsole() {
 
       <section className="panel stack">
         <span className="eyebrow">CSV Import</span>
-        <p className="helper-text">Paste CSV lines in this format: category,name,description,price</p>
+        <p className="helper-text">Paste CSV lines in this format: category,name,description,price. Quoted fields are supported.</p>
         <form className="stack" onSubmit={handleCsvImport}>
           <div className="field">
             <label htmlFor="csvText">CSV rows</label>
             <textarea
               id="csvText"
               value={csvText}
-              onChange={(event) => setCsvText(event.target.value)}
-              placeholder={'Food,Burger,Beef burger with fries,12.00\nDrinks,Mythos,Greek lager,4.00'}
+              onChange={(event) => {
+                setCsvText(event.target.value)
+                setCsvPreviewRows([])
+                setCsvPreviewSource('')
+                setCsvReport(null)
+              }}
+              placeholder={'Food,Burger,Beef burger with fries,12.00\nDrinks,"Tonic, Zero","Sugar-free mixer, bottled",4.00'}
               required
             />
           </div>
-          <button className="button" type="submit" disabled={saving}>
-            {saving ? 'Importing...' : 'Import CSV'}
-          </button>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button className="button-secondary" type="button" disabled={saving || !csvText.trim()} onClick={handlePreviewCsv}>
+              Preview CSV
+            </button>
+            <button className="button" type="submit" disabled={saving || csvPreviewSource !== csvText || csvPreviewRows.length === 0}>
+              {saving ? 'Importing...' : 'Import preview'}
+            </button>
+          </div>
         </form>
+        {csvPreviewRows.length > 0 ? (
+          <div className="stack">
+            <span className="eyebrow">Preview</span>
+            <table className="preview-table">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Name</th>
+                  <th>Description</th>
+                  <th>Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                {csvPreviewRows.map((row, index) => (
+                  <tr key={`${row.category}-${row.name}-${index}`}>
+                    <td>{row.category}</td>
+                    <td>{row.name}</td>
+                    <td>{row.description || 'No description'}</td>
+                    <td>EUR {row.price.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
         {csvReport ? <pre className="muted" style={{ whiteSpace: 'pre-wrap' }}>{csvReport}</pre> : null}
       </section>
     </>

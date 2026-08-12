@@ -148,13 +148,17 @@
 - [x] Menu item availability toggle and item deletion
 - [x] CSV text import for menu bootstrap (`category,name,description,price`)
 - [x] Downloadable QR SVG per table
+- [x] Printable multi-table QR sheet layout
 - [x] SUPER_ADMIN restaurant context selector for setup workspace
 - [x] CSV parser validation with duplicate detection and row-level error reporting
+- [x] Quoted-field CSV preview before import write
+- [x] Initial setup E2E coverage scaffolded with Playwright
+- [x] Shared top navigation bar added across the app
 
 **What still needs to happen:**
-1. Add printable QR sheet layout (multi-table)
-3. Add quoted-field CSV support and import preview before write
-4. Add E2E coverage for setup workflows
+1. Add broader setup E2E scenarios for rename/delete/import success paths
+2. Add QR PDF/export batching if printable assets need exact page sizing
+3. Decide whether to graduate Phase 4 from scaffold/hardening into full production verification
 
 ---
 
@@ -184,7 +188,7 @@
 ### Phase 8: Testing & Hardening (Week 8)
 - [ ] Unit tests
 - [ ] Integration tests
-- [ ] E2E tests
+- [x] Initial E2E tests/config added
 - [ ] Security review
 
 ---
@@ -203,7 +207,7 @@
 | 1. Foundation | 🟢 100% | Supabase and Vercel deployment complete |
 | 2. Database | 🟢 100% | Schema applied and seeded on the live Supabase project |
 | 3. Auth | 🟡 95% | Registration email hook added; reset-password end-to-end still pending inbox confirmation |
-| 4. Restaurant Setup | 🟡 75% | Setup workspace now supports create/edit/toggle/delete flows, QR SVG download, and validated CSV import |
+| 4. Restaurant Setup | 🟡 90% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, and preview-first CSV import |
 | 5. Customer Ordering | ⚪ 0% | Waiting on restaurant setup |
 | 6. Real-Time & Dashboard | ⚪ 0% | Waiting on ordering |
 | 7. Analytics & Admin | 🟡 20% | SUPER_ADMIN model and assignment management now live |
@@ -227,8 +231,8 @@
 #    https://waiter-ai-iota.vercel.app/platform/signup
 #    https://waiter-ai-iota.vercel.app/platform
 
-# 3. Continue Phase 4 hardening
-#    Add QR print sheet layout, quoted-CSV import preview, and E2E coverage
+# 3. Validate the new Phase 4 flows in browser
+#    QR print sheet, CSV preview/import, and edit/rename behavior
 ```
 
 ### After Supabase Setup Confirmed
@@ -276,5 +280,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** `d57d0c3`
-**Next commit:** Add Phase 4 setup polish (QR print layout, import preview, E2E)
+**Last commit:** `f95bc5d`
+**Next commit:** Begin Phase 5 customer ordering surfaces or expand setup E2E coverage
