@@ -369,6 +369,32 @@ select {
   max-width: 190px;
 }
 
+.order-layout {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
+  align-items: start;
+}
+
+.cart-line-header,
+.cart-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.cart-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cart-stepper span {
+  min-width: 24px;
+  text-align: center;
+}
+
 .preview-table {
   width: 100%;
   border-collapse: collapse;
@@ -400,6 +426,10 @@ select {
 }
 
 @media (max-width: 720px) {
+  .order-layout {
+    grid-template-columns: 1fr;
+  }
+
   .global-nav {
     align-items: flex-start;
     border-radius: 28px;

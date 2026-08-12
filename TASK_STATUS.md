@@ -163,10 +163,10 @@
 ---
 
 ### Phase 5: Customer Ordering (Week 5)
-- [ ] QR landing page
-- [ ] Menu browser
-- [ ] Shopping cart
-- [ ] Order submission
+- [x] QR landing page (`/t/[token]`)
+- [x] Menu browser
+- [x] Shopping cart
+- [x] Order submission API (`/api/orders`)
 
 ---
 
@@ -189,6 +189,7 @@
 - [ ] Unit tests
 - [ ] Integration tests
 - [x] Initial E2E tests/config added
+- [x] Expanded E2E coverage for setup rename/delete/import and public QR menu flow
 - [ ] Security review
 
 ---
@@ -207,8 +208,8 @@
 | 1. Foundation | 🟢 100% | Supabase and Vercel deployment complete |
 | 2. Database | 🟢 100% | Schema applied and seeded on the live Supabase project |
 | 3. Auth | 🟡 95% | Registration email hook added; reset-password end-to-end still pending inbox confirmation |
-| 4. Restaurant Setup | 🟡 90% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, and preview-first CSV import |
-| 5. Customer Ordering | ⚪ 0% | Waiting on restaurant setup |
+| 4. Restaurant Setup | 🟡 95% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, and E2E coverage |
+| 5. Customer Ordering | 🟡 40% | Public QR table route, menu browser, cart, and order submission are now live |
 | 6. Real-Time & Dashboard | ⚪ 0% | Waiting on ordering |
 | 7. Analytics & Admin | 🟡 20% | SUPER_ADMIN model and assignment management now live |
 | 8. Testing | ⚪ 0% | Throughout development |
@@ -230,9 +231,10 @@
 #    https://waiter-ai-iota.vercel.app/login
 #    https://waiter-ai-iota.vercel.app/platform/signup
 #    https://waiter-ai-iota.vercel.app/platform
+#    https://waiter-ai-iota.vercel.app/t/X7k91Lm
 
-# 3. Validate the new Phase 4 flows in browser
-#    QR print sheet, CSV preview/import, and edit/rename behavior
+# 3. Continue Phase 5 customer flow
+#    Order confirmation/status surface and customer order history token
 ```
 
 ### After Supabase Setup Confirmed
@@ -280,5 +282,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** `f95bc5d`
-**Next commit:** Begin Phase 5 customer ordering surfaces or expand setup E2E coverage
+**Last commit:** `d66605a`
+**Next commit:** Continue Phase 5 ordering confirmation/status experience
