@@ -1,0 +1,484 @@
+'use client'
+
+import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+import { getClientUserContext } from '@/lib/auth/client'
+import { createClient } from '@/lib/supabase/client'
+
+type RestaurantTable = {
+  id: string
+  name: string
+  qr_token: string
+  active: boolean
+}
+
+type Category = {
+  id: string
+  name: string
+}
+
+type MenuItem = {
+  id: string
+  name: string
+  price: number
+  available: boolean
+  menu_categories?:
+    | {
+        name: string
+      }
+    | Array<{
+        name: string
+      }>
+    | null
+}
+
+function createQrToken() {
+  const random = crypto.getRandomValues(new Uint8Array(8))
+  return Array.from(random, (value) => value.toString(36)).join('').slice(0, 10)
+}
+
+function getCategoryName(item: MenuItem) {
+  const category = Array.isArray(item.menu_categories) ? item.menu_categories[0] : item.menu_categories
+  return category?.name || 'Uncategorized'
+}
+
+export function RestaurantSetupConsole() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [restaurantId, setRestaurantId] = useState<string | null>(null)
+  const [restaurantName, setRestaurantName] = useState<string | null>(null)
+  const [tables, setTables] = useState<RestaurantTable[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [items, setItems] = useState<MenuItem[]>([])
+  const [notice, setNotice] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [tableName, setTableName] = useState('')
+  const [categoryName, setCategoryName] = useState('')
+  const [itemName, setItemName] = useState('')
+  const [itemDescription, setItemDescription] = useState('')
+  const [itemPrice, setItemPrice] = useState('')
+  const [itemCategoryId, setItemCategoryId] = useState('')
+  const [csvText, setCsvText] = useState('')
+
+  const supabase = useMemo(() => createClient(), [])
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
+  async function loadData() {
+    const context = await getClientUserContext()
+
+    if (!context.user) {
+      router.replace('/login?next=/platform/setup')
+      return
+    }
+
+    const membership = context.memberships.find((entry) => entry.role === 'OWNER' || entry.role === 'MANAGER')
+
+    if (!membership) {
+      setError('You need OWNER or MANAGER access to edit restaurant setup.')
+      setLoading(false)
+      return
+    }
+
+    setRestaurantId(membership.restaurantId)
+    setRestaurantName(membership.restaurantName)
+
+    const [{ data: tableRows, error: tableError }, { data: categoryRows, error: categoryError }, { data: itemRows, error: itemError }] =
+      await Promise.all([
+        supabase
+          .from('restaurant_tables')
+          .select('id, name, qr_token, active')
+          .eq('restaurant_id', membership.restaurantId)
+          .order('name'),
+        supabase
+          .from('menu_categories')
+          .select('id, name')
+          .eq('restaurant_id', membership.restaurantId)
+          .order('sort_order'),
+        supabase
+          .from('menu_items')
+          .select('id, name, price, available, menu_categories(name)')
+          .eq('restaurant_id', membership.restaurantId)
+          .order('created_at', { ascending: false })
+          .limit(50),
+      ])
+
+    if (tableError || categoryError || itemError) {
+      setError(tableError?.message || categoryError?.message || itemError?.message || 'Failed to load setup data.')
+    } else {
+      setTables((tableRows as RestaurantTable[]) || [])
+      setCategories((categoryRows as Category[]) || [])
+      setItems((itemRows as MenuItem[]) || [])
+      if (categoryRows && categoryRows.length > 0) {
+        setItemCategoryId(categoryRows[0].id)
+      }
+    }
+
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    void loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function handleAddTable(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!restaurantId || !tableName.trim()) {
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const token = createQrToken()
+
+    const { error: insertError } = await supabase.from('restaurant_tables').insert({
+      restaurant_id: restaurantId,
+      name: tableName.trim(),
+      qr_token: token,
+      active: true,
+    })
+
+    setSaving(false)
+
+    if (insertError) {
+      setError(insertError.message)
+      return
+    }
+
+    setTableName('')
+    setNotice('Table created with a fresh QR token.')
+    await loadData()
+  }
+
+  async function handleAddCategory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!restaurantId || !categoryName.trim()) {
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const sortOrder = categories.length + 1
+    const { error: insertError } = await supabase.from('menu_categories').insert({
+      restaurant_id: restaurantId,
+      name: categoryName.trim(),
+      sort_order: sortOrder,
+      active: true,
+    })
+
+    setSaving(false)
+
+    if (insertError) {
+      setError(insertError.message)
+      return
+    }
+
+    setCategoryName('')
+    setNotice('Category created.')
+    await loadData()
+  }
+
+  async function handleAddMenuItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!restaurantId || !itemName.trim() || !itemCategoryId || !itemPrice) {
+      return
+    }
+
+    const numericPrice = Number(itemPrice)
+    if (Number.isNaN(numericPrice) || numericPrice < 0) {
+      setError('Price must be a valid positive number.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: insertError } = await supabase.from('menu_items').insert({
+      restaurant_id: restaurantId,
+      category_id: itemCategoryId,
+      name: itemName.trim(),
+      description: itemDescription.trim() || null,
+      price: numericPrice,
+      available: true,
+    })
+
+    setSaving(false)
+
+    if (insertError) {
+      setError(insertError.message)
+      return
+    }
+
+    setItemName('')
+    setItemDescription('')
+    setItemPrice('')
+    setNotice('Menu item created.')
+    await loadData()
+  }
+
+  async function handleCsvImport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!restaurantId || !csvText.trim()) {
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const lines = csvText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+
+    const parsed = lines
+      .map((line) => line.split(',').map((entry) => entry.trim()))
+      .filter((segments) => segments.length >= 4)
+      .map(([category, name, description, price]) => ({
+        category,
+        name,
+        description,
+        price: Number(price),
+      }))
+      .filter((row) => row.category && row.name && Number.isFinite(row.price) && row.price >= 0)
+
+    if (parsed.length === 0) {
+      setSaving(false)
+      setError('CSV must be in the format: category,name,description,price')
+      return
+    }
+
+    const uniqueCategoryNames = Array.from(new Set(parsed.map((row) => row.category)))
+
+    const { error: categoryUpsertError } = await supabase.from('menu_categories').upsert(
+      uniqueCategoryNames.map((name, index) => ({
+        restaurant_id: restaurantId,
+        name,
+        sort_order: index + 1,
+        active: true,
+      })),
+      { onConflict: 'restaurant_id,name' }
+    )
+
+    if (categoryUpsertError) {
+      setSaving(false)
+      setError(categoryUpsertError.message)
+      return
+    }
+
+    const { data: refreshedCategories, error: categoryFetchError } = await supabase
+      .from('menu_categories')
+      .select('id, name')
+      .eq('restaurant_id', restaurantId)
+
+    if (categoryFetchError || !refreshedCategories) {
+      setSaving(false)
+      setError(categoryFetchError?.message || 'Failed to refresh categories after CSV import.')
+      return
+    }
+
+    const categoryMap = new Map(refreshedCategories.map((category) => [category.name, category.id]))
+
+    const { error: itemInsertError } = await supabase.from('menu_items').insert(
+      parsed
+        .map((row) => ({
+          restaurant_id: restaurantId,
+          category_id: categoryMap.get(row.category),
+          name: row.name,
+          description: row.description || null,
+          price: row.price,
+          available: true,
+        }))
+        .filter((row) => Boolean(row.category_id))
+    )
+
+    setSaving(false)
+
+    if (itemInsertError) {
+      setError(itemInsertError.message)
+      return
+    }
+
+    setCsvText('')
+    setNotice(`Imported ${parsed.length} rows from CSV.`)
+    await loadData()
+  }
+
+  if (loading) {
+    return (
+      <section className="panel stack">
+        <span className="eyebrow">Restaurant Setup</span>
+        <h2 className="section-title">Loading setup workspace...</h2>
+      </section>
+    )
+  }
+
+  return (
+    <>
+      <section className="panel stack">
+        <span className="eyebrow">Phase 4</span>
+        <h1 className="section-title">Restaurant setup workspace</h1>
+        <p className="lead">
+          Configure tables, generate QR links, and manage categories and menu items for
+          {restaurantName ? ` ${restaurantName}` : ' your restaurant'}.
+        </p>
+        {notice ? <div className="success">{notice}</div> : null}
+        {error ? <div className="error-box">{error}</div> : null}
+      </section>
+
+      <section className="panel stack">
+        <span className="eyebrow">Tables & QR</span>
+        <form className="stack" onSubmit={handleAddTable}>
+          <div className="field">
+            <label htmlFor="tableName">New table name</label>
+            <input
+              id="tableName"
+              value={tableName}
+              onChange={(event) => setTableName(event.target.value)}
+              placeholder="Table 8"
+              required
+            />
+          </div>
+          <button className="button" type="submit" disabled={saving}>
+            {saving ? 'Saving...' : 'Add table'}
+          </button>
+        </form>
+
+        <ul className="list">
+          {tables.map((table) => (
+            <li key={table.id}>
+              <strong>{table.name}</strong>
+              <p className="muted">Token: {table.qr_token}</p>
+              <p className="muted">QR URL: {`${appUrl}/t/${table.qr_token}`}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="panel stack">
+        <span className="eyebrow">Menu Categories</span>
+        <form className="stack" onSubmit={handleAddCategory}>
+          <div className="field">
+            <label htmlFor="categoryName">New category</label>
+            <input
+              id="categoryName"
+              value={categoryName}
+              onChange={(event) => setCategoryName(event.target.value)}
+              placeholder="Cocktails"
+              required
+            />
+          </div>
+          <button className="button" type="submit" disabled={saving}>
+            {saving ? 'Saving...' : 'Add category'}
+          </button>
+        </form>
+
+        <ul className="list">
+          {categories.map((category) => (
+            <li key={category.id}>{category.name}</li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="panel stack">
+        <span className="eyebrow">Menu Items</span>
+        <form className="stack" onSubmit={handleAddMenuItem}>
+          <div className="field">
+            <label htmlFor="itemName">Item name</label>
+            <input
+              id="itemName"
+              value={itemName}
+              onChange={(event) => setItemName(event.target.value)}
+              placeholder="Classic Burger"
+              required
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="itemDescription">Description</label>
+            <textarea
+              id="itemDescription"
+              value={itemDescription}
+              onChange={(event) => setItemDescription(event.target.value)}
+              placeholder="200g patty, brioche bun, fries"
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="itemPrice">Price</label>
+            <input
+              id="itemPrice"
+              type="number"
+              step="0.01"
+              min="0"
+              value={itemPrice}
+              onChange={(event) => setItemPrice(event.target.value)}
+              placeholder="12.50"
+              required
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="itemCategoryId">Category</label>
+            <select
+              id="itemCategoryId"
+              value={itemCategoryId}
+              onChange={(event) => setItemCategoryId(event.target.value)}
+              required
+            >
+              <option value="" disabled>
+                Select category
+              </option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button className="button" type="submit" disabled={saving || categories.length === 0}>
+            {saving ? 'Saving...' : 'Add menu item'}
+          </button>
+        </form>
+
+        <ul className="list">
+          {items.map((item) => (
+            <li key={item.id}>
+              <strong>{item.name}</strong>
+              <p className="muted">Category: {getCategoryName(item)}</p>
+              <p className="muted">Price: EUR {Number(item.price).toFixed(2)}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="panel stack">
+        <span className="eyebrow">CSV Import</span>
+        <p className="helper-text">Paste CSV lines in this format: category,name,description,price</p>
+        <form className="stack" onSubmit={handleCsvImport}>
+          <div className="field">
+            <label htmlFor="csvText">CSV rows</label>
+            <textarea
+              id="csvText"
+              value={csvText}
+              onChange={(event) => setCsvText(event.target.value)}
+              placeholder={'Food,Burger,Beef burger with fries,12.00\nDrinks,Mythos,Greek lager,4.00'}
+              required
+            />
+          </div>
+          <button className="button" type="submit" disabled={saving}>
+            {saving ? 'Importing...' : 'Import CSV'}
+          </button>
+        </form>
+      </section>
+    </>
+  )
+}

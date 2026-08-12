@@ -1,13 +1,15 @@
 # Waiter AI — Vercel Deployment Setup
 
-This repository is ready for Vercel deployment at the code level, but it is not yet connected to a GitHub remote. Vercel preview deployments require a repository hosted on GitHub, GitLab, or Bitbucket.
+This repository is deployed on Vercel and connected to GitHub.
+
+Production URL: `https://waiter-ai-iota.vercel.app`
 
 ## Current Status
 
 - Local Next.js app builds successfully once dependencies are installed
 - Supabase environment variables are configured locally
 - GitHub Actions CI workflow exists at `.github/workflows/ci.yml`
-- Missing external prerequisite: a git remote for this repository
+- Repository is connected to GitHub and Vercel
 
 ## 1. Create or Connect a GitHub Repository
 
@@ -49,12 +51,12 @@ Recommended values:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase publishable anon key
 - `SUPABASE_SERVICE_ROLE_KEY`: Supabase service role key
 - `NEXT_PUBLIC_APP_URL`:
-  - Production: your Vercel production domain
+  - Production: `https://waiter-ai-iota.vercel.app`
   - Preview: Vercel automatically injects branch preview URLs, but this app currently expects a fixed public app URL, so set this to the main deployment domain first
 
 ## 4. Preview Deployments
 
-Once the repository is connected:
+Current behavior:
 
 - pushes to `master` or `main` create production deployments based on Vercel project settings
 - pull requests and non-production branches create preview deployments automatically

@@ -82,6 +82,9 @@ export default function PlatformHomePage() {
             <Link className="button" href="/platform/orders">
               Orders workspace
             </Link>
+            <Link className="button-secondary" href="/platform/setup">
+              Restaurant setup
+            </Link>
             <Link className="button-secondary" href="/platform/settings">
               Settings
             </Link>

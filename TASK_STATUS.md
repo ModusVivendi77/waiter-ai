@@ -28,21 +28,19 @@
 
 ## 🔄 IN PROGRESS
 
-### Task 1.3: Vercel Deployment 🟡 REPO PREP COMPLETE, EXTERNAL LINK PENDING
+### Task 1.3: Vercel Deployment ✅ COMPLETE
 
 **What's ready:**
 - [x] Production build passes locally with `npm run build`
 - [x] GitHub Actions workflow added at `.github/workflows/ci.yml`
 - [x] Vercel handoff guide added at `VERCEL_SETUP.md`
 - [x] Environment variable list documented for Vercel project settings
+- [x] Repository imported into Vercel and deployed
+- [x] Production domain verified: `https://waiter-ai-iota.vercel.app`
 
 **What still needs to happen:**
-1. Create or attach a GitHub remote for this repository
-2. Import the repository into Vercel
-3. Add the production and preview environment variables in Vercel
-4. Verify the first preview or production deployment from Vercel
-
-**Current blocker:** This local repository does not have a git remote yet, so Vercel cannot be connected to the repo from this environment.
+1. Confirm environment variables are set for both `Production` and `Preview`
+2. Validate auth endpoints on the production URL (`/login`, `/platform/signup`, `/platform`)
 
 ### Phase 3: Authentication 🟡 LIVE CORE FLOWS VERIFIED
 
@@ -58,6 +56,7 @@
 - [x] Login works against live Supabase Auth
 - [x] Protected platform routes load with role-based access using the live browser session
 - [x] Forgot-password request path is wired and returns a live auth response
+- [x] Registration notification email hook added (Resend-backed when configured)
 
 **What still needs to happen:**
 1. Complete the reset-password flow with a real inbox-backed account
@@ -100,8 +99,8 @@
 ## 📋 UPCOMING TASKS
 
 ### Task 1.3: Vercel Deployment
-- [ ] Connect GitHub repo to Vercel
-- [ ] Configure environment variables in Vercel
+- [x] Connect GitHub repo to Vercel
+- [x] Configure environment variables in Vercel
 - [x] Setup CI/CD pipeline
 - [x] Test that `npm run build` works locally
 
@@ -129,10 +128,25 @@
 ---
 
 ### Phase 4: Restaurant Setup (Week 4)
-- [ ] Table management
-- [ ] QR code generation
-- [ ] Menu management
-- [ ] CSV import
+- [x] Table management scaffold started (`/platform/setup`)
+- [x] QR link/token generation scaffold started (`/platform/setup`)
+- [x] Menu management scaffold started (`/platform/setup`)
+- [x] CSV import scaffold started (`/platform/setup`)
+
+### Phase 4: Restaurant Setup 🟡 IN PROGRESS
+
+**What's ready:**
+- [x] Owner/manager-only setup workspace at `/platform/setup`
+- [x] Table creation with generated QR tokens and shareable table URLs
+- [x] Menu category creation
+- [x] Menu item creation
+- [x] CSV text import for menu bootstrap (`category,name,description,price`)
+
+**What still needs to happen:**
+1. Add edit/delete flows for tables, categories, and menu items
+2. Add downloadable/printable QR code rendering
+3. Add robust CSV parsing/validation and duplicate handling
+4. Add E2E coverage for setup workflows
 
 ---
 
@@ -176,10 +190,10 @@
 
 | Phase | Status | Completion |
 |-------|--------|-----------|
-| 1. Foundation | 🟢 95% | Supabase complete, Vercel repo-side prep done, external linking pending |
+| 1. Foundation | 🟢 100% | Supabase and Vercel deployment complete |
 | 2. Database | 🟢 100% | Schema applied and seeded on the live Supabase project |
-| 3. Auth | 🟡 90% | Signup, login, and role-gated platform routes verified live |
-| 4. Restaurant Setup | ⚪ 0% | Waiting on auth |
+| 3. Auth | 🟡 95% | Registration email hook added; reset-password end-to-end still pending inbox confirmation |
+| 4. Restaurant Setup | 🟡 35% | Setup workspace and core create/import flows scaffolded |
 | 5. Customer Ordering | ⚪ 0% | Waiting on restaurant setup |
 | 6. Real-Time & Dashboard | ⚪ 0% | Waiting on ordering |
 | 7. Analytics & Admin | ⚪ 0% | Waiting on orders |
@@ -192,18 +206,19 @@
 
 ### Right Now (Do This First)
 ```bash
-# 1. Commit the Phase 2 and Phase 3 work
-git add src supabase middleware.ts tsconfig.json next-env.d.ts verify-setup.sh .env.example TASK_STATUS.md
-git commit -m "feat: add database schema and live auth scaffold"
+# 1. Verify production environment variables in Vercel
+#    NEXT_PUBLIC_SUPABASE_URL
+#    NEXT_PUBLIC_SUPABASE_ANON_KEY
+#    SUPABASE_SERVICE_ROLE_KEY
+#    NEXT_PUBLIC_APP_URL=https://waiter-ai-iota.vercel.app
 
-# 2. Add a GitHub remote and push the repository
-#    See VERCEL_SETUP.md for the exact commands
+# 2. Smoke test production deployment
+#    https://waiter-ai-iota.vercel.app/login
+#    https://waiter-ai-iota.vercel.app/platform/signup
+#    https://waiter-ai-iota.vercel.app/platform
 
-# 3. Import the repository into Vercel
-#    Configure the same environment variables there
-
-# 4. Continue with Phase 4 restaurant setup
-#    Table management, QR generation, and menu management
+# 3. Continue Phase 4 hardening
+#    Add edit/delete flows, QR rendering, and stronger CSV validation
 ```
 
 ### After Supabase Setup Confirmed
@@ -251,5 +266,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** `962881c`
-**Next commit:** Commit the Vercel prep files and tracker updates
+**Last commit:** `48a1b38`
+**Next commit:** Add Phase 4 setup hardening (edit/delete, QR rendering, CSV validation)

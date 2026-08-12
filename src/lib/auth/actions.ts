@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 
 import { createAdminClient } from '@/lib/supabase/server'
 import { registerRestaurantSchema } from '@/lib/auth/schemas'
+import { sendRegistrationEmail } from '@/lib/notifications/email'
 
 export type RegisterState = {
   error?: string
@@ -73,6 +74,16 @@ export async function registerRestaurant(_: RegisterState, formData: FormData): 
     await admin.from('restaurants').delete().eq('id', restaurant.id)
     await admin.auth.admin.deleteUser(createdUser.user.id)
     return { error: membershipError.message }
+  }
+
+  try {
+    await sendRegistrationEmail({
+      email,
+      fullName,
+      restaurantName,
+    })
+  } catch (error) {
+    console.error('Registration email dispatch failed:', error)
   }
 
   revalidatePath('/platform')
