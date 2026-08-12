@@ -1,3 +1,5 @@
+import { Suspense } from 'react'
+
 import { LoginForm } from '@/components/auth/login-form'
 
 export default function LoginPage() {
@@ -9,7 +11,9 @@ export default function LoginPage() {
         <p className="helper-text">
           Owners, managers, and staff use the same login. Role checks happen after authentication.
         </p>
-        <LoginForm />
+        <Suspense fallback={<div className="helper-text">Loading sign-in form...</div>}>
+          <LoginForm />
+        </Suspense>
       </section>
     </main>
   )

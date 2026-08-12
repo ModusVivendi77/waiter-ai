@@ -28,6 +28,22 @@
 
 ## 🔄 IN PROGRESS
 
+### Task 1.3: Vercel Deployment 🟡 REPO PREP COMPLETE, EXTERNAL LINK PENDING
+
+**What's ready:**
+- [x] Production build passes locally with `npm run build`
+- [x] GitHub Actions workflow added at `.github/workflows/ci.yml`
+- [x] Vercel handoff guide added at `VERCEL_SETUP.md`
+- [x] Environment variable list documented for Vercel project settings
+
+**What still needs to happen:**
+1. Create or attach a GitHub remote for this repository
+2. Import the repository into Vercel
+3. Add the production and preview environment variables in Vercel
+4. Verify the first preview or production deployment from Vercel
+
+**Current blocker:** This local repository does not have a git remote yet, so Vercel cannot be connected to the repo from this environment.
+
 ### Phase 3: Authentication 🟡 LIVE CORE FLOWS VERIFIED
 
 **What's ready:**
@@ -85,9 +101,9 @@
 
 ### Task 1.3: Vercel Deployment
 - [ ] Connect GitHub repo to Vercel
-- [ ] Configure environment variables
-- [ ] Setup CI/CD pipeline
-- [ ] Test preview deployments
+- [ ] Configure environment variables in Vercel
+- [x] Setup CI/CD pipeline
+- [x] Test that `npm run build` works locally
 
 **Start after:** Task 1.2 complete
 
@@ -160,7 +176,7 @@
 
 | Phase | Status | Completion |
 |-------|--------|-----------|
-| 1. Foundation | 🟢 90% | Supabase setup complete, Vercel still pending |
+| 1. Foundation | 🟢 95% | Supabase complete, Vercel repo-side prep done, external linking pending |
 | 2. Database | 🟢 100% | Schema applied and seeded on the live Supabase project |
 | 3. Auth | 🟡 90% | Signup, login, and role-gated platform routes verified live |
 | 4. Restaurant Setup | ⚪ 0% | Waiting on auth |
@@ -180,10 +196,13 @@
 git add src supabase middleware.ts tsconfig.json next-env.d.ts verify-setup.sh .env.example TASK_STATUS.md
 git commit -m "feat: add database schema and live auth scaffold"
 
-# 2. Connect the repo to Vercel
+# 2. Add a GitHub remote and push the repository
+#    See VERCEL_SETUP.md for the exact commands
+
+# 3. Import the repository into Vercel
 #    Configure the same environment variables there
 
-# 3. Continue with Phase 4 restaurant setup
+# 4. Continue with Phase 4 restaurant setup
 #    Table management, QR generation, and menu management
 ```
 
@@ -233,4 +252,4 @@ Refer to these documents in order:
 ---
 
 **Last commit:** `962881c`
-**Next commit:** Commit the live-verified Phase 2 and Phase 3 implementation
+**Next commit:** Commit the Vercel prep files and tracker updates
