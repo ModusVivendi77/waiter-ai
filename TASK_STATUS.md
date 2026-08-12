@@ -138,10 +138,13 @@
 **What's ready:**
 - [x] Owner/manager-only setup workspace at `/platform/setup`
 - [x] Table creation with generated QR tokens and shareable table URLs
+- [x] Table rename flow
 - [x] Table activation/deactivation and table deletion
 - [x] Menu category creation
+- [x] Menu category rename flow
 - [x] Guarded category deletion (blocked when linked items exist)
 - [x] Menu item creation
+- [x] Menu item edit flow (name, description, category, price)
 - [x] Menu item availability toggle and item deletion
 - [x] CSV text import for menu bootstrap (`category,name,description,price`)
 - [x] Downloadable QR SVG per table
@@ -149,8 +152,7 @@
 - [x] CSV parser validation with duplicate detection and row-level error reporting
 
 **What still needs to happen:**
-1. Add edit/rename flows for tables, categories, and menu items
-2. Add downloadable/printable QR code rendering
+1. Add printable QR sheet layout (multi-table)
 3. Add quoted-field CSV support and import preview before write
 4. Add E2E coverage for setup workflows
 
@@ -201,7 +203,7 @@
 | 1. Foundation | 🟢 100% | Supabase and Vercel deployment complete |
 | 2. Database | 🟢 100% | Schema applied and seeded on the live Supabase project |
 | 3. Auth | 🟡 95% | Registration email hook added; reset-password end-to-end still pending inbox confirmation |
-| 4. Restaurant Setup | 🟡 65% | Setup workspace now supports create/toggle/delete flows, QR SVG download, and validated CSV import |
+| 4. Restaurant Setup | 🟡 75% | Setup workspace now supports create/edit/toggle/delete flows, QR SVG download, and validated CSV import |
 | 5. Customer Ordering | ⚪ 0% | Waiting on restaurant setup |
 | 6. Real-Time & Dashboard | ⚪ 0% | Waiting on ordering |
 | 7. Analytics & Admin | 🟡 20% | SUPER_ADMIN model and assignment management now live |
@@ -226,7 +228,7 @@
 #    https://waiter-ai-iota.vercel.app/platform
 
 # 3. Continue Phase 4 hardening
-#    Add rename/edit flows, QR print layout, and quoted-CSV import preview
+#    Add QR print sheet layout, quoted-CSV import preview, and E2E coverage
 ```
 
 ### After Supabase Setup Confirmed
@@ -274,5 +276,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** `1a9b59b`
-**Next commit:** Add Phase 4 setup polish (rename flows, QR print layout, import preview)
+**Last commit:** `d57d0c3`
+**Next commit:** Add Phase 4 setup polish (QR print layout, import preview, E2E)

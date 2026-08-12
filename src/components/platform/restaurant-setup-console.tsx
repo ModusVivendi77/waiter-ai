@@ -27,6 +27,7 @@ type RestaurantOption = {
 type MenuItem = {
   id: string
   name: string
+  description: string | null
   price: number
   available: boolean
   category_id: string
@@ -73,6 +74,15 @@ export function RestaurantSetupConsole() {
   const [csvText, setCsvText] = useState('')
   const [csvReport, setCsvReport] = useState<string | null>(null)
   const [qrDownloadingFor, setQrDownloadingFor] = useState<string | null>(null)
+  const [editingTableId, setEditingTableId] = useState<string | null>(null)
+  const [editingTableName, setEditingTableName] = useState('')
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [editingCategoryName, setEditingCategoryName] = useState('')
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
+  const [editingItemName, setEditingItemName] = useState('')
+  const [editingItemDescription, setEditingItemDescription] = useState('')
+  const [editingItemPrice, setEditingItemPrice] = useState('')
+  const [editingItemCategoryId, setEditingItemCategoryId] = useState('')
 
   const supabase = useMemo(() => createClient(), [])
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
@@ -145,7 +155,7 @@ export function RestaurantSetupConsole() {
           .order('sort_order'),
         supabase
           .from('menu_items')
-          .select('id, name, price, available, category_id, menu_categories(name)')
+          .select('id, name, description, price, available, category_id, menu_categories(name)')
           .eq('restaurant_id', activeRestaurantId)
           .order('created_at', { ascending: false })
           .limit(50),
@@ -328,6 +338,34 @@ export function RestaurantSetupConsole() {
     await loadData()
   }
 
+  async function handleSaveTableName(tableId: string) {
+    if (!restaurantId || !editingTableName.trim()) {
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('restaurant_tables')
+      .update({ name: editingTableName.trim() })
+      .eq('id', tableId)
+      .eq('restaurant_id', restaurantId)
+
+    setSaving(false)
+
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+
+    setEditingTableId(null)
+    setEditingTableName('')
+    setNotice('Table name updated.')
+    await loadData()
+  }
+
   async function handleAddCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!restaurantId || !categoryName.trim()) {
@@ -387,6 +425,34 @@ export function RestaurantSetupConsole() {
     }
 
     setNotice(`Category ${category.name} deleted.`)
+    await loadData()
+  }
+
+  async function handleSaveCategoryName(categoryId: string) {
+    if (!restaurantId || !editingCategoryName.trim()) {
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('menu_categories')
+      .update({ name: editingCategoryName.trim() })
+      .eq('id', categoryId)
+      .eq('restaurant_id', restaurantId)
+
+    setSaving(false)
+
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+
+    setEditingCategoryId(null)
+    setEditingCategoryName('')
+    setNotice('Category name updated.')
     await loadData()
   }
 
@@ -478,6 +544,48 @@ export function RestaurantSetupConsole() {
     }
 
     setNotice(`Menu item ${item.name} deleted.`)
+    await loadData()
+  }
+
+  async function handleSaveMenuItem(itemId: string) {
+    if (!restaurantId || !editingItemName.trim() || !editingItemCategoryId || !editingItemPrice) {
+      return
+    }
+
+    const numericPrice = Number(editingItemPrice)
+    if (Number.isNaN(numericPrice) || numericPrice < 0) {
+      setError('Price must be a valid positive number.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('menu_items')
+      .update({
+        name: editingItemName.trim(),
+        description: editingItemDescription.trim() || null,
+        price: numericPrice,
+        category_id: editingItemCategoryId,
+      })
+      .eq('id', itemId)
+      .eq('restaurant_id', restaurantId)
+
+    setSaving(false)
+
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+
+    setEditingItemId(null)
+    setEditingItemName('')
+    setEditingItemDescription('')
+    setEditingItemPrice('')
+    setEditingItemCategoryId('')
+    setNotice('Menu item updated.')
     await loadData()
   }
 
@@ -658,11 +766,53 @@ export function RestaurantSetupConsole() {
         <ul className="list">
           {tables.map((table) => (
             <li key={table.id}>
-              <strong>{table.name}</strong>
+              {editingTableId === table.id ? (
+                <div className="field">
+                  <label htmlFor={`edit-table-${table.id}`}>Table name</label>
+                  <input
+                    id={`edit-table-${table.id}`}
+                    value={editingTableName}
+                    onChange={(event) => setEditingTableName(event.target.value)}
+                    required
+                  />
+                </div>
+              ) : (
+                <strong>{table.name}</strong>
+              )}
               <p className="muted">Status: {table.active ? 'Active' : 'Inactive'}</p>
               <p className="muted">Token: {table.qr_token}</p>
               <p className="muted">QR URL: {`${appUrl}/t/${table.qr_token}`}</p>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {editingTableId === table.id ? (
+                  <>
+                    <button className="button" type="button" disabled={saving} onClick={() => void handleSaveTableName(table.id)}>
+                      Save name
+                    </button>
+                    <button
+                      className="button"
+                      type="button"
+                      disabled={saving}
+                      onClick={() => {
+                        setEditingTableId(null)
+                        setEditingTableName('')
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="button"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      setEditingTableId(table.id)
+                      setEditingTableName(table.name)
+                    }}
+                  >
+                    Rename
+                  </button>
+                )}
                 <button className="button" type="button" disabled={saving} onClick={() => void handleToggleTableActive(table)}>
                   {table.active ? 'Deactivate' : 'Activate'}
                 </button>
@@ -704,8 +854,50 @@ export function RestaurantSetupConsole() {
         <ul className="list">
           {categories.map((category) => (
             <li key={category.id}>
-              <strong>{category.name}</strong>
+              {editingCategoryId === category.id ? (
+                <div className="field">
+                  <label htmlFor={`edit-category-${category.id}`}>Category name</label>
+                  <input
+                    id={`edit-category-${category.id}`}
+                    value={editingCategoryName}
+                    onChange={(event) => setEditingCategoryName(event.target.value)}
+                    required
+                  />
+                </div>
+              ) : (
+                <strong>{category.name}</strong>
+              )}
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {editingCategoryId === category.id ? (
+                  <>
+                    <button className="button" type="button" disabled={saving} onClick={() => void handleSaveCategoryName(category.id)}>
+                      Save name
+                    </button>
+                    <button
+                      className="button"
+                      type="button"
+                      disabled={saving}
+                      onClick={() => {
+                        setEditingCategoryId(null)
+                        setEditingCategoryName('')
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="button"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      setEditingCategoryId(category.id)
+                      setEditingCategoryName(category.name)
+                    }}
+                  >
+                    Rename
+                  </button>
+                )}
                 <button className="button" type="button" disabled={saving} onClick={() => void handleDeleteCategory(category)}>
                   Delete category
                 </button>
@@ -780,11 +972,97 @@ export function RestaurantSetupConsole() {
         <ul className="list">
           {items.map((item) => (
             <li key={item.id}>
-              <strong>{item.name}</strong>
-              <p className="muted">Category: {getCategoryName(item)}</p>
-              <p className="muted">Price: EUR {Number(item.price).toFixed(2)}</p>
+              {editingItemId === item.id ? (
+                <>
+                  <div className="field">
+                    <label htmlFor={`edit-item-name-${item.id}`}>Item name</label>
+                    <input
+                      id={`edit-item-name-${item.id}`}
+                      value={editingItemName}
+                      onChange={(event) => setEditingItemName(event.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`edit-item-description-${item.id}`}>Description</label>
+                    <textarea
+                      id={`edit-item-description-${item.id}`}
+                      value={editingItemDescription}
+                      onChange={(event) => setEditingItemDescription(event.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`edit-item-price-${item.id}`}>Price</label>
+                    <input
+                      id={`edit-item-price-${item.id}`}
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editingItemPrice}
+                      onChange={(event) => setEditingItemPrice(event.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`edit-item-category-${item.id}`}>Category</label>
+                    <select
+                      id={`edit-item-category-${item.id}`}
+                      value={editingItemCategoryId}
+                      onChange={(event) => setEditingItemCategoryId(event.target.value)}
+                    >
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <strong>{item.name}</strong>
+                  <p className="muted">Category: {getCategoryName(item)}</p>
+                  <p className="muted">Price: EUR {Number(item.price).toFixed(2)}</p>
+                </>
+              )}
               <p className="muted">Status: {item.available ? 'Available' : 'Unavailable'}</p>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {editingItemId === item.id ? (
+                  <>
+                    <button className="button" type="button" disabled={saving} onClick={() => void handleSaveMenuItem(item.id)}>
+                      Save changes
+                    </button>
+                    <button
+                      className="button"
+                      type="button"
+                      disabled={saving}
+                      onClick={() => {
+                        setEditingItemId(null)
+                        setEditingItemName('')
+                        setEditingItemDescription('')
+                        setEditingItemPrice('')
+                        setEditingItemCategoryId('')
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="button"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      setEditingItemId(item.id)
+                      setEditingItemName(item.name)
+                      setEditingItemDescription(item.description || '')
+                      setEditingItemPrice(String(item.price))
+                      setEditingItemCategoryId(item.category_id)
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
                 <button className="button" type="button" disabled={saving} onClick={() => void handleToggleMenuItemAvailability(item)}>
                   {item.available ? 'Mark unavailable' : 'Mark available'}
                 </button>
