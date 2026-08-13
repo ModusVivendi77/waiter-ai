@@ -66,7 +66,7 @@ export function usePublicOrderStatus(
       cleanupChannel()
 
       const channel = supabase
-        .channel(`public-order-status-${orderId}`)
+        .channel(`order-status-${orderId}`)
         .on('broadcast', { event: 'order-status-update' }, (payload) => {
           const data = payload.payload as PublicOrderStatusPayload
           if (data?.orderId === orderId && data?.status) {

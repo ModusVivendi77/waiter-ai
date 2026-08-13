@@ -1,7 +1,7 @@
 # Waiter AI — Task Status Tracker
 
 **Last Updated:** August 13, 2026
-**Current Phase:** 8/9 — Testing & Hardening In Progress
+**Current Phase:** 8/9 — Testing & Hardening (E2E suite green, remaining items are manual live-verification)
 
 ---
 
@@ -243,14 +243,17 @@
 **Recent verification:**
 - [x] Production build + typecheck pass (`npm run typecheck && npm run build`)
 - [x] All 52 unit/integration tests pass (`npx vitest run`)
-- [x] Full E2E suite re-run with real-time implementation: public ordering journey passes (order submission → tracking surface with broadcast + polling), 3 auth-requiring tests skipped until `E2E_SUPER_ADMIN_EMAIL`/`E2E_SUPER_ADMIN_PASSWORD` are configured
+- [x] **Full E2E suite green — 5/5 passed (previously 1 passed / 3 skipped):** public ordering journey, orders workspace (staff modify order), platform setup CSV preview, platform setup rename/import/cleanup, and a new broadcast test
+- [x] `playwright.config.ts` now loads `.env.local` via `@next/env` — auth-requiring E2E tests no longer skip
+- [x] **Broadcast channel mismatch fixed:** `usePublicOrderStatus` listened on `public-order-status-<orderId>` while staff published on `order-status-<orderId>` (per migration 007). Renamed listener to `order-status-<orderId>` so real-time updates actually reach the customer tracking page
+- [x] New E2E test verifies order acceptance updates the tracking page history panel within <3.5s via broadcast (proves real-time path, not just the 5s poll fallback)
 - [x] Rate-limit headers live-verified against the production build: `/api/orders` 400 → `X-RateLimit-Remaining: 28`, `/api/order-status` 404 → `X-RateLimit-Remaining: 119`; `Retry-After` correctly present only on 429 responses
 
 **What still needs to happen:**
-1. Configure `E2E_SUPER_ADMIN_EMAIL` / `E2E_SUPER_ADMIN_PASSWORD` in `.env.local` and re-run the auth-requiring E2E tests (orders workspace + platform setup)
-2. Verify order acceptance flow updates the history panel on `/orders/[trackingToken]` via broadcast
+1. ~~Configure `E2E_SUPER_ADMIN_EMAIL` / `E2E_SUPER_ADMIN_PASSWORD` in `.env.local` and re-run the auth-requiring E2E tests (orders workspace + platform setup)~~ — ✅ DONE. Playwright now loads `.env.local` via `@next/env` in `playwright.config.ts`; all 3 auth-requiring tests pass
+2. ~~Verify order acceptance flow updates the history panel on `/orders/[trackingToken]` via broadcast~~ — ✅ DONE. Found & fixed a channel-name mismatch (listener used `public-order-status-<id>`, publisher used `order-status-<id>`); added a broadcast E2E test proving the tracking page updates in <3.5s without waiting for the 5s poll
 3. Monitor real-time connection stability and latency metrics in staging
-4. Verify reset-password flow end-to-end with a real inbox-backed account
+4. Verify reset-password flow end-to-end with a real inbox-backed account (recovery redirect in `/auth/callback` was fixed — see below)
 5. Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
 
 ---
@@ -325,8 +328,12 @@
 - [x] Integration tests (analytics query libraries with mocked Supabase client, incl. week-over-week comparisons)
 - [x] Initial E2E tests/config added
 - [x] Expanded E2E coverage for setup rename/delete/import and public QR menu flow
+- [x] **Full E2E suite green (5/5)** — auth-requiring tests unblocked by loading `.env.local` in `playwright.config.ts`; broadcast test added
 - [x] Rate limiting added (Task 6.3) and wired into public API routes
 - [x] Security review (initial pass complete)
+- [x] **Bug fixes from E2E hardening round:**
+  - Broadcast channel-name mismatch (`public-order-status-<id>` vs documented `order-status-<id>`) fixed in `usePublicOrderStatus`
+  - Recovery (password-reset) links now redirect to `/reset-password` after `verifyOtp` instead of landing on `/login?verified=1` (`/auth/callback` route)
 
 **Implementation details:**
 - Added `@` path alias to `vitest.config.ts` so tests resolve `@/lib/...` imports
@@ -359,12 +366,12 @@
 |-------|--------|-----------|
 | 1. Foundation | 🟢 100% | Supabase and Vercel deployment complete |
 | 2. Database | 🟢 100% | Schema applied and seeded on the live Supabase project |
-| 3. Auth | 🟡 95% | Registration email hook added; email verification via Supabase Confirm signup template + /auth/callback + /verify-email; reset-password end-to-end still pending inbox confirmation |
+| 3. Auth | 🟡 95% | Registration email hook added; email verification via Supabase Confirm signup template + /auth/callback + /verify-email; reset-password redirect fixed in /auth/callback, end-to-end inbox confirmation still pending |
 | 4. Restaurant Setup | 🟡 95% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, and E2E coverage |
 | 5. Customer Ordering | 🟢 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling and status timeline |
-| 6. Real-Time & Dashboard | 🟡 90% | Staff real-time subscriptions + public broadcast tracking + reconnect/retry logic + rate-limit headers verified on all public API responses |
+| 6. Real-Time & Dashboard | 🟡 95% | Staff real-time subscriptions + public broadcast tracking (channel-name bug fixed + E2E verified) + reconnect/retry logic + rate-limit headers verified |
 | 7. Analytics & Admin | 🟢 100% | Full analytics suite: WoW comparisons, custom date ranges, order status funnel, exports, timezone fixes |
-| 8. Testing | 🟡 65% | 52 unit/integration tests passing; rate-limit headers verified; E2E auth tests pending credentials |
+| 8. Testing | 🟡 85% | 52 unit/integration tests passing; full E2E suite green 5/5 incl. broadcast + auth-requiring tests; remaining items are live/manual verifications |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
 ---
@@ -376,11 +383,11 @@
 2. **✅ Done** — `npm run typecheck && npm run build` passes; all 52 unit/integration tests pass
 3. **✅ Done** — Full E2E suite re-run with real-time implementation (1 passed, 3 skipped)
 4. **✅ Done** — Rate-limit headers (`X-RateLimit-Remaining` on all responses, `Retry-After` on 429) live-verified and committed
-5. **Next** — Configure `E2E_SUPER_ADMIN_EMAIL` / `E2E_SUPER_ADMIN_PASSWORD` in `.env.local` then re-run:
-   ```bash
-   npx playwright test
-   ```
-6. **Next** — Verify order acceptance flow updates the history panel on `/orders/[trackingToken]` via broadcast
+5. **✅ Done** — E2E credentials wired: `playwright.config.ts` loads `.env.local` via `@next/env`; `npx playwright test` now passes **5/5** (previously 1 passed / 3 skipped)
+6. **✅ Done** — Broadcast flow verified & fixed: channel-name mismatch in `usePublicOrderStatus` (listener vs publisher) fixed; new E2E test proves order acceptance updates the tracking page history panel via broadcast in <3.5s
+7. **✅ Done** — Reset-password recovery redirect fixed in `/auth/callback` (recovery links now go to `/reset-password` after `verifyOtp`)
+8. **Next** — Verify reset-password end-to-end with a real inbox-backed account (request reset → click email link → confirm redirect lands on `/reset-password` → update password → login with new password)
+9. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
 
 ### After Timeline Verified
 ```bash
@@ -425,5 +432,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — rate-limit headers on all public API responses (see log for hash)
-**Next commit:** wire `E2E_SUPER_ADMIN_EMAIL`/`E2E_SUPER_ADMIN_PASSWORD` and re-run auth E2E tests
+**Last commit:** feat — E2E hardening: load .env.local in Playwright, fix broadcast channel-name mismatch, fix recovery redirect, add broadcast E2E test (see log for hash)
+**Next commit:** live reset-password verification with a real inbox + confirm "Confirm signup" template site URL

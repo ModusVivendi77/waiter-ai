@@ -22,6 +22,13 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL('/verify-email?error=invalid-link', requestUrl.origin))
     }
 
+    // Password-reset links carry ?next=/reset-password. After verifyOtp
+    // establishes the temporary recovery session, send the user to the reset
+    // page instead of the signup-confirmation landing page.
+    if (type === 'recovery' && next.startsWith('/')) {
+      return NextResponse.redirect(new URL(next, requestUrl.origin))
+    }
+
     return NextResponse.redirect(new URL('/login?verified=1', requestUrl.origin))
   }
 
