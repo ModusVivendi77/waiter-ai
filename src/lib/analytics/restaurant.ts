@@ -17,6 +17,10 @@ export type AnalyticsMetrics = {
   todayValue: number
   weekOrders: number
   weekValue: number
+  previousWeekOrders: number
+  previousWeekValue: number
+  weekOrdersChangePct: number
+  weekValueChangePct: number
   monthOrders: number
   monthValue: number
   averageOrderValue: number
@@ -52,6 +56,9 @@ export async function getRestaurantAnalytics(restaurantId: string): Promise<Anal
   const todayISO = toLocalDateKey(today)
   const weekAgoISO = toLocalDateKey(weekAgo)
   const monthAgoISO = toLocalDateKey(monthAgo)
+  const previousWeekStart = new Date(weekAgo)
+  previousWeekStart.setDate(previousWeekStart.getDate() - 7)
+  const previousWeekStartISO = toLocalDateKey(previousWeekStart)
 
   // Fetch all orders for the restaurant in the last 30 days
   const { data: orders, error: ordersError } = await supabase
@@ -78,6 +85,8 @@ export async function getRestaurantAnalytics(restaurantId: string): Promise<Anal
   let todayValue = 0
   let weekOrders = 0
   let weekValue = 0
+  let previousWeekOrders = 0
+  let previousWeekValue = 0
   let monthOrders = 0
   let monthValue = 0
   const dailyMap = new Map<string, { count: number; value: number }>()
@@ -99,10 +108,14 @@ export async function getRestaurantAnalytics(restaurantId: string): Promise<Anal
       todayValue += order.total
     }
 
-    // Week
+    // Week (current rolling week)
     if (orderDateISO >= weekAgoISO) {
       weekOrders += 1
       weekValue += order.total
+    } else if (orderDateISO >= previousWeekStartISO) {
+      // Previous week (the 7 days immediately before this week)
+      previousWeekOrders += 1
+      previousWeekValue += order.total
     }
 
     // Month
@@ -125,6 +138,14 @@ export async function getRestaurantAnalytics(restaurantId: string): Promise<Anal
   // Calculate average order value
   const totalOrders = monthOrders || 1
   const averageOrderValue = formatCurrency(monthValue / totalOrders)
+
+  // Week-over-week change percentages (safe division — no change when base is 0)
+  const weekOrdersChangePct = previousWeekOrders > 0
+    ? Math.round(((weekOrders - previousWeekOrders) / previousWeekOrders) * 100)
+    : (weekOrders > 0 ? 100 : 0)
+  const weekValueChangePct = previousWeekValue > 0
+    ? Math.round(((weekValue - previousWeekValue) / previousWeekValue) * 100)
+    : (weekValue > 0 ? 100 : 0)
 
   // Get top 5 products
   const topProducts = Array.from(productMap.entries())
@@ -155,6 +176,10 @@ export async function getRestaurantAnalytics(restaurantId: string): Promise<Anal
     todayValue: formatCurrency(todayValue),
     weekOrders,
     weekValue: formatCurrency(weekValue),
+    previousWeekOrders,
+    previousWeekValue: formatCurrency(previousWeekValue),
+    weekOrdersChangePct,
+    weekValueChangePct,
     monthOrders,
     monthValue: formatCurrency(monthValue),
     averageOrderValue,

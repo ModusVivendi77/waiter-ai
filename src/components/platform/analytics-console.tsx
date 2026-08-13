@@ -21,6 +21,12 @@ function formatDate(dateString: string): string {
   return date.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
+function formatChangePct(value: number): { label: string; className: string } {
+  if (value > 0) return { label: `▲ ${value}%`, className: 'badge' }
+  if (value < 0) return { label: `▼ ${Math.abs(value)}%`, className: 'badge' }
+  return { label: '0%', className: 'badge' }
+}
+
 export function AnalyticsConsole() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -160,6 +166,28 @@ export function AnalyticsConsole() {
             <div className="cart-line-header">
               <strong>Order value</strong>
               <span className="badge">{formatCurrency(metrics.weekValue)}</span>
+            </div>
+          </li>
+        </ul>
+
+        <span className="eyebrow" style={{ marginTop: '12px' }}>Week-over-Week Comparison</span>
+        <ul className="list">
+          <li>
+            <div className="cart-line-header">
+              <strong>Orders vs previous week</strong>
+              <span className={formatChangePct(metrics.weekOrdersChangePct).className}>
+                {formatChangePct(metrics.weekOrdersChangePct).label}
+                <span className="muted"> ({metrics.weekOrders} vs {metrics.previousWeekOrders})</span>
+              </span>
+            </div>
+          </li>
+          <li>
+            <div className="cart-line-header">
+              <strong>Order value vs previous week</strong>
+              <span className={formatChangePct(metrics.weekValueChangePct).className}>
+                {formatChangePct(metrics.weekValueChangePct).label}
+                <span className="muted"> ({formatCurrency(metrics.weekValue)} vs {formatCurrency(metrics.previousWeekValue)})</span>
+              </span>
             </div>
           </li>
         </ul>

@@ -279,6 +279,10 @@
   - [x] `OrderValueChart` (bar chart)
 - [x] Date range selector component
   - [x] Today, This Week, Last 30 Days, Custom range options
+- [x] **Week-over-week comparison analytics** (restaurant dashboard)
+  - [x] Previous-week orders and order value (8–14 days back)
+  - [x] Change percentage badges (▲ / ▼ / 0%) with current-vs-previous breakdown
+  - [x] Safe division when no previous-week baseline exists
 - [x] Export functionality
   - [x] PDF export using html2canvas + jsPDF
   - [x] CSV export for data extraction
@@ -307,8 +311,8 @@
 ---
 
 ### Phase 8: Testing & Hardening (Week 8) 🟡 IN PROGRESS
-- [x] Unit tests (48 passing: order validation, auth schemas, rate limiter, CSV import, analytics)
-- [x] Integration tests (analytics query libraries with mocked Supabase client)
+- [x] Unit tests (49 passing: order validation, auth schemas, rate limiter, CSV import, analytics)
+- [x] Integration tests (analytics query libraries with mocked Supabase client, incl. week-over-week comparisons)
 - [x] Initial E2E tests/config added
 - [x] Expanded E2E coverage for setup rename/delete/import and public QR menu flow
 - [x] Rate limiting added (Task 6.3) and wired into public API routes
@@ -322,9 +326,11 @@
 - Rate limiter applies to `/api/orders` POST (30 req / 10 min) and `/api/order-status/[trackingToken]` GET (120 req / min) with `Retry-After` and `X-RateLimit-Remaining` headers
 - Extracted CSV parsing from `RestaurantSetupConsole` into `src/lib/csv/menu-import.ts` (shared, testable)
 - `src/lib/csv/__tests__/menu-import.test.ts` — 15 cases covering quoting, escaped quotes, trimming, validation errors, price checks, and duplicate detection
-- `src/lib/analytics/__tests__/restaurant.test.ts` — 4 cases: zeroed metrics, query error, today/week/month totals, top products, 7-day trend, null items
+- `src/lib/analytics/__tests__/restaurant.test.ts` — 5 cases: zeroed metrics, query error, today/week/previous-week/month totals, change percentages, top products, 7-day trend, null items, no-baseline handling
 - `src/lib/analytics/__tests__/platform.test.ts` — 3 cases: query error, cross-restaurant metrics, join array/unknown-name handling
 - Fixed timezone bug in `getRestaurantAnalytics`: date bucketing now uses local-timezone date keys (toLocalDateKey) instead of `toISOString().split('T')` which shifted dates in timezones east of UTC (e.g. Europe/Athens)
+- Added week-over-week comparison: `previousWeekOrders`, `previousWeekValue`, `weekOrdersChangePct`, `weekValueChangePct` to `getRestaurantAnalytics` (previous week = the 7 days before the current rolling week)
+- `AnalyticsConsole` renders the comparison with ▲/▼/0% badges under "This Week"
 - Initial security review: `.env*` gitignored, service-role key server-only, rate limits on public APIs, broadcast publishing gated to staff (migration 007), order data only exposed via API routes
 
 ---
@@ -346,8 +352,8 @@
 | 4. Restaurant Setup | 🟡 95% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, and E2E coverage |
 | 5. Customer Ordering | 🟢 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling and status timeline |
 | 6. Real-Time & Dashboard | 🟡 80% | Staff real-time subscriptions + public broadcast tracking implemented; staging E2E verification pending; rate limits added |
-| 7. Analytics & Admin | 🟡 90% | Analytics dashboards with charts, exports, and trend visualization complete; restaurant analytics timezone bucketing fixed |
-| 8. Testing | 🟡 60% | 48 unit/integration tests passing; rate limiting + security pass complete |
+| 7. Analytics & Admin | 🟡 93% | Restaurant analytics now include week-over-week comparisons; timezone bucketing fixed; custom date-range wiring + acquisition funnel pending |
+| 8. Testing | 🟡 60% | 49 unit/integration tests passing; rate limiting + security pass complete |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
 ---
@@ -356,20 +362,19 @@
 
 ### Right Now (Do This First)
 ```bash
-# 1. Commit Phase 2 email verification (Supabase Confirm signup template)
+# 1. Commit Phase 7 week-over-week analytics
 git add .
-git commit -m "feat: use Supabase built-in confirm signup template for email verification
+git commit -m "feat: add week-over-week comparison analytics to restaurant dashboard
 
-- Register creates an unconfirmed user and dispatches admin.auth.resend({ type: 'signup' })
-- /auth/callback verifies token_hash + type=signup confirmation links -> /login?verified=1
-- Convert /verify-email to check-your-inbox + resend confirmation email (rate-limited 3/10min)
-- Wrap verify-email page in Suspense; remove OTP-code flow (verifyEmailSchema, verifyEmailCode, sendVerificationEmail)"
+- Add previousWeekOrders/previousWeekValue and change-percentage calculations to getRestaurantAnalytics
+- Render WoW comparison badges (▲/▼/0%) with current-vs-previous breakdown in AnalyticsConsole
+- Update restaurant analytics tests (5 cases) covering previous-week buckets and no-baseline safety"
 git push origin master
 
 # 2. Validate changes with production build and tests
 npm run typecheck && npm run build && npx vitest run
 
-# 3. Next: Confirm site URL in Supabase Auth -> Email templates -> Confirm signup -> <APP_URL>/auth/callback, then Phase 7 comparison analytics or E2E re-run
+# 3. Next: Custom date-range selector wiring or E2E re-run with real-time implementation
 ```
 
 ### After Timeline Verified
@@ -415,5 +420,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** Phase 2 email verification OTP flow (`be04bd3`)
-**Next commit:** Phase 2 switch to Supabase Confirm signup template (see commit command above)
+**Last commit:** Phase 2 email verification via Supabase Confirm signup template (`18ca5eb`)
+**Next commit:** Phase 7 week-over-week comparison analytics (see commit command above)

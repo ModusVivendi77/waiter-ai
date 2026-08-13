@@ -53,6 +53,11 @@ describe('getRestaurantAnalytics', () => {
     expect(metrics.todayOrders).toBe(0)
     expect(metrics.todayValue).toBe(0)
     expect(metrics.weekOrders).toBe(0)
+    expect(metrics.weekValue).toBe(0)
+    expect(metrics.previousWeekOrders).toBe(0)
+    expect(metrics.previousWeekValue).toBe(0)
+    expect(metrics.weekOrdersChangePct).toBe(0)
+    expect(metrics.weekValueChangePct).toBe(0)
     expect(metrics.monthOrders).toBe(0)
     expect(metrics.averageOrderValue).toBe(0)
     expect(metrics.topProducts).toEqual([])
@@ -69,10 +74,11 @@ describe('getRestaurantAnalytics', () => {
     await expect(getRestaurantAnalytics('restaurant-1')).rejects.toThrow('Failed to fetch orders: db down')
   })
 
-  it('calculates today, week, month totals, top products, and a 7-day trend', async () => {
+  it('calculates today, week, previous week, month, top products, and a 7-day trend', async () => {
     const today = atLocalMidnight(0)
     const yesterday = atLocalMidnight(1)
     const threeDaysAgo = atLocalMidnight(3)
+    const nineDaysAgo = atLocalMidnight(9)
     const tenDaysAgo = atLocalMidnight(10)
 
     const orders = [
@@ -107,8 +113,15 @@ describe('getRestaurantAnalytics', () => {
         id: 'order-4',
         status: 'SERVED',
         total: 40,
-        created_at: isoAt(tenDaysAgo, 15),
+        created_at: isoAt(nineDaysAgo, 15),
         order_items: [{ item_name: 'Burger', quantity: 5, unit_price: 8 }],
+      },
+      {
+        id: 'order-5',
+        status: 'SERVED',
+        total: 10,
+        created_at: isoAt(tenDaysAgo, 16),
+        order_items: [{ item_name: 'Water', quantity: 2, unit_price: 5 }],
       },
     ]
 
@@ -120,27 +133,61 @@ describe('getRestaurantAnalytics', () => {
     expect(metrics.todayOrders).toBe(1)
     expect(metrics.todayValue).toBe(20)
 
-    // Week (last 7 days): order-1, order-2, order-3 (order-4 is 10 days out)
+    // Current week (today through 7 days back): order-1, order-2, order-3
     expect(metrics.weekOrders).toBe(3)
     expect(metrics.weekValue).toBe(20 + 30 + 15)
 
-    // Month (last 30 days): all four orders
-    expect(metrics.monthOrders).toBe(4)
-    expect(metrics.monthValue).toBe(20 + 30 + 15 + 40)
+    // Previous week (8-14 days back): order-4 (9 days ago), order-5 (10 days ago)
+    expect(metrics.previousWeekOrders).toBe(2)
+    expect(metrics.previousWeekValue).toBe(40 + 10)
+
+    // Week-over-week change: (3 - 2) / 2 = 50%, (65 - 50) / 50 = 30%
+    expect(metrics.weekOrdersChangePct).toBe(50)
+    expect(metrics.weekValueChangePct).toBe(30)
+
+    // Month (last 30 days): all five orders
+    expect(metrics.monthOrders).toBe(5)
+    expect(metrics.monthValue).toBe(20 + 30 + 15 + 40 + 10)
 
     // Average: monthValue / monthOrders
-    expect(metrics.averageOrderValue).toBe(Math.round((20 + 30 + 15 + 40) / 4 * 100) / 100)
+    expect(metrics.averageOrderValue).toBe(Math.round((20 + 30 + 15 + 40 + 10) / 5 * 100) / 100)
 
-    // Top products by quantity: Burger 10, Fries 1, Mythos 1, Salad 1
+    // Top products by quantity: Burger 10, Water 2, then Fries/Mythos/Salad at 1
     expect(metrics.topProducts[0]).toEqual({ itemName: 'Burger', quantity: 10, value: 80 })
-    expect(metrics.topProducts).toHaveLength(4)
+    expect(metrics.topProducts[1]).toEqual({ itemName: 'Water', quantity: 2, value: 10 })
+    expect(metrics.topProducts).toHaveLength(5)
 
     // 7-day trend: today + yesterday populated, older days zeroed
     const trend = metrics.lastSevenDays
     expect(trend).toHaveLength(7)
     expect(trend[6]).toEqual({ date: localDateKey(today), orderCount: 1, orderValue: 20 })
     expect(trend[5]).toEqual({ date: localDateKey(yesterday), orderCount: 1, orderValue: 30 })
+    expect(trend[3]).toEqual({ date: localDateKey(threeDaysAgo), orderCount: 1, orderValue: 15 })
     expect(trend[0]?.orderCount).toBe(0)
+  })
+
+  it('handles a week with no previous-week baseline (no division by zero)', async () => {
+    const today = atLocalMidnight(0)
+
+    const orders = [
+      {
+        id: 'order-1',
+        status: 'SERVED',
+        total: 20,
+        created_at: isoAt(today, 12),
+        order_items: null,
+      },
+    ]
+
+    mockFrom.mockReturnValue(buildChain({ data: orders, error: null }))
+
+    const metrics = await getRestaurantAnalytics('restaurant-1')
+
+    expect(metrics.weekOrders).toBe(1)
+    expect(metrics.previousWeekOrders).toBe(0)
+    // No baseline -> show +100% when current has orders, no crash on division by zero
+    expect(metrics.weekOrdersChangePct).toBe(100)
+    expect(metrics.weekValueChangePct).toBe(100)
   })
 
   it('handles an order with null order_items', async () => {
