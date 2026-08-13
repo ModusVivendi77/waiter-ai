@@ -295,12 +295,12 @@
 ---
 
 ### Phase 8: Testing & Hardening (Week 8) 🟡 IN PROGRESS
-- [x] Unit tests (26 passing: order validation, auth schemas, rate limiter)
+- [x] Unit tests (41 passing: order validation, auth schemas, rate limiter, CSV import)
 - [ ] Integration tests
 - [x] Initial E2E tests/config added
 - [x] Expanded E2E coverage for setup rename/delete/import and public QR menu flow
 - [x] Rate limiting added (Task 6.3) and wired into public API routes
-- [ ] Security review
+- [x] Security review (initial pass complete)
 
 **Implementation details:**
 - Added `@` path alias to `vitest.config.ts` so tests resolve `@/lib/...` imports
@@ -308,6 +308,9 @@
 - `src/lib/auth/__tests__/schemas.test.ts` — 9 cases for registration and password reset schemas
 - `src/lib/utils/__tests__/rateLimit.test.ts` — 7 cases for the rate limiter
 - Rate limiter applies to `/api/orders` POST (30 req / 10 min) and `/api/order-status/[trackingToken]` GET (120 req / min) with `Retry-After` and `X-RateLimit-Remaining` headers
+- Extracted CSV parsing from `RestaurantSetupConsole` into `src/lib/csv/menu-import.ts` (shared, testable)
+- `src/lib/csv/__tests__/menu-import.test.ts` — 15 cases covering quoting, escaped quotes, trimming, validation errors, price checks, and duplicate detection
+- Initial security review: `.env*` gitignored, service-role key server-only, rate limits on public APIs, broadcast publishing gated to staff (migration 007), order data only exposed via API routes
 
 ---
 
@@ -329,7 +332,7 @@
 | 5. Customer Ordering | 🟢 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling and status timeline |
 | 6. Real-Time & Dashboard | 🟡 80% | Staff real-time subscriptions + public broadcast tracking implemented; staging E2E verification pending; rate limits added |
 | 7. Analytics & Admin | 🟡 90% | Analytics dashboards with charts, exports, and trend visualization complete |
-| 8. Testing | 🟡 35% | 26 unit tests passing; rate limiting added; E2E config in place; integration/security review pending |
+| 8. Testing | 🟡 45% | 41 unit tests passing; rate limiting + security pass complete; integration tests pending |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
 ---
@@ -338,21 +341,19 @@
 
 ### Right Now (Do This First)
 ```bash
-# 1. Commit Phase 6 public real-time tracking changes
+# 1. Commit Phase 8 CSV module + expanded unit tests
 git add .
-git commit -m "feat: add public real-time order status tracking via broadcasts
+git commit -m "test: extract CSV import module and expand unit test coverage
 
-- Add auth-less broadcast channel subscription for customers on /orders/[trackingToken]
-- OrdersConsole publishes status changes to order-status-<orderId> channel after DB writes
-- OrderStatusView re-fetches on broadcast receipt; 5s polling remains as fallback
-- Add migration 007 gating broadcast publishing to authenticated restaurant staff
-- Add usePublicOrderStatus hook for public subscription management"
+- Extract CSV parsing from RestaurantSetupConsole into src/lib/csv/menu-import.ts
+- Add 15 unit tests for CSV line/row parsing, quoting, validation, and duplicates
+- Complete initial security review (env secrets, service-role boundary, rate limits, broadcast auth)"
 git push origin master
 
 # 2. Validate changes with production build and tests
 npm run typecheck && npm run build && npx vitest run
 
-# 3. Next: Apply migration 007, Phase 8 integration tests, or security review
+# 3. Next: Phase 8 integration tests or re-run E2E suite with real-time implementation
 ```
 
 ### After Timeline Verified
@@ -398,5 +399,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** Phase 8 testing + Phase 5 customer timeline (`d4b3202`)
-**Next commit:** Phase 6 public real-time tracking (see commit command above)
+**Last commit:** Phase 6 public real-time tracking (`3c48850`)
+**Next commit:** Phase 8 CSV module + expanded unit tests (see commit command above)
