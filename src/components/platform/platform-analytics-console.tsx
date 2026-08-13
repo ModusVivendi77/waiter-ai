@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 
 import { getClientUserContext } from '@/lib/auth/client'
 import { getPlatformAnalytics, type PlatformAnalyticsMetrics } from '@/lib/analytics/platform'
+import { exportToPDF, exportToCSV } from '@/lib/export/analytics-export'
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-GB', {
@@ -17,6 +18,7 @@ export function PlatformAnalyticsConsole() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [metrics, setMetrics] = useState<PlatformAnalyticsMetrics | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     async function loadAnalytics() {
@@ -49,6 +51,33 @@ export function PlatformAnalyticsConsole() {
     void loadAnalytics()
   }, [])
 
+  const handleExportPDF = async () => {
+    try {
+      setExporting(true)
+      await exportToPDF('platform-analytics-content', 'platform-analytics')
+    } catch (err) {
+      console.error('PDF export failed:', err)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleExportCSV = async () => {
+    try {
+      setExporting(true)
+      const csvData = metrics?.topRestaurants.map((restaurant) => ({
+        Restaurant: restaurant.name,
+        Orders: restaurant.orders,
+        'Total Value': restaurant.value,
+      })) || []
+      await exportToCSV(csvData, 'platform-analytics-restaurants')
+    } catch (err) {
+      console.error('CSV export failed:', err)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   if (loading) {
     return (
       <section className="panel stack">
@@ -74,9 +103,17 @@ export function PlatformAnalyticsConsole() {
         <span className="eyebrow">Platform Analytics</span>
         <h1 className="section-title">Platform Overview (SUPER_ADMIN)</h1>
         <p className="lead">View platform-wide metrics and restaurant performance rankings.</p>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
+          <button type="button" className="button-secondary" onClick={handleExportPDF} disabled={exporting}>
+            {exporting ? 'Exporting...' : 'Export as PDF'}
+          </button>
+          <button type="button" className="button-secondary" onClick={handleExportCSV} disabled={exporting}>
+            {exporting ? 'Exporting...' : 'Export as CSV'}
+          </button>
+        </div>
       </section>
 
-      <section className="panel stack">
+      <section className="panel stack" id="platform-analytics-content">
         <span className="eyebrow">Restaurants</span>
         <ul className="list">
           <li>

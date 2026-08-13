@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react'
 
 import { getClientUserContext } from '@/lib/auth/client'
 import { getRestaurantAnalytics, type AnalyticsMetrics } from '@/lib/analytics/restaurant'
+import { OrderTrendChart, OrderCountChart, OrderValueChart } from '@/components/charts/trend-charts'
+import { DateRangeSelector } from '@/components/charts/date-range-selector'
+import { exportToPDF, exportToCSV } from '@/lib/export/analytics-export'
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-GB', {
@@ -23,6 +26,8 @@ export function AnalyticsConsole() {
   const [error, setError] = useState<string | null>(null)
   const [restaurantName, setRestaurantName] = useState<string | null>(null)
   const [metrics, setMetrics] = useState<AnalyticsMetrics | null>(null)
+  const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'custom'>('month')
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     async function loadAnalytics() {
@@ -58,6 +63,33 @@ export function AnalyticsConsole() {
     void loadAnalytics()
   }, [])
 
+  const handleExportPDF = async () => {
+    try {
+      setExporting(true)
+      await exportToPDF('analytics-content', `analytics-${restaurantName}`)
+    } catch (err) {
+      console.error('PDF export failed:', err)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleExportCSV = async () => {
+    try {
+      setExporting(true)
+      const csvData = metrics?.lastSevenDays.map((day) => ({
+        Date: day.date,
+        Orders: day.orderCount,
+        'Order Value': day.orderValue,
+      })) || []
+      await exportToCSV(csvData, `daily-analytics-${restaurantName}`)
+    } catch (err) {
+      console.error('CSV export failed:', err)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   if (loading) {
     return (
       <section className="panel stack">
@@ -83,6 +115,18 @@ export function AnalyticsConsole() {
         <span className="eyebrow">Analytics</span>
         <h1 className="section-title">Analytics for {restaurantName}</h1>
         <p className="lead">View order trends, revenue insights, and popular items for your restaurant.</p>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
+          <button type="button" className="button-secondary" onClick={handleExportPDF} disabled={exporting}>
+            {exporting ? 'Exporting...' : 'Export as PDF'}
+          </button>
+          <button type="button" className="button-secondary" onClick={handleExportCSV} disabled={exporting}>
+            {exporting ? 'Exporting...' : 'Export as CSV'}
+          </button>
+        </div>
+      </section>
+
+      <section className="panel stack" id="analytics-content">
+        <DateRangeSelector selectedRange={dateRange} onRangeChange={setDateRange} />
       </section>
 
       <section className="panel stack">
@@ -143,6 +187,18 @@ export function AnalyticsConsole() {
             </div>
           </li>
         </ul>
+      </section>
+
+      <section className="panel stack">
+        <OrderTrendChart data={metrics.lastSevenDays} title="Orders & Revenue Trend (7 Days)" height={350} />
+      </section>
+
+      <section className="panel stack">
+        <OrderCountChart data={metrics.lastSevenDays} title="Daily Order Volume (7 Days)" height={300} />
+      </section>
+
+      <section className="panel stack">
+        <OrderValueChart data={metrics.lastSevenDays} title="Daily Revenue (7 Days)" height={300} />
       </section>
 
       <section className="panel stack">
