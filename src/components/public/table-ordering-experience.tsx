@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo, useState } from 'react'
 
 import type { CreateOrderInput } from '@/lib/validation/orders'
@@ -40,6 +41,7 @@ type OrderResponse = {
     total: number
     currency: string
     created_at: string
+    public_tracking_token: string
   }
   error?: string
   warning?: string
@@ -197,6 +199,11 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
             {success ? (
               <div className="success">
                 Order {success.id.slice(0, 8)} submitted with status {success.status}. Total: {formatCurrency(success.total, success.currency)}.
+                <div style={{ marginTop: '10px' }}>
+                  <Link className="button-secondary" href={`/orders/${success.public_tracking_token}`}>
+                    Track order status
+                  </Link>
+                </div>
               </div>
             ) : null}
             {warning ? <div className="message">{warning}</div> : null}

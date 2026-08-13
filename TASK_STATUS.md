@@ -1,7 +1,7 @@
 # Waiter AI — Task Status Tracker
 
-**Last Updated:** August 12, 2026
-**Current Phase:** 4 — Restaurant Setup
+**Last Updated:** August 13, 2026
+**Current Phase:** 6/6 — Real-Time & Dashboard Updates
 
 ---
 
@@ -167,13 +167,57 @@
 - [x] Menu browser
 - [x] Shopping cart
 - [x] Order submission API (`/api/orders`)
+- [x] Public order tracking page (`/orders/[trackingToken]`)
+- [x] Customer status refresh via polling
+
+### Phase 5: Customer Ordering � COMPLETE
+
+**What's ready:**
+- [x] Public QR menu route backed by live Supabase data
+- [x] Cart building and order note capture
+- [x] Order submission into `orders`, `order_items`, and `order_status_history`
+- [x] Public tracking token per order
+- [x] Customer-facing order status page with optimized polling (5-second refresh interval)
+- [x] Manual refresh button for customers to check status on-demand
+- [x] Last updated timestamp visible to customers
+- [x] Restaurant orders workspace shows submitted orders for staff/admins
+- [x] Waiter/staff can update status, edit quantities/notes, add items, and remove items from orders
+
+**What still needs to happen:**
+1. Add customer-visible status timeline/history presentation
+2. Add public guardrails around order edits/cancellation windows if needed
+3. Expand automated checks around multi-item totals and item removal edge cases
+4. Re-run full E2E suite after real-time implementation
 
 ---
 
-### Phase 6: Real-Time & Dashboard (Week 6)
-- [ ] Real-time subscriptions
-- [ ] Restaurant dashboard
-- [ ] Order status updates
+### Phase 6: Real-Time & Dashboard 🟡 IN PROGRESS
+
+**What's ready:**
+- [x] Real-time subscriptions for authenticated staff (orders and order_items tables)
+- [x] Instant order status updates when staff change order status
+- [x] Instant order item updates when items are added/edited/deleted
+- [x] Real-time totals recalculation when order items change
+- [x] Custom `useSupabaseSubscription` hook for managing Supabase real-time connections
+- [x] Restaurant orders workspace now displays live updates without manual reload
+- [x] Optimized polling for public customers (5-second intervals with manual refresh)
+- [x] Restaurant dashboard baseline (`/platform/orders`)
+- [x] Manual order status updates
+
+**Implementation details:**
+- Added `/lib/hooks/use-supabase-subscription.ts` for real-time subscription management
+- Updated `OrdersConsole` to subscribe to `orders` (UPDATE events) and `order_items` (INSERT/UPDATE/DELETE events)
+- Subscriptions are scoped per restaurant to prevent cross-restaurant data leaks
+- Proper cleanup of subscriptions on component unmount
+- Fallback to current approach if Supabase real-time is unavailable
+
+**What still needs to happen:**
+1. Add real-time subscriptions for public customers (requires auth-less tracking or new RLS policy)
+2. Add customer-visible status timeline/history presentation with real-time updates
+3. Test real-time functionality end-to-end in staging
+4. Monitor real-time connection stability and latency metrics
+5. Add reconnection/retry logic if needed
+6. Re-run full E2E suite with new real-time implementation
 
 ---
 
@@ -209,10 +253,10 @@
 | 2. Database | 🟢 100% | Schema applied and seeded on the live Supabase project |
 | 3. Auth | 🟡 95% | Registration email hook added; reset-password end-to-end still pending inbox confirmation |
 | 4. Restaurant Setup | 🟡 95% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, and E2E coverage |
-| 5. Customer Ordering | 🟡 40% | Public QR table route, menu browser, cart, and order submission are now live |
-| 6. Real-Time & Dashboard | ⚪ 0% | Waiting on ordering |
+| 5. Customer Ordering | � 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling |
+| 6. Real-Time & Dashboard | 🟡 50% | Real-time subscriptions for staff implemented; public real-time tracking pending |
 | 7. Analytics & Admin | 🟡 20% | SUPER_ADMIN model and assignment management now live |
-| 8. Testing | ⚪ 0% | Throughout development |
+| 8. Testing | ⚪ 10% | Initial E2E config in place; real-time scenarios to be added |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
 ---
@@ -221,29 +265,30 @@
 
 ### Right Now (Do This First)
 ```bash
-# 1. Verify production environment variables in Vercel
-#    NEXT_PUBLIC_SUPABASE_URL
-#    NEXT_PUBLIC_SUPABASE_ANON_KEY
-#    SUPABASE_SERVICE_ROLE_KEY
-#    NEXT_PUBLIC_APP_URL=https://waiter-ai-iota.vercel.app
+# 1. Commit Phase 6 real-time changes
+git add .
+git commit -m "feat: add real-time subscriptions for staff order updates
 
-# 2. Smoke test production deployment
-#    https://waiter-ai-iota.vercel.app/login
-#    https://waiter-ai-iota.vercel.app/platform/signup
-#    https://waiter-ai-iota.vercel.app/platform
-#    https://waiter-ai-iota.vercel.app/t/X7k91Lm
+- Implement Supabase real-time subscriptions for orders and order_items tables
+- Real-time status updates when staff change order status
+- Real-time item updates when items are added/edited/deleted
+- Optimized polling for public customers (5-second intervals)
+- Add manual refresh button for customers on order tracking page
+- Add restaurant_id field to enable per-restaurant subscription filtering"
+git push origin master
 
-# 3. Continue Phase 5 customer flow
-#    Order confirmation/status surface and customer order history token
+# 2. Validate latest changes with E2E tests
+E2E_EMAIL='platform_owner@test.com' E2E_PASSWORD='Password123!' E2E_BRAND='The Green Bar' npm run test:e2e
+
+# 3. Start Phase 7 Analytics iteration or Phase 5 customer timeline feature
 ```
 
-### After Supabase Setup Confirmed
+### After Supabase Real-Time Verified
 ```bash
-# Start dev server to verify everything works
-npm run dev
-
-# In another terminal, check for errors
-# Visit http://localhost:3000
+# Monitor Supabase real-time connection logs
+# Check browser console for real-time subscription status
+# Validate that staff orders update instantly when items/status change
+# Test with multiple browsers/tabs to verify cross-tab real-time sync
 ```
 
 ---
@@ -282,5 +327,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** `d66605a`
-**Next commit:** Continue Phase 5 ordering confirmation/status experience
+**Last commit:** Phase 6 real-time subscriptions (pending)
+**Next commit:** E2E test validation and Phase 7 planning
