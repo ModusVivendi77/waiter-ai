@@ -15,10 +15,10 @@ export function RegisterForm() {
       {state.success ? (
         <div className="stack">
           <div className="success">
-            Account created. A verification code was sent to <strong>{state.success}</strong>. Confirm it to activate your owner access.
+            Account created. A confirmation email was sent to <strong>{state.success}</strong>. Open the link inside to activate your owner access.
           </div>
           <Link className="button" href={`/verify-email?email=${encodeURIComponent(state.success)}`}>
-            Enter verification code
+            I did not receive the email
           </Link>
         </div>
       ) : (

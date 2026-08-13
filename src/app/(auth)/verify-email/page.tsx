@@ -8,9 +8,9 @@ export default function VerifyEmailPage() {
     <main className="auth-layout">
       <section className="auth-card stack">
         <span className="eyebrow">Email Verification</span>
-        <h1 className="section-title">Confirm your email address.</h1>
+        <h1 className="section-title">Check your inbox to confirm your email.</h1>
         <p className="helper-text">
-          Enter the 6-digit code we sent to your inbox. Your account stays locked until the code is confirmed.
+          Open the confirmation link we emailed you to activate your account. Your account stays locked until you confirm.
         </p>
         <Suspense fallback={<p className="muted">Loading verification form...</p>}>
           <VerifyEmailForm />

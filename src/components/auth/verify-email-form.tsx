@@ -4,75 +4,54 @@ import { useActionState, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-import { resendVerificationCode, verifyEmailCode, type VerifyEmailState } from '@/lib/auth/actions'
+import { resendConfirmationEmail, type VerifyEmailState } from '@/lib/auth/actions'
 
 const initialState: VerifyEmailState = {}
 
 export function VerifyEmailForm() {
   const searchParams = useSearchParams()
   const initialEmail = searchParams.get('email') || ''
+  const invalidLink = searchParams.get('error') === 'invalid-link'
 
   const [email, setEmail] = useState(initialEmail)
-  const [state, formAction, pending] = useActionState(verifyEmailCode, initialState)
-  const [resendState, resendAction, resendPending] = useActionState(resendVerificationCode, initialState)
+  const [state, formAction, pending] = useActionState(resendConfirmationEmail, initialState)
 
   return (
     <div className="stack">
-      {state.success ? (
-        <div className="stack">
-          <div className="success">{state.success}</div>
-          <Link href="/login">Go to login</Link>
+      {invalidLink ? <div className="error-box">That confirmation link is invalid or has expired.</div> : null}
+
+      <div className="message">
+        We sent a confirmation email to <strong>{email || 'your inbox'}</strong>. Open the link inside to activate
+        your owner account, then sign in.
+      </div>
+
+      <p className="helper-text">
+        Didn't receive it? Enter your email below and we'll send the confirmation link again.
+      </p>
+
+      <form action={formAction} className="stack">
+        <div className="field">
+          <label htmlFor="verificationEmail">Email</label>
+          <input
+            id="verificationEmail"
+            name="email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="owner@example.com"
+            required
+          />
         </div>
-      ) : (
-        <>
-          <form action={formAction} className="stack">
-            <div className="field">
-              <label htmlFor="verificationEmail">Email</label>
-              <input
-                id="verificationEmail"
-                name="email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="owner@example.com"
-                required
-              />
-            </div>
 
-            <div className="field">
-              <label htmlFor="verificationCode">6-digit verification code</label>
-              <input
-                id="verificationCode"
-                name="code"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                placeholder="123456"
-                required
-              />
-            </div>
+        {state.error ? <div className="error-box">{state.error}</div> : null}
+        {state.success ? <div className="success">{state.success}</div> : null}
 
-            {state.error ? <div className="error-box">{state.error}</div> : null}
+        <button className="button" type="submit" disabled={pending}>
+          {pending ? 'Sending...' : 'Resend confirmation email'}
+        </button>
+      </form>
 
-            <button className="button" type="submit" disabled={pending}>
-              {pending ? 'Verifying...' : 'Verify email'}
-            </button>
-          </form>
-
-          <form action={resendAction}>
-            <input type="hidden" name="email" value={email} />
-            <button className="button-secondary" type="submit" disabled={resendPending}>
-              {resendPending ? 'Sending...' : 'Resend verification code'}
-            </button>
-            {resendState.error ? <div className="error-box">{resendState.error}</div> : null}
-            {resendState.success ? <div className="success">{resendState.success}</div> : null}
-          </form>
-
-          <Link href="/login">Already verified? Sign in.</Link>
-        </>
-      )}
+      <Link href="/login">Already confirmed? Sign in.</Link>
     </div>
   )
 }

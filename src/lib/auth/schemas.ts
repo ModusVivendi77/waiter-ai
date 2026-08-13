@@ -24,11 +24,3 @@ export const passwordResetSchema = z
     message: 'Passwords do not match.',
     path: ['confirmPassword'],
   })
-
-export const verifyEmailSchema = z.object({
-  email: z.string().trim().email('Enter a valid email address.'),
-  code: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, 'Verification code must be exactly 6 digits.'),
-})
