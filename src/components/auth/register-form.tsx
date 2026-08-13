@@ -14,11 +14,19 @@ export function RegisterForm() {
     <div className="stack">
       {state.success ? (
         <div className="stack">
-          <div className="success">
-            Account created. A confirmation email was sent to <strong>{state.success}</strong>. Open the link inside to activate your owner access.
-          </div>
+          {state.emailPending ? (
+            <div className="message">
+              Account created for <strong>{state.success}</strong>, but {state.emailNotice?.toLowerCase().replace(/\.$/, '')}.
+              Use the button below to resend the confirmation email in a few minutes.
+            </div>
+          ) : (
+            <div className="success">
+              Account created. A confirmation email was sent to <strong>{state.success}</strong>. Open the link inside
+              to activate your owner access.
+            </div>
+          )}
           <Link className="button" href={`/verify-email?email=${encodeURIComponent(state.success)}`}>
-            I did not receive the email
+            {state.emailPending ? 'Resend confirmation email' : 'I did not receive the email'}
           </Link>
         </div>
       ) : (

@@ -2,15 +2,20 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import type { GenerateSignupLinkParams } from '@supabase/supabase-js'
 
 import { createAdminClient } from '@/lib/supabase/server'
 import { registerRestaurantSchema } from '@/lib/auth/schemas'
-import { sendRegistrationEmail } from '@/lib/notifications/email'
+import { isResendConfigured, sendConfirmationEmail, sendRegistrationEmail } from '@/lib/notifications/email'
 import { rateLimit } from '@/lib/utils/rateLimit'
 
 export type RegisterState = {
   error?: string
   success?: string
+  /** True when the account was created but the confirmation email could not be delivered yet. */
+  emailPending?: boolean
+  /** Short human-readable reason the confirmation email was not delivered. */
+  emailNotice?: string
 }
 
 export type VerifyEmailState = {
@@ -24,6 +29,65 @@ function slugify(value: string) {
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
+}
+
+type ConfirmationDispatchResult =
+  | { ok: true; channel: 'resend' | 'supabase' }
+  | { ok: false; reason: string }
+
+/**
+ * Delivers the signup confirmation email for an account created via the admin
+ * API (which never auto-sends one).
+ *
+ * Primary path: generate a fresh confirmation link with `admin.generateLink`
+ * and deliver it through Resend. This bypasses Supabase's built-in email rate
+ * limits and works even when the "Confirm signup" template's site URL points
+ * anywhere, because the link targets our own `/auth/callback` route.
+ *
+ * Fallback: let Supabase resend its built-in "Confirm signup" template. This
+ * path is subject to Supabase's email rate limits.
+ */
+async function dispatchConfirmationEmail(email: string): Promise<ConfirmationDispatchResult> {
+  const admin = createAdminClient()
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
+  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+    type: 'signup',
+    email,
+    options: { redirectTo: `${appUrl}/auth/callback` },
+    // The `password` field is required by the type but optional at runtime for
+    // an existing unconfirmed user. Deliberately omitted: passing it would make
+    // GoTrue rotate the user's password on every resend.
+  } as GenerateSignupLinkParams)
+
+  const tokenHash = linkData?.properties?.hashed_token
+
+  if (!linkError && tokenHash) {
+    if (isResendConfigured()) {
+      const confirmationUrl = `${appUrl}/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=signup`
+      const sent = await sendConfirmationEmail({ email, confirmationUrl })
+      if (sent) {
+        return { ok: true, channel: 'resend' }
+      }
+      console.warn('[Auth] Resend delivery failed; falling back to Supabase confirmation email.')
+    } else {
+      console.warn('[Auth] Resend not configured; using Supabase confirmation email.')
+    }
+  } else if (linkError) {
+    console.warn('[Auth] generateLink failed; falling back to Supabase confirmation email:', linkError.message)
+  }
+
+  const { error: resendError } = await admin.auth.resend({ type: 'signup', email })
+
+  if (resendError) {
+    return { ok: false, reason: resendError.message }
+  }
+
+  return { ok: true, channel: 'supabase' }
+}
+
+function isEmailRateLimitError(reason: string) {
+  return /rate limit/i.test(reason)
 }
 
 export async function registerRestaurant(_: RegisterState, formData: FormData): Promise<RegisterState> {
@@ -82,17 +146,23 @@ export async function registerRestaurant(_: RegisterState, formData: FormData): 
     return { error: membershipError.message }
   }
 
-  // Dispatch the built-in Supabase "Confirm signup" email template to the
-  // owner's inbox. The account cannot sign in until the link is confirmed.
-  try {
-    const { error: resendError } = await admin.auth.resend({ type: 'signup', email })
-    if (resendError) {
-      console.error('Confirmation email dispatch failed:', resendError.message)
-      return { error: 'Account created, but we could not send the confirmation email. Please use the resend option on the verification page.' }
+  // Dispatch the signup confirmation email to the owner's inbox. The account
+  // cannot sign in until the link is confirmed. Prefers Resend (via
+  // generateLink) and falls back to Supabase's built-in "Confirm signup"
+  // template when Resend is not configured.
+  const confirmation = await dispatchConfirmationEmail(email)
+
+  if (!confirmation.ok) {
+    // The account exists but the email is not out yet. Route the user to the
+    // verify-email page so they can resend once the provider cooldown passes.
+    console.error('Confirmation email dispatch failed:', confirmation.reason)
+    return {
+      success: email,
+      emailPending: true,
+      emailNotice: isEmailRateLimitError(confirmation.reason)
+        ? 'The email provider is temporarily rate-limited.'
+        : 'The confirmation email could not be sent.',
     }
-  } catch (error) {
-    console.error('Confirmation email dispatch threw:', error)
-    return { error: 'Account created, but we could not send the confirmation email. Please use the resend option on the verification page.' }
   }
 
   try {
@@ -124,11 +194,15 @@ export async function resendConfirmationEmail(_: VerifyEmailState, formData: For
     return { error: 'Too many confirmation emails. Please wait a few minutes and try again.' }
   }
 
-  const admin = createAdminClient()
-  const { error } = await admin.auth.resend({ type: 'signup', email })
+  const confirmation = await dispatchConfirmationEmail(email)
 
-  if (error) {
-    return { error: error.message }
+  if (!confirmation.ok) {
+    console.error('Confirmation email resend failed:', confirmation.reason)
+    return {
+      error: isEmailRateLimitError(confirmation.reason)
+        ? 'The email provider is temporarily rate-limited. Please wait a few minutes and try again.'
+        : `Unable to resend the confirmation email: ${confirmation.reason}`,
+    }
   }
 
   return { success: 'A new confirmation email has been sent. Check your inbox.' }

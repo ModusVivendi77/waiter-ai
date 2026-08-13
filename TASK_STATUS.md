@@ -64,15 +64,21 @@
 
 **Implementation details:**
 - `registerRestaurant` creates the auth user with `email_confirm: false` (locked until confirmed)
-- Confirmation email dispatched via `admin.auth.resend({ type: 'signup' })` — uses the project's existing Supabase "Confirm signup" template
+- **Confirmation email now dispatched via a hybrid path (`dispatchConfirmationEmail`):**
+  - Primary: `admin.generateLink({ type: 'signup', email, options: { redirectTo: '<app>/auth/callback' } })` → `hashed_token`, then delivered through **Resend** with a link to `<app>/auth/callback?token_hash=...&type=signup` — bypasses Supabase's built-in email rate limits
+  - Fallback: `admin.auth.resend({ type: 'signup', email })` (Supabase "Confirm signup" template) when Resend is not configured
+- **Root cause fixed:** Supabase's built-in email is rate-limited ("email rate limit exceeded" / "you can only request this after 59 seconds"). Resend is currently **not configured** in `.env.local` (placeholder key), so the app falls back to the rate-limited Supabase path — add a real `RESEND_API_KEY` to make confirmation emails reliable
+- **New UX:** when the confirmation email cannot be delivered, the register form now shows a "pending" state ("Account created for …") with a direct **Resend confirmation email** button to `/verify-email?email=...` instead of a dead-end error
+- `verifyOtp({ token_hash, type: 'signup' })` was live-verified: it confirms the user (`email_confirmed_at` set) and establishes the session
 - `/auth/callback` handles the template's `?token_hash=...&type=signup` link, calls `verifyOtp({ token_hash })`, and redirects to `/login?verified=1` on success (or `/verify-email?error=invalid-link` on failure)
-- `resendConfirmationEmail` is rate-limited to 3 sends per 10 minutes per email
+- `resendConfirmationEmail` uses the same hybrid dispatcher and is rate-limited to 3 sends per 10 minutes per email
 - `sendRegistrationEmail` (Resend-backed welcome email) still fires after account provisioning
 
 **What still needs to happen:**
 1. Complete the reset-password flow with a real inbox-backed account
-2. Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
-3. Decide whether to keep the current client-side protected-route strategy or revisit SSR session handling later
+2. Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings (no longer required for the Resend path, but keeps the Supabase fallback correct)
+3. **Recommended:** add a real `RESEND_API_KEY` (free plan: 100 emails/day) so confirmation emails bypass Supabase's rate limits entirely
+4. Decide whether to keep the current client-side protected-route strategy or revisit SSR session handling later
 
 **Reference:** See `IMPLEMENTATION_PLAN.md` Part 5
 
@@ -386,8 +392,10 @@
 5. **✅ Done** — E2E credentials wired: `playwright.config.ts` loads `.env.local` via `@next/env`; `npx playwright test` now passes **5/5** (previously 1 passed / 3 skipped)
 6. **✅ Done** — Broadcast flow verified & fixed: channel-name mismatch in `usePublicOrderStatus` (listener vs publisher) fixed; new E2E test proves order acceptance updates the tracking page history panel via broadcast in <3.5s
 7. **✅ Done** — Reset-password recovery redirect fixed in `/auth/callback` (recovery links now go to `/reset-password` after `verifyOtp`)
-8. **Next** — Verify reset-password end-to-end with a real inbox-backed account (request reset → click email link → confirm redirect lands on `/reset-password` → update password → login with new password)
-9. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+8. **✅ Done** — Confirmation email flow hardened: hybrid `dispatchConfirmationEmail` (generateLink + Resend primary, Supabase fallback); "email rate limit exceeded" root cause fixed; register form now shows a pending state with a direct resend path
+9. **Next** — Add a real `RESEND_API_KEY` to `.env.local` (and Vercel) so confirmation emails bypass Supabase's rate limits; then re-test registration end-to-end
+10. **Next** — Verify reset-password end-to-end with a real inbox-backed account (request reset → click email link → confirm redirect lands on `/reset-password` → update password → login with new password)
+11. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
 
 ### After Timeline Verified
 ```bash
@@ -432,5 +440,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — E2E hardening: load .env.local in Playwright, fix broadcast channel-name mismatch, fix recovery redirect, add broadcast E2E test (see log for hash)
-**Next commit:** live reset-password verification with a real inbox + confirm "Confirm signup" template site URL
+**Last commit:** feat — hybrid confirmation email dispatch (generateLink + Resend primary, Supabase fallback), email-pending register UX (see log for hash)
+**Next commit:** add real RESEND_API_KEY and re-test registration; live reset-password verification; confirm "Confirm signup" template site URL
