@@ -1,7 +1,7 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Fragment, FormEvent, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import QRCode from 'qrcode'
 
 import { getClientUserContext } from '@/lib/auth/client'
@@ -102,6 +102,7 @@ function parseAllergensText(text: string): string[] {
 
 export function RestaurantSetupConsole() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [restaurantId, setRestaurantId] = useState<string | null>(null)
@@ -139,6 +140,9 @@ export function RestaurantSetupConsole() {
   const [editingItemCategoryId, setEditingItemCategoryId] = useState('')
   const [editingItemAllergens, setEditingItemAllergens] = useState('')
   const [editingItemModifiersText, setEditingItemModifiersText] = useState('')
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({})
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
+  const [quickDrafts, setQuickDrafts] = useState<Record<string, { name: string; price: string }>>({})
   const [staffOptions, setStaffOptions] = useState<Array<{ id: string; name: string }>>([])
 
   const supabase = useMemo(() => createClient(), [])
@@ -245,19 +249,34 @@ export function RestaurantSetupConsole() {
     if (tableError || categoryError || itemError) {
       setError(tableError?.message || categoryError?.message || itemError?.message || 'Failed to load setup data.')
     } else {
+      const typedCategories = (categoryRows as Category[]) || []
+      const typedItems = (itemRows as MenuItem[]) || []
       setTables((tableRows as RestaurantTable[]) || [])
-      setCategories((categoryRows as Category[]) || [])
-      setItems((itemRows as MenuItem[]) || [])
-      if (categoryRows && categoryRows.length > 0) {
-        setItemCategoryId(categoryRows[0].id)
+      setCategories(typedCategories)
+      setItems(typedItems)
+      if (typedCategories.length > 0) {
+        setItemCategoryId(typedCategories[0].id)
       }
+      // Categories start expanded; quick-edit drafts mirror the loaded items.
+      setExpandedCategories((current) => {
+        const next = { ...current }
+        typedCategories.forEach((category) => {
+          if (!(category.id in next)) {
+            next[category.id] = true
+          }
+        })
+        return next
+      })
+      setQuickDrafts(
+        Object.fromEntries(typedItems.map((item) => [item.id, { name: item.name, price: String(item.price) }]))
+      )
     }
 
     setLoading(false)
   }
 
   useEffect(() => {
-    void loadData()
+    void loadData(searchParams.get('restaurantId') || undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -753,6 +772,61 @@ export function RestaurantSetupConsole() {
     await loadData()
   }
 
+  function toggleCategory(categoryId: string) {
+    setExpandedCategories((current) => ({ ...current, [categoryId]: !current[categoryId] }))
+  }
+
+  function updateQuickDraft(itemId: string, field: 'name' | 'price', value: string) {
+    setQuickDrafts((current) => ({ ...current, [itemId]: { ...current[itemId], [field]: value } }))
+  }
+
+  // Quick inline save for name + price straight from the category table.
+  async function handleQuickSaveItem(item: MenuItem) {
+    if (!restaurantId) return
+
+    const draft = quickDrafts[item.id]
+    const price = Number(draft?.price)
+    if (!draft?.name.trim() || Number.isNaN(price) || price < 0) {
+      setError('A name and a valid price are required.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('menu_items')
+      .update({ name: draft.name.trim(), price })
+      .eq('id', item.id)
+      .eq('restaurant_id', restaurantId)
+
+    setSaving(false)
+
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+
+    setNotice(`${item.name} updated.`)
+    await loadData()
+  }
+
+  function openItemDetails(item: MenuItem) {
+    if (expandedItemId === item.id) {
+      setExpandedItemId(null)
+      return
+    }
+    setExpandedItemId(item.id)
+    setEditingItemId(item.id)
+    setEditingItemName(item.name)
+    setEditingItemDescription(item.description || '')
+    setEditingItemPrice(String(item.price))
+    setEditingItemCategoryId(item.category_id)
+    setEditingItemAllergens((item.allergens || []).join(', '))
+    setEditingItemModifiersText(modifiersToText(item.menu_item_modifiers || []))
+  }
+
   async function handleCsvImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!restaurantId || !csvText.trim()) {
@@ -1030,81 +1104,13 @@ export function RestaurantSetupConsole() {
       </section>
 
       <section className="panel stack">
-        <span className="eyebrow">Menu Categories</span>
-        <form className="stack" onSubmit={handleAddCategory}>
-          <div className="field">
-            <label htmlFor="categoryName">New category</label>
-            <input
-              id="categoryName"
-              value={categoryName}
-              onChange={(event) => setCategoryName(event.target.value)}
-              placeholder="Cocktails"
-              required
-            />
-          </div>
-          <button className="button" type="submit" disabled={saving}>
-            {saving ? 'Saving...' : 'Add category'}
-          </button>
-        </form>
+        <span className="eyebrow">Menu</span>
+        <p className="helper-text">
+          Add items, then manage them per category. Use the table to quickly change names and prices, or expand an item
+          to edit details like description, allergens, and options.
+        </p>
 
-        <ul className="list">
-          {categories.map((category) => (
-            <li key={category.id}>
-              {editingCategoryId === category.id ? (
-                <div className="field">
-                  <label htmlFor={`edit-category-${category.id}`}>Category name</label>
-                  <input
-                    id={`edit-category-${category.id}`}
-                    value={editingCategoryName}
-                    onChange={(event) => setEditingCategoryName(event.target.value)}
-                    required
-                  />
-                </div>
-              ) : (
-                <strong>{category.name}</strong>
-              )}
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                {editingCategoryId === category.id ? (
-                  <>
-                    <button className="button" type="button" disabled={saving} onClick={() => void handleSaveCategoryName(category.id)}>
-                      Save name
-                    </button>
-                    <button
-                      className="button"
-                      type="button"
-                      disabled={saving}
-                      onClick={() => {
-                        setEditingCategoryId(null)
-                        setEditingCategoryName('')
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    className="button"
-                    type="button"
-                    disabled={saving}
-                    onClick={() => {
-                      setEditingCategoryId(category.id)
-                      setEditingCategoryName(category.name)
-                    }}
-                  >
-                    Rename
-                  </button>
-                )}
-                <button className="button" type="button" disabled={saving} onClick={() => void handleDeleteCategory(category)}>
-                  Delete category
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="panel stack">
-        <span className="eyebrow">Menu Items</span>
+        <span className="eyebrow" style={{ marginTop: '12px' }}>Add menu item</span>
         <form className="stack" onSubmit={handleAddMenuItem}>
           <div className="field">
             <label htmlFor="itemName">Item name</label>
@@ -1186,143 +1192,204 @@ export function RestaurantSetupConsole() {
           </button>
         </form>
 
-        <ul className="list">
-          {items.map((item) => (
-            <li key={item.id}>
-              {editingItemId === item.id ? (
-                <>
-                  <div className="field">
-                    <label htmlFor={`edit-item-name-${item.id}`}>Item name</label>
-                    <input
-                      id={`edit-item-name-${item.id}`}
-                      value={editingItemName}
-                      onChange={(event) => setEditingItemName(event.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`edit-item-description-${item.id}`}>Description</label>
-                    <textarea
-                      id={`edit-item-description-${item.id}`}
-                      value={editingItemDescription}
-                      onChange={(event) => setEditingItemDescription(event.target.value)}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`edit-item-price-${item.id}`}>Price</label>
-                    <input
-                      id={`edit-item-price-${item.id}`}
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={editingItemPrice}
-                      onChange={(event) => setEditingItemPrice(event.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`edit-item-category-${item.id}`}>Category</label>
-                    <select
-                      id={`edit-item-category-${item.id}`}
-                      value={editingItemCategoryId}
-                      onChange={(event) => setEditingItemCategoryId(event.target.value)}
-                    >
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+        <span className="eyebrow" style={{ marginTop: '16px' }}>Categories</span>
+        <form className="stack" onSubmit={handleAddCategory}>
+          <div className="field">
+            <label htmlFor="categoryName">New category</label>
+            <input
+              id="categoryName"
+              value={categoryName}
+              onChange={(event) => setCategoryName(event.target.value)}
+              placeholder="Cocktails"
+              required
+            />
+          </div>
+          <button className="button-secondary" type="submit" disabled={saving}>
+            {saving ? 'Saving...' : 'Add category'}
+          </button>
+        </form>
 
-                  <div className="field">
-                    <label htmlFor={`edit-item-allergens-${item.id}`}>Allergens</label>
-                    <input
-                      id={`edit-item-allergens-${item.id}`}
-                      value={editingItemAllergens}
-                      onChange={(event) => setEditingItemAllergens(event.target.value)}
-                      placeholder="Gluten, Dairy, Nuts (comma separated)"
-                    />
-                  </div>
 
-                  <div className="field">
-                    <label htmlFor={`edit-item-modifiers-${item.id}`}>Options / modifiers</label>
-                    <textarea
-                      id={`edit-item-modifiers-${item.id}`}
-                      value={editingItemModifiersText}
-                      onChange={(event) => setEditingItemModifiersText(event.target.value)}
-                      placeholder={'Extra cheese +1.50\nBacon +2.00\nGluten-free bun +1.00'}
-                    />
-                    <p className="helper-text">One option per line: "Name +price" (price optional).</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <strong>{item.name}</strong>
-                  <p className="muted">Category: {getCategoryName(item)}</p>
-                  <p className="muted">Price: EUR {Number(item.price).toFixed(2)}</p>
-                  {item.allergens && item.allergens.length > 0 ? (
-                    <p className="muted">Allergens: {item.allergens.join(', ')}</p>
-                  ) : null}
-                  {item.menu_item_modifiers && item.menu_item_modifiers.length > 0 ? (
-                    <p className="muted">
-                      Options: {item.menu_item_modifiers.map((modifier) => modifier.name).join(', ')}
-                    </p>
-                  ) : null}
-                </>
-              )}
-              <p className="muted">Status: {item.available ? 'Available' : 'Unavailable'}</p>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                {editingItemId === item.id ? (
-                  <>
-                    <button className="button" type="button" disabled={saving} onClick={() => void handleSaveMenuItem(item.id)}>
-                      Save changes
-                    </button>
+        {categories.map((category) => {
+          const categoryItems = items.filter((item) => item.category_id === category.id)
+          const isOpen = expandedCategories[category.id] !== false
+
+          return (
+            <div key={category.id} className="stack" style={{ marginTop: '16px' }}>
+              <div className="cart-line-header">
+                <div>
+                  <strong>{category.name}</strong>
+                  <p className="muted">{categoryItems.length} item(s)</p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button className="button-secondary" type="button" disabled={saving} onClick={() => toggleCategory(category.id)}>
+                    {isOpen ? 'Collapse' : 'Expand'}
+                  </button>
+                  {editingCategoryId === category.id ? (
+                    <>
+                      <input
+                        id={`edit-category-${category.id}`}
+                        value={editingCategoryName}
+                        onChange={(event) => setEditingCategoryName(event.target.value)}
+                        style={{ width: 140 }}
+                        required
+                      />
+                      <button className="button-secondary" type="button" disabled={saving} onClick={() => void handleSaveCategoryName(category.id)}>
+                        Save
+                      </button>
+                      <button
+                        className="button-secondary"
+                        type="button"
+                        onClick={() => {
+                          setEditingCategoryId(null)
+                          setEditingCategoryName('')
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
                     <button
-                      className="button"
+                      className="button-secondary"
                       type="button"
                       disabled={saving}
                       onClick={() => {
-                        setEditingItemId(null)
-                        setEditingItemName('')
-                        setEditingItemDescription('')
-                        setEditingItemPrice('')
-                        setEditingItemCategoryId('')
-                        setEditingItemAllergens('')
-                        setEditingItemModifiersText('')
+                        setEditingCategoryId(category.id)
+                        setEditingCategoryName(category.name)
                       }}
                     >
-                      Cancel
+                      Rename
                     </button>
-                  </>
-                ) : (
-                  <button
-                    className="button"
-                    type="button"
-                    disabled={saving}
-                    onClick={() => {
-                      setEditingItemId(item.id)
-                      setEditingItemName(item.name)
-                      setEditingItemDescription(item.description || '')
-                      setEditingItemPrice(String(item.price))
-                      setEditingItemCategoryId(item.category_id)
-                      setEditingItemAllergens((item.allergens || []).join(', '))
-                      setEditingItemModifiersText(modifiersToText(item.menu_item_modifiers || []))
-                    }}
-                  >
-                    Edit
+                  )}
+                  <button className="button-danger" type="button" disabled={saving} onClick={() => void handleDeleteCategory(category)}>
+                    Delete category
                   </button>
-                )}
-                <button className="button" type="button" disabled={saving} onClick={() => void handleToggleMenuItemAvailability(item)}>
-                  {item.available ? 'Mark unavailable' : 'Mark available'}
-                </button>
-                <button className="button" type="button" disabled={saving} onClick={() => void handleDeleteMenuItem(item)}>
-                  Delete item
-                </button>
+                </div>
               </div>
-            </li>
-          ))}
-        </ul>
+
+              {isOpen ? (
+                categoryItems.length === 0 ? (
+                  <p className="muted">No items in this category yet.</p>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="preview-table">
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th style={{ width: 120 }}>Price</th>
+                          <th style={{ width: 120 }}>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {categoryItems.map((item) => (
+                          <Fragment key={item.id}>
+                            <tr>
+                              <td>
+                                <input
+                                  value={quickDrafts[item.id]?.name ?? item.name}
+                                  onChange={(event) => updateQuickDraft(item.id, 'name', event.target.value)}
+                                  style={{ width: '100%', minHeight: 36 }}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={quickDrafts[item.id]?.price ?? String(item.price)}
+                                  onChange={(event) => updateQuickDraft(item.id, 'price', event.target.value)}
+                                  style={{ width: '100%', minHeight: 36 }}
+                                />
+                              </td>
+                              <td>
+                                <span className="badge">{item.available ? 'Available' : 'Unavailable'}</span>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                  <button className="button-secondary" type="button" disabled={saving} onClick={() => void handleQuickSaveItem(item)}>
+                                    Save
+                                  </button>
+                                  <button className="button-secondary" type="button" onClick={() => openItemDetails(item)}>
+                                    {expandedItemId === item.id ? 'Close details' : 'Details'}
+                                  </button>
+                                  <button className="button-secondary" type="button" disabled={saving} onClick={() => void handleToggleMenuItemAvailability(item)}>
+                                    {item.available ? 'Mark unavailable' : 'Mark available'}
+                                  </button>
+                                  <button className="button-danger" type="button" disabled={saving} onClick={() => void handleDeleteMenuItem(item)}>
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {expandedItemId === item.id ? (
+                              <tr>
+                                <td colSpan={4}>
+                                  <div className="stack">
+                                    <div className="field">
+                                      <label htmlFor={`details-desc-${item.id}`}>Description</label>
+                                      <textarea
+                                        id={`details-desc-${item.id}`}
+                                        value={editingItemDescription}
+                                        onChange={(event) => setEditingItemDescription(event.target.value)}
+                                      />
+                                    </div>
+                                    <div className="field">
+                                      <label htmlFor={`details-category-${item.id}`}>Category</label>
+                                      <select
+                                        id={`details-category-${item.id}`}
+                                        value={editingItemCategoryId}
+                                        onChange={(event) => setEditingItemCategoryId(event.target.value)}
+                                      >
+                                        {categories.map((option) => (
+                                          <option key={option.id} value={option.id}>
+                                            {option.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="field">
+                                      <label htmlFor={`details-allergens-${item.id}`}>Allergens</label>
+                                      <input
+                                        id={`details-allergens-${item.id}`}
+                                        value={editingItemAllergens}
+                                        onChange={(event) => setEditingItemAllergens(event.target.value)}
+                                        placeholder="Gluten, Dairy, Nuts (comma separated)"
+                                      />
+                                    </div>
+                                    <div className="field">
+                                      <label htmlFor={`details-modifiers-${item.id}`}>Options / modifiers</label>
+                                      <textarea
+                                        id={`details-modifiers-${item.id}`}
+                                        value={editingItemModifiersText}
+                                        onChange={(event) => setEditingItemModifiersText(event.target.value)}
+                                        placeholder={'Extra cheese +1.50\nBacon +2.00'}
+                                      />
+                                      <p className="helper-text">One option per line: "Name +price" (price optional).</p>
+                                    </div>
+                                    <div className="pill-row">
+                                      <button className="button" type="button" disabled={saving} onClick={() => void handleSaveMenuItem(item.id)}>
+                                        Save changes
+                                      </button>
+                                      <button className="button-secondary" type="button" onClick={() => setExpandedItemId(null)}>
+                                        Close
+                                      </button>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : null}
+                          </Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : null}
+            </div>
+          )
+        })}
       </section>
 
       <section className="panel stack">

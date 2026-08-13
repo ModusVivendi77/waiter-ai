@@ -60,14 +60,33 @@ test.describe('platform setup workspace', () => {
     await page.getByRole('button', { name: 'Import preview' }).click()
     await expect(page.getByText('Imported 1 rows from CSV.')).toBeVisible()
 
-    const importedItem = page.locator('li').filter({ hasText: itemName }).first()
-    await expect(importedItem).toBeVisible()
-    await importedItem.getByRole('button', { name: 'Delete item' }).click()
-    await expect(page.locator('li').filter({ hasText: itemName })).toHaveCount(0)
+    // Menu items now render as rows in a category table; the name is an input value.
+    // Wait for the imported item to actually render before scanning for its row.
+    await page.locator(`.preview-table input[value="${itemName}"]`).waitFor({ timeout: 10000 })
 
-    const importedCategory = page.locator('li').filter({ hasText: categoryName }).first()
+    const findItemRow = async (name: string) => {
+      const rows = page.locator('.preview-table tbody tr')
+      const count = await rows.count()
+      for (let i = 0; i < count; i++) {
+        const value = await rows.nth(i).locator('input').first().inputValue().catch(() => '')
+        if (value === name) {
+          return rows.nth(i)
+        }
+      }
+      return null
+    }
+
+    const importedItem = await findItemRow(itemName)
+    expect(importedItem).not.toBeNull()
+    await importedItem!.getByRole('button', { name: 'Delete', exact: true }).click()
+    await expect(page.locator('.preview-table input[value="' + itemName + '"]')).toHaveCount(0)
+
+    const importedCategory = page
+      .locator('div.cart-line-header')
+      .filter({ has: page.getByText(categoryName, { exact: true }) })
+      .first()
     await importedCategory.getByRole('button', { name: 'Delete category' }).click()
-    await expect(page.locator('li').filter({ hasText: categoryName })).toHaveCount(0)
+    await expect(page.getByText(categoryName, { exact: true })).toHaveCount(0)
 
     const renamedTable = page.locator('li').filter({ hasText: renamedTableName }).first()
     await renamedTable.getByRole('button', { name: 'Delete table' }).click()

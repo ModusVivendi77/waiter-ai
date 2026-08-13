@@ -8,6 +8,7 @@ import { listTeamMembers, type TeamMember } from '@/lib/auth/team-actions'
 import { createClient } from '@/lib/supabase/client'
 import { useSupabaseSubscription } from '@/lib/hooks/use-supabase-subscription'
 import { useLanguage } from '@/components/app/language-provider'
+import { AddRestaurantForm } from '@/components/platform/add-restaurant-form'
 
 type TableRow = {
   id: string
@@ -363,6 +364,16 @@ export function HomeDashboard() {
               {t('home.manageTeam')}
             </Link>
           ) : null}
+        </section>
+
+        <section className="panel stack">
+          <span className="eyebrow">Add another restaurant</span>
+          <p className="helper-text">
+            Register an additional restaurant under this account. It is created instantly and you are linked as its
+            owner — no email confirmation needed. Use the restaurant selector on this page and inside Orders / Setup /
+            Analytics to switch between them.
+          </p>
+          <AddRestaurantForm />
         </section>
       </div>
     </main>

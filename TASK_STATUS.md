@@ -250,6 +250,12 @@
   - [x] Order statuses translated (ΝΕΑ / ΑΠΟΔΕΚΤΗ / ΕΤΟΙΜΑΖΕΤΑΙ / ΕΤΟΙΜΗ / ΕΞΥΠΗΡΕΤΗΘΗΚΕ …)
 - [x] **Login separated in nav** — divider + distinct filled button styling
 - [x] **Table status pills** — free = green pill w/ white text, occupied = red pill w/ white text (home dashboard)
+- [x] **"Add another restaurant" restored on the home dashboard** — the form was accidentally dropped when `/platform` was rebuilt as the dashboard; it's back (server action + UI) with guidance on using the restaurant switcher
+- [x] **Setup menu editor redesigned** — categories are expandable/collapsible sections:
+  - [x] Each expanded category shows its items in a **table** (Item | Price | Status | Actions) with **quick inline edits** for name and price (per-row Save)
+  - [x] **"Details" expands an item** to edit description, category, allergens, and modifiers (options)
+  - [x] Availability toggle + delete stay one click away in the table
+  - [x] Setup console now honors `?restaurantId=` (consistent with the orders workspace)
 
 **What still needs to happen:**
 1. Add public guardrails around order edits/cancellation windows if needed
@@ -453,8 +459,9 @@
 19. **✅ Done** — UI refresh: modern sans-serif design system across the app
 20. **✅ Done** — Final touch: simplified nav, QR URLs use site origin, new-order notifications, home dashboard (tables/orders/team), staff table claiming, realtime publication + multi-event hook fixes
 21. **✅ Done** — Greek translation (EN/EL toggle, persisted), Login separated in nav, green/red table status pills
-22. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
-23. **Future work** — Resend domain verification for customer-facing confirmation emails
+22. **✅ Done** — "Add another restaurant" restored on home; Setup menu editor redesigned (category accordion, item table quick-edit, item details expansion)
+23. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+24. **Future work** — Resend domain verification for customer-facing confirmation emails
 
 ### After Timeline Verified
 ```bash
@@ -499,5 +506,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — Greek translation (EN/EL), separated Login nav button, green/red table status pills (see log for hash)
+**Last commit:** feat — category accordion menu editor with quick table edits, restored add-restaurant form (see log for hash)
 **Next commit:** confirm "Confirm signup" template site URL; Resend domain verification + shift-based table assignment (future work)
