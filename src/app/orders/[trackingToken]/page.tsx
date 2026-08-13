@@ -41,6 +41,14 @@ type OrderRow = {
         notes: string | null
       }>
     | null
+  order_status_history:
+    | Array<{
+        id: string
+        old_status: string | null
+        new_status: string
+        created_at: string
+      }>
+    | null
 }
 
 export const dynamic = 'force-dynamic'
@@ -51,8 +59,9 @@ export default async function PublicOrderStatusPage({ params }: Props) {
 
   const { data, error } = await admin
     .from('orders')
-    .select('id, status, total, currency, customer_note, created_at, restaurant_tables(name), restaurants(name), order_items(id, item_name, quantity, unit_price, notes)')
+    .select('id, status, total, currency, customer_note, created_at, restaurant_tables(name), restaurants(name), order_items(id, item_name, quantity, unit_price, notes), order_status_history(id, old_status, new_status, created_at)')
     .eq('public_tracking_token', trackingToken)
+    .order('created_at', { foreignTable: 'order_status_history', ascending: true })
     .maybeSingle()
 
   if (error || !data) {
@@ -82,6 +91,7 @@ export default async function PublicOrderStatusPage({ params }: Props) {
           name: restaurant?.name || 'Restaurant',
         },
         items: order.order_items || [],
+        history: order.order_status_history || [],
       }}
     />
   )

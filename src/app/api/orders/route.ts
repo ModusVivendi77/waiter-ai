@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { createOrderSchema } from '@/lib/validation/orders'
 import { createAdminClient } from '@/lib/supabase/server'
+import { rateLimit } from '@/lib/utils/rateLimit'
+
+function getClientKey(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for')
+  if (forwarded) {
+    return forwarded.split(',')[0].trim()
+  }
+  return request.headers.get('x-real-ip') || 'unknown-client'
+}
 
 type TableRow = {
   id: string
@@ -31,6 +40,21 @@ type MenuItemRow = {
 }
 
 export async function POST(request: NextRequest) {
+  const limit = rateLimit(getClientKey(request), 30, 10 * 60 * 1000)
+
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many order submissions. Please try again later.' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(Math.max(1, Math.ceil((limit.resetTime - Date.now()) / 1000))),
+          'X-RateLimit-Remaining': String(limit.remaining),
+        },
+      }
+    )
+  }
+
   const payload = await request.json().catch(() => null)
   const parsed = createOrderSchema.safeParse(payload)
 

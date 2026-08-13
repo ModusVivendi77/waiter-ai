@@ -1,6 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 import { createAdminClient } from '@/lib/supabase/server'
+import { rateLimit } from '@/lib/utils/rateLimit'
+
+function getClientKey(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for')
+  if (forwarded) {
+    return forwarded.split(',')[0].trim()
+  }
+  return request.headers.get('x-real-ip') || 'unknown-client'
+}
 
 type Props = {
   params: Promise<{
@@ -40,16 +49,40 @@ type OrderRow = {
         notes: string | null
       }>
     | null
+  order_status_history:
+    | Array<{
+        id: string
+        old_status: string | null
+        new_status: string
+        created_at: string
+      }>
+    | null
 }
 
-export async function GET(_: Request, { params }: Props) {
+export async function GET(request: NextRequest, { params }: Props) {
+  const limit = rateLimit(getClientKey(request), 120, 60 * 1000)
+
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many status requests. Please try again later.' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(Math.max(1, Math.ceil((limit.resetTime - Date.now()) / 1000))),
+          'X-RateLimit-Remaining': String(limit.remaining),
+        },
+      }
+    )
+  }
+
   const { trackingToken } = await params
   const admin = createAdminClient()
 
   const { data, error } = await admin
     .from('orders')
-    .select('id, status, total, currency, customer_note, created_at, restaurant_tables(name), restaurants(name), order_items(id, item_name, quantity, unit_price, notes)')
+    .select('id, status, total, currency, customer_note, created_at, restaurant_tables(name), restaurants(name), order_items(id, item_name, quantity, unit_price, notes), order_status_history(id, old_status, new_status, created_at)')
     .eq('public_tracking_token', trackingToken)
+    .order('created_at', { foreignTable: 'order_status_history', ascending: true })
     .maybeSingle()
 
   if (error || !data) {
@@ -76,5 +109,6 @@ export async function GET(_: Request, { params }: Props) {
       name: restaurant?.name || 'Restaurant',
     },
     items: order.order_items || [],
+    history: order.order_status_history || [],
   })
 }

@@ -1,7 +1,7 @@
 # Waiter AI — Task Status Tracker
 
 **Last Updated:** August 13, 2026
-**Current Phase:** 7/9 — Analytics & Admin Implementation
+**Current Phase:** 8/9 — Testing & Hardening In Progress
 
 ---
 
@@ -170,7 +170,7 @@
 - [x] Public order tracking page (`/orders/[trackingToken]`)
 - [x] Customer status refresh via polling
 
-### Phase 5: Customer Ordering � COMPLETE
+### Phase 5: Customer Ordering ✅ COMPLETE
 
 **What's ready:**
 - [x] Public QR menu route backed by live Supabase data
@@ -182,12 +182,14 @@
 - [x] Last updated timestamp visible to customers
 - [x] Restaurant orders workspace shows submitted orders for staff/admins
 - [x] Waiter/staff can update status, edit quantities/notes, add items, and remove items from orders
+- [x] Customer-visible status timeline with checkmark stepper (NEW → ACCEPTED → PREPARING → READY → SERVED)
+- [x] Status history panel showing timestamps from `order_status_history`
+- [x] Tracking page and API now include full status history
 
 **What still needs to happen:**
-1. Add customer-visible status timeline/history presentation
-2. Add public guardrails around order edits/cancellation windows if needed
-3. Expand automated checks around multi-item totals and item removal edge cases
-4. Re-run full E2E suite after real-time implementation
+1. Add public guardrails around order edits/cancellation windows if needed
+2. Expand automated checks around multi-item totals and item removal edge cases
+3. Re-run full E2E suite after real-time implementation
 
 ---
 
@@ -203,6 +205,8 @@
 - [x] Optimized polling for public customers (5-second intervals with manual refresh)
 - [x] Restaurant dashboard baseline (`/platform/orders`)
 - [x] Manual order status updates
+- [x] Customer-facing status timeline now includes timestamps from `order_status_history`
+- [x] Rate limiting added to public `/api/orders` (30 req / 10 min) and `/api/order-status/[trackingToken]` (120 req / min)
 
 **Implementation details:**
 - Added `/lib/hooks/use-supabase-subscription.ts` for real-time subscription management
@@ -210,14 +214,16 @@
 - Subscriptions are scoped per restaurant to prevent cross-restaurant data leaks
 - Proper cleanup of subscriptions on component unmount
 - Fallback to current approach if Supabase real-time is unavailable
+- Added `src/lib/utils/rateLimit.ts` in-memory rate limiter with per-client key tracking
+- `getClientKey` resolves from `x-forwarded-for` / `x-real-ip` headers
+- Rate-limit responses include `Retry-After` and `X-RateLimit-Remaining` headers
 
 **What still needs to happen:**
 1. Add real-time subscriptions for public customers (requires auth-less tracking or new RLS policy)
-2. Add customer-visible status timeline/history presentation with real-time updates
-3. Test real-time functionality end-to-end in staging
-4. Monitor real-time connection stability and latency metrics
-5. Add reconnection/retry logic if needed
-6. Re-run full E2E suite with new real-time implementation
+2. Test real-time functionality end-to-end in staging
+3. Monitor real-time connection stability and latency metrics
+4. Add reconnection/retry logic if needed
+5. Re-run full E2E suite with new real-time implementation
 
 ---
 
@@ -281,12 +287,20 @@
 
 ---
 
-### Phase 8: Testing & Hardening (Week 8)
-- [ ] Unit tests
+### Phase 8: Testing & Hardening (Week 8) 🟡 IN PROGRESS
+- [x] Unit tests (26 passing: order validation, auth schemas, rate limiter)
 - [ ] Integration tests
 - [x] Initial E2E tests/config added
 - [x] Expanded E2E coverage for setup rename/delete/import and public QR menu flow
+- [x] Rate limiting added (Task 6.3) and wired into public API routes
 - [ ] Security review
+
+**Implementation details:**
+- Added `@` path alias to `vitest.config.ts` so tests resolve `@/lib/...` imports
+- `src/lib/validation/__tests__/orders.test.ts` — 10 cases for `createOrderSchema`
+- `src/lib/auth/__tests__/schemas.test.ts` — 9 cases for registration and password reset schemas
+- `src/lib/utils/__tests__/rateLimit.test.ts` — 7 cases for the rate limiter
+- Rate limiter applies to `/api/orders` POST (30 req / 10 min) and `/api/order-status/[trackingToken]` GET (120 req / min) with `Retry-After` and `X-RateLimit-Remaining` headers
 
 ---
 
@@ -305,10 +319,10 @@
 | 2. Database | 🟢 100% | Schema applied and seeded on the live Supabase project |
 | 3. Auth | 🟡 95% | Registration email hook added; reset-password end-to-end still pending inbox confirmation |
 | 4. Restaurant Setup | 🟡 95% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, and E2E coverage |
-| 5. Customer Ordering | � 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling |
-| 6. Real-Time & Dashboard | 🟡 50% | Real-time subscriptions for staff implemented; public real-time tracking pending |
+| 5. Customer Ordering | 🟢 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling and status timeline |
+| 6. Real-Time & Dashboard | 🟡 60% | Real-time subscriptions for staff implemented; public real-time tracking pending; rate limits added to public APIs |
 | 7. Analytics & Admin | 🟡 90% | Analytics dashboards with charts, exports, and trend visualization complete |
-| 8. Testing | ⚪ 10% | Initial E2E config in place; real-time and analytics scenarios to be added |
+| 8. Testing | 🟡 35% | 26 unit tests passing; rate limiting added; E2E config in place; integration/security review pending |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
 ---
@@ -317,32 +331,28 @@
 
 ### Right Now (Do This First)
 ```bash
-# 1. Commit Phase 7 analytics changes
+# 1. Commit Phase 8 testing + Phase 5 status timeline changes
 git add .
-git commit -m "feat: add analytics dashboards for restaurants and platform admins
+git commit -m "feat: add customer status timeline, rate limiting, and unit tests
 
-- Create restaurant analytics dashboard at /platform/analytics
-- Create platform admin analytics panel at /admin/analytics
-- Implement 30-day trend analysis with daily breakdowns
-- Track orders, order values, and top products
-- Platform metrics include restaurant rankings and active restaurant counts
-- Role-based access: OWNER/MANAGER see restaurant analytics, SUPER_ADMIN sees platform
-- Add dedicated analytics query libraries for restaurant and platform metrics
-- Updated top navigation with analytics links"
+- Add customer-visible status timeline with checkmark stepper on /orders/[trackingToken]
+- Tracking API and page now include order_status_history with timestamps
+- Add in-memory rate limiter (src/lib/utils/rateLimit.ts) for public endpoints
+- Wire rate limiting into /api/orders (30 req / 10 min) and /api/order-status/[trackingToken] (120 req / min)
+- Add vitest @ alias resolution and 26 unit tests (order validation, auth schemas, rate limiter)"
 git push origin master
 
-# 2. Validate changes with production build and E2E tests
-npm run typecheck && npm run build
-E2E_EMAIL='platform_owner@test.com' E2E_PASSWORD='Password123!' E2E_BRAND='The Green Bar' npm run test:e2e
+# 2. Validate changes with production build and tests
+npm run typecheck && npm run build && npx vitest run
 
-# 3. Next: Phase 5 customer status timeline or Phase 8 comprehensive testing
+# 3. Next: Phase 6 public real-time tracking, Phase 8 integration tests, or security review
 ```
 
-### After Analytics Verified
+### After Timeline Verified
 ```bash
-# Monitor analytics queries with sample data
-# Verify 30-day trend calculations are accurate
-# Test platform analytics with multiple restaurants
+# Verify status timeline renders with live orders
+# Test acceptance flow updates history panel on /orders/[trackingToken]
+# Confirm rate limit headers on public API responses
 ```
 
 ---
@@ -382,4 +392,4 @@ Refer to these documents in order:
 ---
 
 **Last commit:** Phase 7 analytics enhancements (`3b5bac6`)
-**Next commit:** Phase 5 customer timeline or Phase 8 comprehensive testing
+**Next commit:** Phase 8 testing + Phase 5 customer timeline (see commit command above)

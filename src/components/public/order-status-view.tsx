@@ -24,6 +24,12 @@ type OrderStatusPayload = {
     unit_price: number
     notes: string | null
   }>
+  history: Array<{
+    id: string
+    old_status: string | null
+    new_status: string
+    created_at: string
+  }>
 }
 
 type Props = {
@@ -31,12 +37,40 @@ type Props = {
   initialOrder: OrderStatusPayload
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  NEW: 'Order received',
+  ACCEPTED: 'Restaurant accepted',
+  PREPARING: 'Preparing',
+  READY: 'Ready',
+  SERVED: 'Served',
+  CANCELLED: 'Cancelled',
+  REJECTED: 'Rejected',
+}
+
+const STATUS_ORDER = ['NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED']
+
 function formatCurrency(value: number, currency: string) {
   return new Intl.NumberFormat('en-GB', {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
   }).format(value)
+}
+
+function formatTime(value: string) {
+  return new Date(value).toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export function OrderStatusView({ trackingToken, initialOrder }: Props) {
@@ -91,6 +125,28 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
     }
   }, [trackingToken])
 
+  const currentStatus = data.order.status
+  const isTerminal = currentStatus === 'CANCELLED' || currentStatus === 'REJECTED' || currentStatus === 'SERVED'
+
+  // Build a timeline from the status history if available, otherwise derive from the current status.
+  let timelineEntries = data.history
+    .filter((entry) => entry.new_status !== 'NEW' || entry.old_status === null)
+    .map((entry) => ({
+      key: entry.id,
+      status: entry.new_status,
+      reachedAt: entry.created_at,
+    }))
+
+  if (timelineEntries.length === 0) {
+    const createdAt = data.order.created_at
+    timelineEntries = [
+      { key: 'initial', status: data.order.status, reachedAt: createdAt },
+    ]
+  }
+
+  // Determine how far along the happy path the current status is.
+  const currentStepIndex = STATUS_ORDER.indexOf(currentStatus)
+
   return (
     <main className="page-shell">
       <div className="page-grid">
@@ -105,15 +161,99 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
             <span className="badge">Last updated: {lastUpdated.toLocaleTimeString()}</span>
           </div>
           <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
-            <button 
-              type="button" 
-              className="button-secondary" 
+            <button
+              type="button"
+              className="button-secondary"
               onClick={handleManualRefresh}
               disabled={isRefreshing}
             >
               {isRefreshing ? 'Refreshing...' : 'Refresh Now'}
             </button>
           </div>
+        </section>
+
+        <section className="panel stack">
+          <span className="eyebrow">Status Timeline</span>
+          {isTerminal ? (
+            <div className="message">
+              This order has been {currentStatus === 'SERVED' ? 'served' : currentStatus.toLowerCase()}.
+            </div>
+          ) : null}
+
+          <ol className="status-timeline" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {STATUS_ORDER.map((status, index) => {
+              const reached = index <= currentStepIndex
+              const isCurrent = index === currentStepIndex
+              const historyEntry = timelineEntries.find((entry) => entry.status === status)
+
+              return (
+                <li key={status} style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                        fontSize: 14,
+                        backgroundColor: reached ? '#16a34a' : '#d1d5db',
+                        color: reached ? '#fff' : '#6b7280',
+                      }}
+                    >
+                      {reached ? '✓' : index + 1}
+                    </div>
+                    {index < STATUS_ORDER.length - 1 ? (
+                      <div
+                        style={{
+                          width: 2,
+                          height: 32,
+                          backgroundColor: index < currentStepIndex ? '#16a34a' : '#d1d5db',
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                  <div style={{ paddingBottom: '12px' }}>
+                    <p
+                      style={{
+                        fontWeight: reached ? 700 : 400,
+                        color: reached ? '#111827' : '#6b7280',
+                        margin: 0,
+                      }}
+                    >
+                      {STATUS_LABELS[status] ?? status}
+                      {isCurrent ? (
+                        <span style={{ marginLeft: 8, fontSize: 12, color: '#16a34a' }}>● current</span>
+                      ) : null}
+                    </p>
+                    {historyEntry ? (
+                      <p style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 0' }}>
+                        {formatDateTime(historyEntry.reachedAt)}
+                      </p>
+                    ) : null}
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+
+          {timelineEntries.length > 0 ? (
+            <div style={{ marginTop: 8 }}>
+              <span className="eyebrow">History</span>
+              <ul className="list">
+                {timelineEntries.map((entry) => (
+                  <li key={entry.key}>
+                    <div className="cart-line-header">
+                      <strong>{STATUS_LABELS[entry.status] ?? entry.status}</strong>
+                      <span>{formatTime(entry.reachedAt)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
 
         <section className="panel stack">
