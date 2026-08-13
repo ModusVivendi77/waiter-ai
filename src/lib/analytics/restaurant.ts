@@ -26,6 +26,11 @@ export type AnalyticsMetrics = {
   averageOrderValue: number
   topProducts: TopProduct[]
   lastSevenDays: DailyMetrics[]
+  rangeOrders: number
+  rangeValue: number
+  rangeAverageOrderValue: number
+  rangeDaily: DailyMetrics[]
+  statusFunnel: Array<{ status: string; count: number }>
 }
 
 function formatCurrency(value: number): number {
@@ -42,7 +47,47 @@ function toLocalDateKey(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
-export async function getRestaurantAnalytics(restaurantId: string): Promise<AnalyticsMetrics> {
+export type AnalyticsRange = {
+  from?: string
+  to?: string
+}
+
+function parseLocalDateKey(key: string): Date {
+  const [year, month, day] = key.split('-').map(Number)
+  return new Date(year, (month || 1) - 1, day || 1)
+}
+
+function buildRangeDaily(
+  fromISO: string,
+  toISO: string,
+  dailyMap: Map<string, { count: number; value: number }>
+): DailyMetrics[] {
+  const result: DailyMetrics[] = []
+  const start = parseLocalDateKey(fromISO)
+  const end = parseLocalDateKey(toISO)
+
+  if (start.getTime() > end.getTime()) {
+    return []
+  }
+
+  const cursor = new Date(start)
+  let days = 0
+  while (cursor.getTime() <= end.getTime() && days < 90) {
+    const key = toLocalDateKey(cursor)
+    const metrics = dailyMap.get(key) || { count: 0, value: 0 }
+    result.push({
+      date: key,
+      orderCount: metrics.count,
+      orderValue: formatCurrency(metrics.value),
+    })
+    cursor.setDate(cursor.getDate() + 1)
+    days += 1
+  }
+
+  return result
+}
+
+export async function getRestaurantAnalytics(restaurantId: string, range?: AnalyticsRange): Promise<AnalyticsMetrics> {
   const supabase = createClient()
 
   // Get dates for filtering
@@ -60,12 +105,18 @@ export async function getRestaurantAnalytics(restaurantId: string): Promise<Anal
   previousWeekStart.setDate(previousWeekStart.getDate() - 7)
   const previousWeekStartISO = toLocalDateKey(previousWeekStart)
 
-  // Fetch all orders for the restaurant in the last 30 days
+  // A custom range may extend further back than the standard 30-day window.
+  // Widen the fetch start when a custom `from` is supplied so range metrics
+  // are complete, while the standard buckets keep using the 30-day window.
+  const customFromDate = range?.from ? parseLocalDateKey(range.from) : null
+  const fetchStart = customFromDate && customFromDate.getTime() < monthAgo.getTime() ? customFromDate : monthAgo
+
+  // Fetch all orders for the restaurant from the fetch start through today
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
     .select('id, status, total, created_at, order_items(item_name, quantity, unit_price)')
     .eq('restaurant_id', restaurantId)
-    .gte('created_at', monthAgo.toISOString())
+    .gte('created_at', fetchStart.toISOString())
     .order('created_at', { ascending: false })
 
   if (ordersError) {
@@ -171,6 +222,33 @@ export async function getRestaurantAnalytics(restaurantId: string): Promise<Anal
     })
   }
 
+  // Custom date-range metrics (inclusive YYYY-MM-DD bounds). When no custom
+  // range is supplied, fall back to the 30-day window so the fields always
+  // reflect the displayed period.
+  const rangeFromISO = range?.from ?? monthAgoISO
+  const rangeToISO = range?.to ?? todayISO
+  let rangeOrders = 0
+  let rangeValue = 0
+  for (const order of typedOrders) {
+    const orderKey = toLocalDateKey(new Date(order.created_at))
+    if (orderKey >= rangeFromISO && orderKey <= rangeToISO) {
+      rangeOrders += 1
+      rangeValue += order.total
+    }
+  }
+  const rangeAverageOrderValue = rangeOrders > 0 ? formatCurrency(rangeValue / rangeOrders) : 0
+  const rangeDaily = buildRangeDaily(rangeFromISO, rangeToISO, dailyMap)
+
+  // Order status funnel: how many of the month's orders are in each lifecycle stage.
+  // This surfaces where orders get stuck, rejected, or cancelled. Scoped to the
+  // standard 30-day window so it stays consistent with the "Last 30 Days" metrics
+  // even when a custom range widens the raw fetch.
+  const monthOrdersOnly = typedOrders.filter((order) => toLocalDateKey(new Date(order.created_at)) >= monthAgoISO)
+  const statusFunnel = ['NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'REJECTED', 'CANCELLED'].map((status) => ({
+    status,
+    count: monthOrdersOnly.filter((order) => order.status === status).length,
+  }))
+
   return {
     todayOrders,
     todayValue: formatCurrency(todayValue),
@@ -185,5 +263,10 @@ export async function getRestaurantAnalytics(restaurantId: string): Promise<Anal
     averageOrderValue,
     topProducts,
     lastSevenDays,
+    rangeOrders,
+    rangeValue: formatCurrency(rangeValue),
+    rangeAverageOrderValue,
+    rangeDaily,
+    statusFunnel,
   }
 }

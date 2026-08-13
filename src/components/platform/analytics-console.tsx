@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 
 import { getClientUserContext } from '@/lib/auth/client'
-import { getRestaurantAnalytics, type AnalyticsMetrics } from '@/lib/analytics/restaurant'
+import { getRestaurantAnalytics, type AnalyticsMetrics, type AnalyticsRange } from '@/lib/analytics/restaurant'
 import { OrderTrendChart, OrderCountChart, OrderValueChart } from '@/components/charts/trend-charts'
 import { DateRangeSelector } from '@/components/charts/date-range-selector'
 import { exportToPDF, exportToCSV } from '@/lib/export/analytics-export'
@@ -33,41 +33,55 @@ export function AnalyticsConsole() {
   const [restaurantName, setRestaurantName] = useState<string | null>(null)
   const [metrics, setMetrics] = useState<AnalyticsMetrics | null>(null)
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'custom'>('month')
+  const [customRange, setCustomRange] = useState<AnalyticsRange | null>(null)
   const [exporting, setExporting] = useState(false)
 
-  useEffect(() => {
-    async function loadAnalytics() {
-      try {
-        const context = await getClientUserContext()
+  async function loadAnalytics(range?: AnalyticsRange) {
+    try {
+      const context = await getClientUserContext()
 
-        if (!context.user) {
-          setError('Auth session missing!')
-          setLoading(false)
-          return
-        }
-
-        const membership = context.memberships.find((m) => ['OWNER', 'MANAGER'].includes(m.role))
-        if (!membership) {
-          setError('You need restaurant access to view analytics.')
-          setLoading(false)
-          return
-        }
-
-        setRestaurantName(membership.restaurantName)
-
-        const analyticsData = await getRestaurantAnalytics(membership.restaurantId)
-        setMetrics(analyticsData)
-        setError(null)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load analytics')
-        console.error('Analytics load error:', err)
-      } finally {
+      if (!context.user) {
+        setError('Auth session missing!')
         setLoading(false)
+        return
       }
-    }
 
+      const membership = context.memberships.find((m) => ['OWNER', 'MANAGER'].includes(m.role))
+      if (!membership) {
+        setError('You need restaurant access to view analytics.')
+        setLoading(false)
+        return
+      }
+
+      setRestaurantName(membership.restaurantName)
+
+      const analyticsData = await getRestaurantAnalytics(membership.restaurantId, range)
+      setMetrics(analyticsData)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load analytics')
+      console.error('Analytics load error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
     void loadAnalytics()
   }, [])
+
+  function handleCustomRange(from: string, to: string) {
+    setLoading(true)
+    setCustomRange({ from, to })
+    void loadAnalytics({ from, to })
+  }
+
+  function handleRangeChange(range: 'today' | 'week' | 'month' | 'custom') {
+    setDateRange(range)
+    if (range !== 'custom') {
+      setCustomRange(null)
+    }
+  }
 
   const handleExportPDF = async () => {
     try {
@@ -132,8 +146,56 @@ export function AnalyticsConsole() {
       </section>
 
       <section className="panel stack" id="analytics-content">
-        <DateRangeSelector selectedRange={dateRange} onRangeChange={setDateRange} />
+        <DateRangeSelector
+          selectedRange={dateRange}
+          onRangeChange={handleRangeChange}
+          onCustomDateChange={handleCustomRange}
+        />
       </section>
+
+      {dateRange === 'custom' && customRange ? (
+        <section className="panel stack">
+          <span className="eyebrow">Custom Range</span>
+          <p className="helper-text">
+            {customRange.from} → {customRange.to}
+          </p>
+          <ul className="list">
+            <li>
+              <div className="cart-line-header">
+                <strong>Orders</strong>
+                <span className="badge">{metrics.rangeOrders}</span>
+              </div>
+            </li>
+            <li>
+              <div className="cart-line-header">
+                <strong>Order value</strong>
+                <span className="badge">{formatCurrency(metrics.rangeValue)}</span>
+              </div>
+            </li>
+            <li>
+              <div className="cart-line-header">
+                <strong>Average order value</strong>
+                <span className="badge">{formatCurrency(metrics.rangeAverageOrderValue)}</span>
+              </div>
+            </li>
+          </ul>
+
+          <span className="eyebrow" style={{ marginTop: '12px' }}>Daily Trend (Custom Range)</span>
+          <ul className="list">
+            {metrics.rangeDaily.map((day) => (
+              <li key={day.date}>
+                <div className="cart-line-header">
+                  <div>
+                    <strong>{formatDate(day.date)}</strong>
+                    <p className="muted">{day.orderCount} orders</p>
+                  </div>
+                  <span>{formatCurrency(day.orderValue)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="panel stack">
         <span className="eyebrow">Today</span>
@@ -227,6 +289,28 @@ export function AnalyticsConsole() {
 
       <section className="panel stack">
         <OrderValueChart data={metrics.lastSevenDays} title="Daily Revenue (7 Days)" height={300} />
+      </section>
+
+      <section className="panel stack">
+        <span className="eyebrow">Order Status Funnel</span>
+        <p className="helper-text">Order lifecycle stages over the last 30 days.</p>
+        {metrics.statusFunnel.every((entry) => entry.count === 0) ? (
+          <p className="muted">No orders in the last 30 days.</p>
+        ) : (
+          <ul className="list">
+            {metrics.statusFunnel.map((entry, index) => (
+              <li key={entry.status}>
+                <div className="cart-line-header">
+                  <div>
+                    <strong>{entry.status}</strong>
+                    <p className="muted">Step {index + 1} of {metrics.statusFunnel.length}</p>
+                  </div>
+                  <span className="badge">{entry.count}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="panel stack">

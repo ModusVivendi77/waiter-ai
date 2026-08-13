@@ -7,6 +7,10 @@ import { createClient } from '@/lib/supabase/client'
 
 type SubscriptionHandler = (payload: any) => void | Promise<void>
 
+const MAX_RETRIES = 5
+const INITIAL_RETRY_MS = 1_000
+const MAX_RETRY_MS = 15_000
+
 export function useSupabaseSubscription(
   channelName: string,
   tableName: string,
@@ -15,28 +19,69 @@ export function useSupabaseSubscription(
   dependencies: any[] = []
 ) {
   const channelRef = useRef<RealtimeChannel | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handlerRef = useRef(onPayload)
+
+  handlerRef.current = onPayload
 
   useEffect(() => {
     const supabase = createClient()
-    const channel = supabase
-      .channel(channelName)
-      .on('postgres_changes', { event: events.join(',') as any, schema: 'public', table: tableName }, (payload) => {
-        void onPayload(payload)
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log(`[Real-time] Subscribed to ${channelName}`)
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error(`[Real-time] Channel error for ${channelName}`)
-        }
-      })
+    let cancelled = false
+    let retries = 0
 
-    channelRef.current = channel
-
-    return () => {
+    const cleanupChannel = () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
+        channelRef.current = null
       }
     }
+
+    const scheduleRetry = () => {
+      if (cancelled || retries >= MAX_RETRIES) {
+        return
+      }
+
+      retries += 1
+      const delay = Math.min(INITIAL_RETRY_MS * 2 ** (retries - 1), MAX_RETRY_MS)
+
+      timeoutRef.current = setTimeout(() => {
+        if (cancelled) {
+          return
+        }
+        subscribe()
+      }, delay)
+    }
+
+    const subscribe = () => {
+      cleanupChannel()
+
+      const channel = supabase
+        .channel(channelName)
+        .on('postgres_changes', { event: events.join(',') as any, schema: 'public', table: tableName }, (payload) => {
+          void handlerRef.current(payload)
+        })
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`[Real-time] Subscribed to ${channelName}`)
+            retries = 0
+          } else if (status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
+            console.warn(`[Real-time] Channel ${status.toLowerCase()} for ${channelName}; retrying.`)
+            scheduleRetry()
+          }
+        })
+
+      channelRef.current = channel
+    }
+
+    subscribe()
+
+    return () => {
+      cancelled = true
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+      cleanupChannel()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies)
 }

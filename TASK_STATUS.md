@@ -222,6 +222,7 @@
 - [x] Public real-time status updates via auth-less broadcast channels (`order-status-<orderId>`)
 - [x] 5-second polling retained as a reliable fallback for customers
 - [x] Broadcast authorization gated to restaurant staff only (migration 007)
+- [x] Reconnection/retry logic with exponential backoff (up to 5 retries, 1s → 15s) on both public and staff real-time channels
 
 **Implementation details:**
 - Added `/lib/hooks/use-supabase-subscription.ts` for real-time subscription management
@@ -241,8 +242,7 @@
 **What still needs to happen:**
 1. Test real-time functionality end-to-end in staging
 2. Monitor real-time connection stability and latency metrics
-3. Add reconnection/retry logic if needed
-4. Re-run full E2E suite with new real-time implementation
+3. Re-run full E2E suite with new real-time implementation
 
 ---
 
@@ -279,10 +279,14 @@
   - [x] `OrderValueChart` (bar chart)
 - [x] Date range selector component
   - [x] Today, This Week, Last 30 Days, Custom range options
+  - [x] Custom range wired into the analytics query and dashboard (inclusive dates, daily breakdown, up to 90 days)
 - [x] **Week-over-week comparison analytics** (restaurant dashboard)
   - [x] Previous-week orders and order value (8–14 days back)
   - [x] Change percentage badges (▲ / ▼ / 0%) with current-vs-previous breakdown
   - [x] Safe division when no previous-week baseline exists
+- [x] **Order status funnel** (restaurant dashboard)
+  - [x] Orders per lifecycle stage (NEW → ACCEPTED → PREPARING → READY → SERVED + REJECTED/CANCELLED) over the last 30 days
+  - [x] Scoped to the 30-day window so it stays consistent with "Last 30 Days" metrics
 - [x] Export functionality
   - [x] PDF export using html2canvas + jsPDF
   - [x] CSV export for data extraction
@@ -301,17 +305,14 @@
 - Updated top navigation to include both analytics links
 
 **What still needs to happen:**
-1. Add custom time range selector integration with charts
-2. Add comparison analytics (e.g., week-over-week changes)
-3. Add customer acquisition funnel metrics
-4. Test analytics with larger datasets
-5. Add real-time analytics updates
-6. Create dashboard widgets for key metrics
+1. Test analytics with larger datasets
+2. Add real-time analytics updates
+3. Create dashboard widgets for key metrics
 
 ---
 
 ### Phase 8: Testing & Hardening (Week 8) 🟡 IN PROGRESS
-- [x] Unit tests (49 passing: order validation, auth schemas, rate limiter, CSV import, analytics)
+- [x] Unit tests (50 passing: order validation, auth schemas, rate limiter, CSV import, analytics)
 - [x] Integration tests (analytics query libraries with mocked Supabase client, incl. week-over-week comparisons)
 - [x] Initial E2E tests/config added
 - [x] Expanded E2E coverage for setup rename/delete/import and public QR menu flow
@@ -326,11 +327,12 @@
 - Rate limiter applies to `/api/orders` POST (30 req / 10 min) and `/api/order-status/[trackingToken]` GET (120 req / min) with `Retry-After` and `X-RateLimit-Remaining` headers
 - Extracted CSV parsing from `RestaurantSetupConsole` into `src/lib/csv/menu-import.ts` (shared, testable)
 - `src/lib/csv/__tests__/menu-import.test.ts` — 15 cases covering quoting, escaped quotes, trimming, validation errors, price checks, and duplicate detection
-- `src/lib/analytics/__tests__/restaurant.test.ts` — 5 cases: zeroed metrics, query error, today/week/previous-week/month totals, change percentages, top products, 7-day trend, null items, no-baseline handling
+- `src/lib/analytics/__tests__/restaurant.test.ts` — 6 cases: zeroed metrics, query error, today/week/previous-week/month totals, change percentages, top products, 7-day trend, null items, no-baseline handling, custom-range window
 - `src/lib/analytics/__tests__/platform.test.ts` — 3 cases: query error, cross-restaurant metrics, join array/unknown-name handling
 - Fixed timezone bug in `getRestaurantAnalytics`: date bucketing now uses local-timezone date keys (toLocalDateKey) instead of `toISOString().split('T')` which shifted dates in timezones east of UTC (e.g. Europe/Athens)
 - Added week-over-week comparison: `previousWeekOrders`, `previousWeekValue`, `weekOrdersChangePct`, `weekValueChangePct` to `getRestaurantAnalytics` (previous week = the 7 days before the current rolling week)
 - `AnalyticsConsole` renders the comparison with ▲/▼/0% badges under "This Week"
+- Added custom date-range support: `getRestaurantAnalytics(restaurantId, { from, to })` returns `rangeOrders`, `rangeValue`, `rangeAverageOrderValue`, and `rangeDaily` (inclusive local-date window, capped at 90 days); the dashboard re-queries and shows a "Custom Range" panel with a daily breakdown
 - Initial security review: `.env*` gitignored, service-role key server-only, rate limits on public APIs, broadcast publishing gated to staff (migration 007), order data only exposed via API routes
 
 ---
@@ -351,9 +353,9 @@
 | 3. Auth | 🟡 95% | Registration email hook added; email verification via Supabase Confirm signup template + /auth/callback + /verify-email; reset-password end-to-end still pending inbox confirmation |
 | 4. Restaurant Setup | 🟡 95% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, and E2E coverage |
 | 5. Customer Ordering | 🟢 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling and status timeline |
-| 6. Real-Time & Dashboard | 🟡 80% | Staff real-time subscriptions + public broadcast tracking implemented; staging E2E verification pending; rate limits added |
-| 7. Analytics & Admin | 🟡 93% | Restaurant analytics now include week-over-week comparisons; timezone bucketing fixed; custom date-range wiring + acquisition funnel pending |
-| 8. Testing | 🟡 60% | 49 unit/integration tests passing; rate limiting + security pass complete |
+| 6. Real-Time & Dashboard | 🟡 85% | Staff real-time subscriptions + public broadcast tracking + reconnect/retry logic; staging E2E verification pending |
+| 7. Analytics & Admin | 🟢 100% | Full analytics suite: WoW comparisons, custom date ranges, order status funnel, exports, timezone fixes |
+| 8. Testing | 🟡 60% | 50 unit/integration tests passing; rate limiting + security pass complete |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
 ---
@@ -362,19 +364,19 @@
 
 ### Right Now (Do This First)
 ```bash
-# 1. Commit Phase 7 week-over-week analytics
+# 1. Commit Phase 7 funnel + Phase 6 reconnect/retry
 git add .
-git commit -m "feat: add week-over-week comparison analytics to restaurant dashboard
+git commit -m "feat: add order status funnel and real-time reconnect logic
 
-- Add previousWeekOrders/previousWeekValue and change-percentage calculations to getRestaurantAnalytics
-- Render WoW comparison badges (▲/▼/0%) with current-vs-previous breakdown in AnalyticsConsole
-- Update restaurant analytics tests (5 cases) covering previous-week buckets and no-baseline safety"
+- Add statusFunnel to getRestaurantAnalytics (order lifecycle stages over 30 days)
+- Render Order Status Funnel panel in AnalyticsConsole
+- Add reconnect/retry with exponential backoff to use-public-order-status and use-supabase-subscription hooks"
 git push origin master
 
 # 2. Validate changes with production build and tests
 npm run typecheck && npm run build && npx vitest run
 
-# 3. Next: Custom date-range selector wiring or E2E re-run with real-time implementation
+# 3. Next: Phase 6 staging E2E verification or full E2E re-run with real-time implementation
 ```
 
 ### After Timeline Verified
@@ -420,5 +422,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** Phase 2 email verification via Supabase Confirm signup template (`18ca5eb`)
-**Next commit:** Phase 7 week-over-week comparison analytics (see commit command above)
+**Last commit:** Phase 7 custom date-range analytics (`a2f7d91`)
+**Next commit:** Phase 7 order status funnel + Phase 6 reconnect/retry (see commit command above)

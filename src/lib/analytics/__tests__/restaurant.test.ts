@@ -157,6 +157,17 @@ describe('getRestaurantAnalytics', () => {
     expect(metrics.topProducts[1]).toEqual({ itemName: 'Water', quantity: 2, value: 10 })
     expect(metrics.topProducts).toHaveLength(5)
 
+    // Order status funnel: all 5 orders are SERVED
+    expect(metrics.statusFunnel).toEqual([
+      { status: 'NEW', count: 0 },
+      { status: 'ACCEPTED', count: 0 },
+      { status: 'PREPARING', count: 0 },
+      { status: 'READY', count: 0 },
+      { status: 'SERVED', count: 5 },
+      { status: 'REJECTED', count: 0 },
+      { status: 'CANCELLED', count: 0 },
+    ])
+
     // 7-day trend: today + yesterday populated, older days zeroed
     const trend = metrics.lastSevenDays
     expect(trend).toHaveLength(7)
@@ -188,6 +199,50 @@ describe('getRestaurantAnalytics', () => {
     // No baseline -> show +100% when current has orders, no crash on division by zero
     expect(metrics.weekOrdersChangePct).toBe(100)
     expect(metrics.weekValueChangePct).toBe(100)
+  })
+
+  it('computes custom range metrics with a narrower window', async () => {
+    const today = atLocalMidnight(0)
+    const fiveDaysAgo = atLocalMidnight(5)
+    const twentyDaysAgo = atLocalMidnight(20)
+
+    const orders = [
+      {
+        id: 'order-1',
+        status: 'SERVED',
+        total: 100,
+        created_at: isoAt(fiveDaysAgo, 12),
+        order_items: null,
+      },
+      {
+        id: 'order-2',
+        status: 'SERVED',
+        total: 250,
+        created_at: isoAt(today, 12),
+        order_items: null,
+      },
+      {
+        id: 'order-3',
+        status: 'SERVED',
+        total: 999,
+        created_at: isoAt(twentyDaysAgo, 12),
+        order_items: null,
+      },
+    ]
+
+    mockFrom.mockReturnValue(buildChain({ data: orders, error: null }))
+
+    const fromKey = localDateKey(atLocalMidnight(6))
+    const toKey = localDateKey(atLocalMidnight(0))
+    const metrics = await getRestaurantAnalytics('restaurant-1', { from: fromKey, to: toKey })
+
+    // Only order-1 and order-2 fall inside the custom window (5 days ago and today).
+    expect(metrics.rangeOrders).toBe(2)
+    expect(metrics.rangeValue).toBe(350)
+    expect(metrics.rangeAverageOrderValue).toBe(175)
+    expect(metrics.rangeDaily).toHaveLength(7)
+    expect(metrics.rangeDaily[6]).toEqual({ date: toKey, orderCount: 1, orderValue: 250 })
+    expect(metrics.rangeDaily[0]).toEqual({ date: fromKey, orderCount: 0, orderValue: 0 })
   })
 
   it('handles an order with null order_items', async () => {
