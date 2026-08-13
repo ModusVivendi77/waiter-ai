@@ -201,7 +201,7 @@
 **What still needs to happen:**
 1. Add public guardrails around order edits/cancellation windows if needed
 2. Expand automated checks around multi-item totals and item removal edge cases
-3. Re-run full E2E suite after real-time implementation
+3. ~~Re-run full E2E suite after real-time implementation~~ — done: public ordering journey passes with the real-time implementation (see Phase 6 verification)
 
 ---
 
@@ -239,10 +239,18 @@
 - Migration `007_public_realtime_order_status.sql` adds a Realtime Authorization INSERT policy allowing only authenticated restaurant staff to publish; listening remains open for anon customers
 - No RLS changes on the orders table — public customers still read via API routes only
 
+**Recent verification:**
+- [x] Production build + typecheck pass (`npm run typecheck && npm run build`)
+- [x] All 50 unit/integration tests pass (`npx vitest run`)
+- [x] Full E2E suite re-run with real-time implementation: public ordering journey passes (order submission → tracking surface with broadcast + polling), 3 auth-requiring tests skipped until `E2E_SUPER_ADMIN_EMAIL`/`E2E_SUPER_ADMIN_PASSWORD` are configured
+
 **What still needs to happen:**
-1. Test real-time functionality end-to-end in staging
-2. Monitor real-time connection stability and latency metrics
-3. Re-run full E2E suite with new real-time implementation
+1. Configure `E2E_SUPER_ADMIN_EMAIL` / `E2E_SUPER_ADMIN_PASSWORD` in `.env.local` and re-run the auth-requiring E2E tests (orders workspace + platform setup)
+2. Verify order acceptance flow updates the history panel on `/orders/[trackingToken]` via broadcast
+3. Monitor real-time connection stability and latency metrics in staging
+4. Confirm rate-limit headers on public API responses
+5. Verify reset-password flow end-to-end with a real inbox-backed account
+6. Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
 
 ---
 
@@ -363,21 +371,15 @@
 ## 🚀 Next Immediate Actions
 
 ### Right Now (Do This First)
-```bash
-# 1. Commit Phase 7 funnel + Phase 6 reconnect/retry
-git add .
-git commit -m "feat: add order status funnel and real-time reconnect logic
-
-- Add statusFunnel to getRestaurantAnalytics (order lifecycle stages over 30 days)
-- Render Order Status Funnel panel in AnalyticsConsole
-- Add reconnect/retry with exponential backoff to use-public-order-status and use-supabase-subscription hooks"
-git push origin master
-
-# 2. Validate changes with production build and tests
-npm run typecheck && npm run build && npx vitest run
-
-# 3. Next: Phase 6 staging E2E verification or full E2E re-run with real-time implementation
-```
+1. **✅ Done** — Phase 7 funnel + Phase 6 reconnect/retry committed and pushed (`b82c9d1`)
+2. **✅ Done** — `npm run typecheck && npm run build` passes; all 50 unit/integration tests pass
+3. **✅ Done** — Full E2E suite re-run with real-time implementation (1 passed, 3 skipped)
+4. **Next** — Configure `E2E_SUPER_ADMIN_EMAIL` / `E2E_SUPER_ADMIN_PASSWORD` in `.env.local` then re-run:
+   ```bash
+   npx playwright test
+   ```
+5. **Next** — Verify order acceptance flow updates the history panel on `/orders/[trackingToken]` via broadcast
+6. **Next** — Confirm rate-limit headers on public API responses
 
 ### After Timeline Verified
 ```bash
@@ -422,5 +424,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** Phase 7 custom date-range analytics (`a2f7d91`)
-**Next commit:** Phase 7 order status funnel + Phase 6 reconnect/retry (see commit command above)
+**Last commit:** Phase 7 order status funnel + Phase 6 reconnect/retry (`b82c9d1`)
+**Next commit:** status/docs — E2E verification results, E2E env var docs in `.env.example`
