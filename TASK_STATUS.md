@@ -177,12 +177,25 @@
   - [x] "Add another restaurant" form on `/platform` with auto-reload of memberships
   - [x] **Restaurant switcher for all multi-membership users** in Orders, Setup, and Analytics consoles (previously SUPER_ADMIN only); selection persisted per-console in `localStorage`
   - [x] **Root-cause fix:** upgraded `@supabase/ssr` `0.0.9` → `0.12.4` — the old version only supported the legacy `get`/`set`/`remove` cookie API, so the app's modern `getAll`/`setAll` config silently failed and **all server-side auth reads returned "Auth session missing!"** (latent because pages authenticate client-side). This also fixes `/auth/callback` session persistence for the reset-password flow.
+- [x] **Team management (staff/manager CRUD)** — replaced the placeholder `/platform/team` page:
+  - [x] Add members to a restaurant by email + role (MANAGER/STAFF); change roles; remove members
+  - [x] Restaurant context selector for multi-restaurant owners and SUPER_ADMIN
+  - [x] Guards: cannot remove the last OWNER or yourself; member must have an account first
+- [x] **Staff-to-table connection** (migration 008): `restaurant_tables.assigned_staff_id` + `orders.waiter_id` (live-applied)
+  - [x] Setup console: "Assigned staff" dropdown per table
+  - [x] Orders console: staff can **Take order** (sets `waiter_id`); "Handling: you" badge
+- [x] **Staff performance analytics** (migration 008 + `/platform/analytics`):
+  - [x] Per-staff orders handled, revenue served (value statuses only), tables covered, avg order value
+  - [x] SUPER_ADMIN branch added to the analytics console (view any restaurant), fixing a stale-state restaurant-switch bug
+  - [x] 4 new unit tests (`src/lib/analytics/__tests__/staff.test.ts`) — 56 total
+- [x] **Critical RLS fix (migration 009):** added "Users can view own memberships" policy — previously only OWNERs could SELECT `restaurant_users`, so **STAFF/MANAGER accounts saw an empty membership list and every platform page said "You need restaurant access."** Staff can now use the platform.
 
 **What still needs to happen:**
 1. Add broader setup E2E scenarios for rename/delete/import success paths
 2. Add QR PDF/export batching if printable assets need exact page sizing
 3. Decide whether to graduate Phase 4 from scaffold/hardening into full production verification
 4. **Future work:** Resend domain verification (`*.vercel.app` can't be verified — needs a custom domain at resend.com/domains + `RESEND_FROM_EMAIL` set) so confirmation emails reach customers, not just the owner
+5. **Future work:** table assignment by shift (current model is a single `assigned_staff_id` per table); staff availability/scheduling
 
 ---
 
@@ -379,11 +392,11 @@
 | 1. Foundation | 🟢 100% | Supabase and Vercel deployment complete |
 | 2. Database | 🟢 100% | Schema applied and seeded on the live Supabase project |
 | 3. Auth | 🟡 95% | Registration email hook added; email verification via Supabase Confirm signup template + /auth/callback + /verify-email; reset-password redirect fixed in /auth/callback, end-to-end inbox confirmation still pending |
-| 4. Restaurant Setup | 🟡 95% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, and E2E coverage |
+| 4. Restaurant Setup | 🟢 95% | Setup workspace supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, team management, staff-to-table assignment, and E2E coverage |
 | 5. Customer Ordering | 🟢 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling and status timeline |
 | 6. Real-Time & Dashboard | 🟡 95% | Staff real-time subscriptions + public broadcast tracking (channel-name bug fixed + E2E verified) + reconnect/retry logic + rate-limit headers verified |
-| 7. Analytics & Admin | 🟢 100% | Full analytics suite: WoW comparisons, custom date ranges, order status funnel, exports, timezone fixes |
-| 8. Testing | 🟡 85% | 52 unit/integration tests passing; full E2E suite green 5/5 incl. broadcast + auth-requiring tests; remaining items are live/manual verifications |
+| 7. Analytics & Admin | 🟢 100% | Full analytics suite: WoW comparisons, custom date ranges, order status funnel, exports, timezone fixes, staff performance analytics |
+| 8. Testing | 🟡 90% | 56 unit/integration tests passing; full E2E suite green 5/5 incl. broadcast + auth-requiring tests; remaining items are live/manual verifications |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
 ---
@@ -402,9 +415,13 @@
 9. **✅ Done** — Real `RESEND_API_KEY` added to `.env.local` + Vercel; delivery verified to the owner's address. To send to customers, verify a domain at resend.com/domains and set `RESEND_FROM_EMAIL`
 10. **✅ Done** — Multi-restaurant support: `addRestaurant` server action + "Add another restaurant" form on `/platform`; restaurant switcher for multi-membership users in Orders/Setup/Analytics (live-verified end-to-end)
 11. **✅ Done** — Root-cause fix for server-side auth: upgraded `@supabase/ssr` `0.0.9` → `0.12.4` (old version silently ignored the app's `getAll`/`setAll` cookie API → every server-side `getUser()` returned "Auth session missing!"); all 5 E2E tests still pass
-12. **Next** — Verify reset-password end-to-end with a real inbox-backed account (request reset → click email link → confirm redirect lands on `/reset-password` → update password → login with new password)
-13. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
-14. **Future work** — Resend domain verification for customer-facing confirmation emails
+12. **✅ Done** — Team management CRUD on `/platform/team` (add by email, roles, remove, restaurant selector) — was a placeholder
+13. **✅ Done** — Staff-to-table connection: `restaurant_tables.assigned_staff_id` + `orders.waiter_id` (migration 008 live); setup dropdown + "Take order" in orders workspace
+14. **✅ Done** — Staff performance analytics (orders handled, revenue served, tables, avg order value) + SUPER_ADMIN branch in analytics console
+15. **✅ Done** — Critical RLS fix (migration 009): staff could not see their own memberships → couldn't use the platform; now they can
+16. **Next** — Verify reset-password end-to-end with a real inbox-backed account (request reset → click email link → confirm redirect lands on `/reset-password` → update password → login with new password)
+17. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+18. **Future work** — Resend domain verification for customer-facing confirmation emails
 
 ### After Timeline Verified
 ```bash
@@ -449,5 +466,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — multi-restaurant support (addRestaurant action + restaurant switchers) and @supabase/ssr 0.0.9 → 0.12.4 upgrade (see log for hash)
-**Next commit:** live reset-password verification; confirm "Confirm signup" template site URL; Resend domain verification (future work)
+**Last commit:** feat — team management, staff-to-table assignment, staff performance analytics, and critical memberships RLS fix (see log for hash)
+**Next commit:** live reset-password verification; confirm "Confirm signup" template site URL; Resend domain verification + shift-based table assignment (future work)

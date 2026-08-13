@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { getClientUserContext } from '@/lib/auth/client'
+import { createClient } from '@/lib/supabase/client'
 import { getRestaurantAnalytics, type AnalyticsMetrics, type AnalyticsRange } from '@/lib/analytics/restaurant'
+import { getStaffPerformanceAnalytics, type StaffPerformanceMetrics } from '@/lib/analytics/staff'
+import { listTeamMembers } from '@/lib/auth/team-actions'
 import { OrderTrendChart, OrderCountChart, OrderValueChart } from '@/components/charts/trend-charts'
 import { DateRangeSelector } from '@/components/charts/date-range-selector'
 import { exportToPDF, exportToCSV } from '@/lib/export/analytics-export'
@@ -28,6 +31,7 @@ function formatChangePct(value: number): { label: string; className: string } {
 }
 
 export function AnalyticsConsole() {
+  const supabase = useMemo(() => createClient(), [])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [restaurantName, setRestaurantName] = useState<string | null>(null)
@@ -37,8 +41,10 @@ export function AnalyticsConsole() {
   const [exporting, setExporting] = useState(false)
   const [restaurantOptions, setRestaurantOptions] = useState<Array<{ id: string; name: string }>>([])
   const [selectedRestaurantId, setSelectedRestaurantId] = useState('')
+  const [staffMetrics, setStaffMetrics] = useState<StaffPerformanceMetrics | null>(null)
+  const [staffEmailMap, setStaffEmailMap] = useState<Record<string, string>>({})
 
-  async function loadAnalytics(range?: AnalyticsRange) {
+  async function loadAnalytics(range?: AnalyticsRange, restaurantOverrideId?: string) {
     try {
       const context = await getClientUserContext()
 
@@ -48,31 +54,69 @@ export function AnalyticsConsole() {
         return
       }
 
-      const memberships = context.memberships.filter((m) => ['OWNER', 'MANAGER'].includes(m.role))
-      if (memberships.length === 0) {
-        setError('You need restaurant access to view analytics.')
-        setLoading(false)
-        return
-      }
-
       const savedRestaurantId = typeof window !== 'undefined' ? localStorage.getItem('staffAnalyticsRestaurantId') || '' : ''
-      const candidateId = selectedRestaurantId || savedRestaurantId
-      const membership = memberships.find((m) => m.restaurantId === candidateId) ?? memberships[0]
 
-      if (memberships.length > 1) {
-        setRestaurantOptions(memberships.map((m) => ({ id: m.restaurantId, name: m.restaurantName })))
-        setSelectedRestaurantId(membership.restaurantId)
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('staffAnalyticsRestaurantId', membership.restaurantId)
+      let targetRestaurantId: string
+      let targetRestaurantName: string
+
+      if (context.isPlatformAdmin) {
+        // SUPER_ADMIN can view analytics for any restaurant.
+        const { data: restaurants, error: restaurantsError } = await supabase.from('restaurants').select('id, name').order('name')
+
+        if (restaurantsError || !restaurants || restaurants.length === 0) {
+          setError(restaurantsError?.message || 'No restaurants found for platform administration.')
+          setLoading(false)
+          return
         }
+
+        const typedRestaurants = (restaurants as Array<{ id: string; name: string }>) || []
+        const candidateId = restaurantOverrideId || selectedRestaurantId || savedRestaurantId
+        const selected = typedRestaurants.find((r) => r.id === candidateId) ?? typedRestaurants[0]
+
+        setRestaurantOptions(typedRestaurants)
+        setSelectedRestaurantId(selected.id)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('staffAnalyticsRestaurantId', selected.id)
+        }
+        targetRestaurantId = selected.id
+        targetRestaurantName = selected.name
       } else {
-        setRestaurantOptions([])
+        const memberships = context.memberships.filter((m) => ['OWNER', 'MANAGER'].includes(m.role))
+        if (memberships.length === 0) {
+          setError('You need restaurant access to view analytics.')
+          setLoading(false)
+          return
+        }
+
+        const candidateId = restaurantOverrideId || selectedRestaurantId || savedRestaurantId
+        const membership = memberships.find((m) => m.restaurantId === candidateId) ?? memberships[0]
+
+        if (memberships.length > 1) {
+          setRestaurantOptions(memberships.map((m) => ({ id: m.restaurantId, name: m.restaurantName })))
+          setSelectedRestaurantId(membership.restaurantId)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('staffAnalyticsRestaurantId', membership.restaurantId)
+          }
+        } else {
+          setRestaurantOptions([])
+        }
+
+        targetRestaurantId = membership.restaurantId
+        targetRestaurantName = membership.restaurantName
       }
 
-      setRestaurantName(membership.restaurantName)
+      setRestaurantName(targetRestaurantName)
 
-      const analyticsData = await getRestaurantAnalytics(membership.restaurantId, range)
+      const [analyticsData, staffData, teamResult] = await Promise.all([
+        getRestaurantAnalytics(targetRestaurantId, range),
+        getStaffPerformanceAnalytics(targetRestaurantId, range),
+        listTeamMembers(targetRestaurantId).catch(() => ({ error: undefined, members: undefined })),
+      ])
       setMetrics(analyticsData)
+      setStaffMetrics(staffData)
+      setStaffEmailMap(
+        Object.fromEntries((teamResult.members || []).map((member) => [member.userId, member.email]))
+      )
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load analytics')
@@ -96,7 +140,7 @@ export function AnalyticsConsole() {
     setLoading(true)
     setSelectedRestaurantId(nextRestaurantId)
     const range = dateRange === 'custom' && customRange ? customRange : undefined
-    void loadAnalytics(range)
+    void loadAnalytics(range, nextRestaurantId)
   }
 
   function handleRangeChange(range: 'today' | 'week' | 'month' | 'custom') {
@@ -391,6 +435,61 @@ export function AnalyticsConsole() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="panel stack">
+        <span className="eyebrow">Staff Performance</span>
+        <p className="helper-text">
+          Based on orders where a staff member took ownership (set as the handling waiter). Assign staff to tables in
+          Setup and have them take orders in the Orders workspace to build these metrics.
+        </p>
+
+        {staffMetrics && staffMetrics.staff.length > 0 ? (
+          <>
+            <ul className="list">
+              <li>
+                <div className="cart-line-header">
+                  <strong>Active staff</strong>
+                  <span className="badge">{staffMetrics.activeStaffCount}</span>
+                </div>
+              </li>
+              <li>
+                <div className="cart-line-header">
+                  <strong>Orders handled</strong>
+                  <span className="badge">{staffMetrics.totalOrdersHandled}</span>
+                </div>
+              </li>
+              <li>
+                <div className="cart-line-header">
+                  <strong>Revenue served</strong>
+                  <span>{formatCurrency(staffMetrics.totalRevenueHandled)}</span>
+                </div>
+              </li>
+            </ul>
+
+            <span className="eyebrow" style={{ marginTop: '12px' }}>By staff member</span>
+            <ul className="list">
+              {staffMetrics.staff.map((entry) => (
+                <li key={entry.staffId}>
+                  <div className="cart-line-header">
+                    <div>
+                      <strong>{staffEmailMap[entry.staffId] ?? 'Staff member'}</strong>
+                      <p className="muted">
+                        {entry.ordersHandled} orders · {entry.tablesServed} tables ·{' '}
+                        {formatCurrency(entry.averageOrderValue)} avg order
+                      </p>
+                    </div>
+                    <span>{formatCurrency(entry.revenueHandled)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="muted">
+            No staff performance data yet in this period. Once staff take orders, their metrics appear here.
+          </p>
+        )}
       </section>
     </>
   )

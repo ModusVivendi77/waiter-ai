@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 import { getClientUserContext } from '@/lib/auth/client'
+import { listTeamMembers } from '@/lib/auth/team-actions'
 import { createClient } from '@/lib/supabase/client'
 import { useSupabaseSubscription } from '@/lib/hooks/use-supabase-subscription'
 
@@ -52,6 +53,7 @@ type OrderRow = {
   public_tracking_token: string
   restaurant_id: string
   created_at: string
+  waiter_id: string | null
   restaurant_tables:
     | {
         name: string
@@ -111,6 +113,8 @@ export function OrdersConsole() {
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({})
   const [lineDrafts, setLineDrafts] = useState<Record<string, LineDraft>>({})
   const [addItemDrafts, setAddItemDrafts] = useState<Record<string, AddItemDraft>>({})
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [teamEmailMap, setTeamEmailMap] = useState<Record<string, string>>({})
   const activeRestaurantIdRef = useRef<string | null>(null)
 
   async function loadData(restaurantOverrideId?: string) {
@@ -184,11 +188,12 @@ export function OrdersConsole() {
     setRestaurantId(activeRestaurantId)
     setRestaurantName(activeRestaurantName)
     setRole(currentRole)
+    setCurrentUserId(context.user.id)
 
-    const [{ data: orderRows, error: orderError }, { data: menuRows, error: menuError }] = await Promise.all([
+    const [{ data: orderRows, error: orderError }, { data: menuRows, error: menuError }, teamResult] = await Promise.all([
       supabase
         .from('orders')
-        .select('id, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes)')
+        .select('id, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, waiter_id, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes)')
         .eq('restaurant_id', activeRestaurantId)
         .order('created_at', { ascending: false })
         .limit(30),
@@ -198,7 +203,12 @@ export function OrdersConsole() {
         .eq('restaurant_id', activeRestaurantId)
         .eq('available', true)
         .order('name'),
+      listTeamMembers(activeRestaurantId).catch(() => ({ error: undefined, members: undefined })),
     ])
+
+    setTeamEmailMap(
+      Object.fromEntries((teamResult && teamResult.members ? teamResult.members : []).map((member) => [member.userId, member.email]))
+    )
 
     if (orderError || menuError) {
       setError(orderError?.message || menuError?.message || 'Failed to load orders workspace.')
@@ -386,6 +396,33 @@ export function OrdersConsole() {
     }
 
     setNotice(`Order ${order.id.slice(0, 8)} moved to ${nextStatus}.`)
+    await loadData(selectedRestaurantId || restaurantId || undefined)
+  }
+
+  async function handleTakeOrder(order: OrderRow) {
+    if (!currentUserId) {
+      setError('Your session is not available. Refresh the page and try again.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({ waiter_id: currentUserId })
+      .eq('id', order.id)
+      .eq('restaurant_id', order.restaurant_id)
+
+    setSaving(false)
+
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+
+    setNotice(`You are now handling order ${order.id.slice(0, 8)}.`)
     await loadData(selectedRestaurantId || restaurantId || undefined)
   }
 
@@ -607,6 +644,23 @@ export function OrdersConsole() {
                     {status}
                   </button>
                 ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap' }}>
+                {order.waiter_id ? (
+                  <span className="badge">
+                    Handling: {order.waiter_id === currentUserId ? 'you' : (teamEmailMap[order.waiter_id] ?? 'Staff member')}
+                  </span>
+                ) : currentUserId ? (
+                  <button
+                    className="button-secondary"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void handleTakeOrder(order)}
+                  >
+                    Take order
+                  </button>
+                ) : null}
               </div>
 
               <div className="field" style={{ marginTop: '12px' }}>

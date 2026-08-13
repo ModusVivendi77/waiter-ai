@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import QRCode from 'qrcode'
 
 import { getClientUserContext } from '@/lib/auth/client'
+import { listTeamMembers } from '@/lib/auth/team-actions'
 import { parseCsvRows, type CsvPreviewRow } from '@/lib/csv/menu-import'
 import { createClient } from '@/lib/supabase/client'
 
@@ -13,6 +14,7 @@ type RestaurantTable = {
   name: string
   qr_token: string
   active: boolean
+  assigned_staff_id: string | null
 }
 
 type Category = {
@@ -87,6 +89,7 @@ export function RestaurantSetupConsole() {
   const [editingItemDescription, setEditingItemDescription] = useState('')
   const [editingItemPrice, setEditingItemPrice] = useState('')
   const [editingItemCategoryId, setEditingItemCategoryId] = useState('')
+  const [staffOptions, setStaffOptions] = useState<Array<{ id: string; name: string }>>([])
 
   const supabase = useMemo(() => createClient(), [])
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
@@ -156,11 +159,11 @@ export function RestaurantSetupConsole() {
     setRestaurantId(activeRestaurantId)
     setRestaurantName(activeRestaurantName)
 
-    const [{ data: tableRows, error: tableError }, { data: categoryRows, error: categoryError }, { data: itemRows, error: itemError }] =
+    const [{ data: tableRows, error: tableError }, { data: categoryRows, error: categoryError }, { data: itemRows, error: itemError }, staffResult] =
       await Promise.all([
         supabase
           .from('restaurant_tables')
-          .select('id, name, qr_token, active')
+          .select('id, name, qr_token, active, assigned_staff_id')
           .eq('restaurant_id', activeRestaurantId)
           .order('name'),
         supabase
@@ -174,7 +177,15 @@ export function RestaurantSetupConsole() {
           .eq('restaurant_id', activeRestaurantId)
           .order('created_at', { ascending: false })
           .limit(50),
+        listTeamMembers(activeRestaurantId).catch(() => ({ error: undefined, members: undefined })),
       ])
+
+    setStaffOptions(
+      (staffResult && staffResult.members
+        ? staffResult.members.filter((member) => member.role === 'MANAGER' || member.role === 'STAFF')
+        : []
+      ).map((member) => ({ id: member.userId, name: member.email }))
+    )
 
     if (tableError || categoryError || itemError) {
       setError(tableError?.message || categoryError?.message || itemError?.message || 'Failed to load setup data.')
@@ -326,6 +337,32 @@ export function RestaurantSetupConsole() {
     }
 
     setNotice(`Table ${table.name} is now ${table.active ? 'inactive' : 'active'}.`)
+    await loadData()
+  }
+
+  async function handleAssignTableStaff(tableId: string, staffId: string) {
+    if (!restaurantId) {
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('restaurant_tables')
+      .update({ assigned_staff_id: staffId || null })
+      .eq('id', tableId)
+      .eq('restaurant_id', restaurantId)
+
+    setSaving(false)
+
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+
+    setNotice('Table assignment updated.')
     await loadData()
   }
 
@@ -792,6 +829,24 @@ export function RestaurantSetupConsole() {
               <p className="muted">Status: {table.active ? 'Active' : 'Inactive'}</p>
               <p className="muted">Token: {table.qr_token}</p>
               <p className="muted">QR URL: {`${appUrl}/t/${table.qr_token}`}</p>
+              {staffOptions.length > 0 ? (
+                <div className="field">
+                  <label htmlFor={`assigned-staff-${table.id}`}>Assigned staff</label>
+                  <select
+                    id={`assigned-staff-${table.id}`}
+                    value={table.assigned_staff_id ?? ''}
+                    disabled={saving}
+                    onChange={(event) => void handleAssignTableStaff(table.id, event.target.value)}
+                  >
+                    <option value="">— Unassigned —</option>
+                    {staffOptions.map((staff) => (
+                      <option key={staff.id} value={staff.id}>
+                        {staff.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {editingTableId === table.id ? (
                   <>
