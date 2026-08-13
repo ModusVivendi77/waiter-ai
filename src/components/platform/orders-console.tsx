@@ -54,6 +54,7 @@ type OrderRow = {
   restaurant_id: string
   created_at: string
   waiter_id: string | null
+  session_id: string | null
   restaurant_tables:
     | {
         name: string
@@ -115,6 +116,7 @@ export function OrdersConsole() {
   const [addItemDrafts, setAddItemDrafts] = useState<Record<string, AddItemDraft>>({})
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [teamEmailMap, setTeamEmailMap] = useState<Record<string, string>>({})
+  const [activeSessionIds, setActiveSessionIds] = useState<Set<string>>(new Set())
   const activeRestaurantIdRef = useRef<string | null>(null)
 
   async function loadData(restaurantOverrideId?: string) {
@@ -190,10 +192,10 @@ export function OrdersConsole() {
     setRole(currentRole)
     setCurrentUserId(context.user.id)
 
-    const [{ data: orderRows, error: orderError }, { data: menuRows, error: menuError }, teamResult] = await Promise.all([
+    const [{ data: orderRows, error: orderError }, { data: menuRows, error: menuError }, teamResult, sessionResult] = await Promise.all([
       supabase
         .from('orders')
-        .select('id, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, waiter_id, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes)')
+        .select('id, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, waiter_id, session_id, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes)')
         .eq('restaurant_id', activeRestaurantId)
         .order('created_at', { ascending: false })
         .limit(30),
@@ -204,7 +206,10 @@ export function OrdersConsole() {
         .eq('available', true)
         .order('name'),
       listTeamMembers(activeRestaurantId).catch(() => ({ error: undefined, members: undefined })),
+      supabase.from('dining_sessions').select('id').eq('restaurant_id', activeRestaurantId).eq('status', 'ACTIVE'),
     ])
+
+    setActiveSessionIds(new Set(((sessionResult?.data as Array<{ id: string }> | null) || []).map((session) => session.id)))
 
     setTeamEmailMap(
       Object.fromEntries((teamResult && teamResult.members ? teamResult.members : []).map((member) => [member.userId, member.email]))
@@ -423,6 +428,29 @@ export function OrdersConsole() {
     }
 
     setNotice(`You are now handling order ${order.id.slice(0, 8)}.`)
+    await loadData(selectedRestaurantId || restaurantId || undefined)
+  }
+
+  async function handleCloseSession(sessionId: string, tableName: string) {
+    if (!window.confirm(`Close the active session for ${tableName}? The next order will start a new visit.`)) return
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('dining_sessions')
+      .update({ status: 'CLOSED', closed_at: new Date().toISOString() })
+      .eq('id', sessionId)
+
+    setSaving(false)
+
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+
+    setNotice(`Session for ${tableName} closed.`)
     await loadData(selectedRestaurantId || restaurantId || undefined)
   }
 
@@ -659,6 +687,16 @@ export function OrdersConsole() {
                     onClick={() => void handleTakeOrder(order)}
                   >
                     Take order
+                  </button>
+                ) : null}
+                {order.session_id && activeSessionIds.has(order.session_id) && role && ['OWNER', 'MANAGER', 'SUPER_ADMIN'].includes(role) ? (
+                  <button
+                    className="button-secondary"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void handleCloseSession(order.session_id!, getTableName(order))}
+                  >
+                    Close table session
                   </button>
                 ) : null}
               </div>

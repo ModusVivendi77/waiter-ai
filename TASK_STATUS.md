@@ -75,7 +75,7 @@
 - `sendRegistrationEmail` (Resend-backed welcome email) still fires after account provisioning
 
 **What still needs to happen:**
-1. Complete the reset-password flow with a real inbox-backed account
+1. ~~Complete the reset-password flow with a real inbox-backed account~~ — ✅ DONE. User verified the flow works end-to-end (request reset → email link → `/reset-password` → update password → login)
 2. Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings (no longer required for the Resend path, but keeps the Supabase fallback correct)
 3. **Resend configured** (real `RESEND_API_KEY` in `.env.local` + Vercel). Delivery verified to the owner's address. **Free-plan caveat:** with the default `onboarding@resend.dev` sender, Resend only delivers to the account owner's email — to email customers, verify a domain at resend.com/domains and set `RESEND_FROM_EMAIL` to an address on it
 4. Decide whether to keep the current client-side protected-route strategy or revisit SSR session handling later
@@ -184,6 +184,7 @@
 - [x] **Staff-to-table connection** (migration 008): `restaurant_tables.assigned_staff_id` + `orders.waiter_id` (live-applied)
   - [x] Setup console: "Assigned staff" dropdown per table
   - [x] Orders console: staff can **Take order** (sets `waiter_id`); "Handling: you" badge
+  - [x] **Dining session closure** (completes the session-first model): orders already group under an ACTIVE table session in the API; the orders workspace now shows a **"Close table session"** button (OWNER/MANAGER/SUPER_ADMIN) so the next order starts a fresh visit — live-verified
 - [x] **Staff performance analytics** (migration 008 + `/platform/analytics`):
   - [x] Per-staff orders handled, revenue served (value statuses only), tables covered, avg order value
   - [x] SUPER_ADMIN branch added to the analytics console (view any restaurant), fixing a stale-state restaurant-switch bug
@@ -419,7 +420,7 @@
 13. **✅ Done** — Staff-to-table connection: `restaurant_tables.assigned_staff_id` + `orders.waiter_id` (migration 008 live); setup dropdown + "Take order" in orders workspace
 14. **✅ Done** — Staff performance analytics (orders handled, revenue served, tables, avg order value) + SUPER_ADMIN branch in analytics console
 15. **✅ Done** — Critical RLS fix (migration 009): staff could not see their own memberships → couldn't use the platform; now they can
-16. **Next** — Verify reset-password end-to-end with a real inbox-backed account (request reset → click email link → confirm redirect lands on `/reset-password` → update password → login with new password)
+16. **✅ Done** — Reset-password verified end-to-end with a real inbox-backed account (request reset → email link → `/reset-password` → update password → login with new password)
 17. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
 18. **Future work** — Resend domain verification for customer-facing confirmation emails
 
