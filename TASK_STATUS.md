@@ -256,6 +256,7 @@
   - [x] **"Details" expands an item** to edit description, category, allergens, and modifiers (options)
   - [x] Availability toggle + delete stay one click away in the table
   - [x] Setup console now honors `?restaurantId=` (consistent with the orders workspace)
+- [x] **Deployment fix** — wrapped the setup console in a `<Suspense>` boundary after Vercel's build failed with `useSearchParams() should be wrapped in a suspense boundary at page "/platform/setup"` (all `useSearchParams` consumers now have boundaries)
 
 **What still needs to happen:**
 1. Add public guardrails around order edits/cancellation windows if needed
