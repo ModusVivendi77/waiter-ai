@@ -219,6 +219,7 @@
 - [x] Manual order status updates
 - [x] Customer-facing status timeline now includes timestamps from `order_status_history`
 - [x] Rate limiting added to public `/api/orders` (30 req / 10 min) and `/api/order-status/[trackingToken]` (120 req / min)
+- [x] Rate-limit headers (`X-RateLimit-Remaining` on every response, `Retry-After` on 429) now returned consistently via shared `getRateLimitHeaders` helper
 - [x] Public real-time status updates via auth-less broadcast channels (`order-status-<orderId>`)
 - [x] 5-second polling retained as a reliable fallback for customers
 - [x] Broadcast authorization gated to restaurant staff only (migration 007)
@@ -241,16 +242,16 @@
 
 **Recent verification:**
 - [x] Production build + typecheck pass (`npm run typecheck && npm run build`)
-- [x] All 50 unit/integration tests pass (`npx vitest run`)
+- [x] All 52 unit/integration tests pass (`npx vitest run`)
 - [x] Full E2E suite re-run with real-time implementation: public ordering journey passes (order submission → tracking surface with broadcast + polling), 3 auth-requiring tests skipped until `E2E_SUPER_ADMIN_EMAIL`/`E2E_SUPER_ADMIN_PASSWORD` are configured
+- [x] Rate-limit headers live-verified against the production build: `/api/orders` 400 → `X-RateLimit-Remaining: 28`, `/api/order-status` 404 → `X-RateLimit-Remaining: 119`; `Retry-After` correctly present only on 429 responses
 
 **What still needs to happen:**
 1. Configure `E2E_SUPER_ADMIN_EMAIL` / `E2E_SUPER_ADMIN_PASSWORD` in `.env.local` and re-run the auth-requiring E2E tests (orders workspace + platform setup)
 2. Verify order acceptance flow updates the history panel on `/orders/[trackingToken]` via broadcast
 3. Monitor real-time connection stability and latency metrics in staging
-4. Confirm rate-limit headers on public API responses
-5. Verify reset-password flow end-to-end with a real inbox-backed account
-6. Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+4. Verify reset-password flow end-to-end with a real inbox-backed account
+5. Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
 
 ---
 
@@ -320,7 +321,7 @@
 ---
 
 ### Phase 8: Testing & Hardening (Week 8) 🟡 IN PROGRESS
-- [x] Unit tests (50 passing: order validation, auth schemas, rate limiter, CSV import, analytics)
+- [x] Unit tests (52 passing: order validation, auth schemas, rate limiter incl. header helper, CSV import, analytics)
 - [x] Integration tests (analytics query libraries with mocked Supabase client, incl. week-over-week comparisons)
 - [x] Initial E2E tests/config added
 - [x] Expanded E2E coverage for setup rename/delete/import and public QR menu flow
@@ -331,8 +332,8 @@
 - Added `@` path alias to `vitest.config.ts` so tests resolve `@/lib/...` imports
 - `src/lib/validation/__tests__/orders.test.ts` — 10 cases for `createOrderSchema`
 - `src/lib/auth/__tests__/schemas.test.ts` — 9 cases for registration and password reset schemas
-- `src/lib/utils/__tests__/rateLimit.test.ts` — 7 cases for the rate limiter
-- Rate limiter applies to `/api/orders` POST (30 req / 10 min) and `/api/order-status/[trackingToken]` GET (120 req / min) with `Retry-After` and `X-RateLimit-Remaining` headers
+- `src/lib/utils/__tests__/rateLimit.test.ts` — 9 cases for the rate limiter + `getRateLimitHeaders`
+- Rate limiter applies to `/api/orders` POST (30 req / 10 min) and `/api/order-status/[trackingToken]` GET (120 req / min); `X-RateLimit-Remaining` now included on **every** response via shared `getRateLimitHeaders` helper, `Retry-After` on 429
 - Extracted CSV parsing from `RestaurantSetupConsole` into `src/lib/csv/menu-import.ts` (shared, testable)
 - `src/lib/csv/__tests__/menu-import.test.ts` — 15 cases covering quoting, escaped quotes, trimming, validation errors, price checks, and duplicate detection
 - `src/lib/analytics/__tests__/restaurant.test.ts` — 6 cases: zeroed metrics, query error, today/week/previous-week/month totals, change percentages, top products, 7-day trend, null items, no-baseline handling, custom-range window
@@ -361,9 +362,9 @@
 | 3. Auth | 🟡 95% | Registration email hook added; email verification via Supabase Confirm signup template + /auth/callback + /verify-email; reset-password end-to-end still pending inbox confirmation |
 | 4. Restaurant Setup | 🟡 95% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, and E2E coverage |
 | 5. Customer Ordering | 🟢 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling and status timeline |
-| 6. Real-Time & Dashboard | 🟡 85% | Staff real-time subscriptions + public broadcast tracking + reconnect/retry logic; staging E2E verification pending |
+| 6. Real-Time & Dashboard | 🟡 90% | Staff real-time subscriptions + public broadcast tracking + reconnect/retry logic + rate-limit headers verified on all public API responses |
 | 7. Analytics & Admin | 🟢 100% | Full analytics suite: WoW comparisons, custom date ranges, order status funnel, exports, timezone fixes |
-| 8. Testing | 🟡 60% | 50 unit/integration tests passing; rate limiting + security pass complete |
+| 8. Testing | 🟡 65% | 52 unit/integration tests passing; rate-limit headers verified; E2E auth tests pending credentials |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
 ---
@@ -372,14 +373,14 @@
 
 ### Right Now (Do This First)
 1. **✅ Done** — Phase 7 funnel + Phase 6 reconnect/retry committed and pushed (`b82c9d1`)
-2. **✅ Done** — `npm run typecheck && npm run build` passes; all 50 unit/integration tests pass
+2. **✅ Done** — `npm run typecheck && npm run build` passes; all 52 unit/integration tests pass
 3. **✅ Done** — Full E2E suite re-run with real-time implementation (1 passed, 3 skipped)
-4. **Next** — Configure `E2E_SUPER_ADMIN_EMAIL` / `E2E_SUPER_ADMIN_PASSWORD` in `.env.local` then re-run:
+4. **✅ Done** — Rate-limit headers (`X-RateLimit-Remaining` on all responses, `Retry-After` on 429) live-verified and committed
+5. **Next** — Configure `E2E_SUPER_ADMIN_EMAIL` / `E2E_SUPER_ADMIN_PASSWORD` in `.env.local` then re-run:
    ```bash
    npx playwright test
    ```
-5. **Next** — Verify order acceptance flow updates the history panel on `/orders/[trackingToken]` via broadcast
-6. **Next** — Confirm rate-limit headers on public API responses
+6. **Next** — Verify order acceptance flow updates the history panel on `/orders/[trackingToken]` via broadcast
 
 ### After Timeline Verified
 ```bash
@@ -424,5 +425,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** Phase 7 order status funnel + Phase 6 reconnect/retry (`b82c9d1`)
-**Next commit:** status/docs — E2E verification results, E2E env var docs in `.env.example`
+**Last commit:** feat — rate-limit headers on all public API responses (see log for hash)
+**Next commit:** wire `E2E_SUPER_ADMIN_EMAIL`/`E2E_SUPER_ADMIN_PASSWORD` and re-run auth E2E tests

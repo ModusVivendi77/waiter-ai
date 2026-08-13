@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { createOrderSchema } from '@/lib/validation/orders'
 import { createAdminClient } from '@/lib/supabase/server'
-import { rateLimit } from '@/lib/utils/rateLimit'
+import { getRateLimitHeaders, rateLimit } from '@/lib/utils/rateLimit'
+
+function rateLimitHeaders(limit: ReturnType<typeof rateLimit>) {
+  return getRateLimitHeaders(limit)
+}
 
 function getClientKey(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for')
@@ -47,10 +51,7 @@ export async function POST(request: NextRequest) {
       { error: 'Too many order submissions. Please try again later.' },
       {
         status: 429,
-        headers: {
-          'Retry-After': String(Math.max(1, Math.ceil((limit.resetTime - Date.now()) / 1000))),
-          'X-RateLimit-Remaining': String(limit.remaining),
-        },
+        headers: rateLimitHeaders(limit),
       }
     )
   }
@@ -59,7 +60,10 @@ export async function POST(request: NextRequest) {
   const parsed = createOrderSchema.safeParse(payload)
 
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid order payload.' }, { status: 400 })
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? 'Invalid order payload.' },
+      { status: 400, headers: rateLimitHeaders(limit) }
+    )
   }
 
   const { token, items, customerNote, idempotencyKey } = parsed.data
@@ -72,7 +76,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle()
 
   if (existingOrder) {
-    return NextResponse.json({ order: existingOrder }, { status: 200 })
+    return NextResponse.json({ order: existingOrder }, { status: 200, headers: rateLimitHeaders(limit) })
   }
 
   const { data: table, error: tableError } = await admin
@@ -83,7 +87,10 @@ export async function POST(request: NextRequest) {
     .maybeSingle()
 
   if (tableError || !table) {
-    return NextResponse.json({ error: 'Table QR token is invalid or inactive.' }, { status: 404 })
+    return NextResponse.json(
+      { error: 'Table QR token is invalid or inactive.' },
+      { status: 404, headers: rateLimitHeaders(limit) }
+    )
   }
 
   const typedTable = table as TableRow
@@ -97,12 +104,18 @@ export async function POST(request: NextRequest) {
     .in('id', menuItemIds)
 
   if (menuError || !menuItems) {
-    return NextResponse.json({ error: menuError?.message ?? 'Unable to validate menu items.' }, { status: 400 })
+    return NextResponse.json(
+      { error: menuError?.message ?? 'Unable to validate menu items.' },
+      { status: 400, headers: rateLimitHeaders(limit) }
+    )
   }
 
   const typedMenuItems = menuItems as MenuItemRow[]
   if (typedMenuItems.length !== menuItemIds.length || typedMenuItems.some((item) => !item.available)) {
-    return NextResponse.json({ error: 'One or more selected items are unavailable.' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'One or more selected items are unavailable.' },
+      { status: 400, headers: rateLimitHeaders(limit) }
+    )
   }
 
   const itemMap = new Map(typedMenuItems.map((item) => [item.id, item]))
@@ -119,7 +132,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle()
 
   if (sessionError) {
-    return NextResponse.json({ error: sessionError.message }, { status: 400 })
+    return NextResponse.json({ error: sessionError.message }, { status: 400, headers: rateLimitHeaders(limit) })
   }
 
   let sessionId = (activeSession as SessionRow | null)?.id ?? null
@@ -136,7 +149,10 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (createSessionError || !createdSession) {
-      return NextResponse.json({ error: createSessionError?.message ?? 'Unable to start dining session.' }, { status: 400 })
+      return NextResponse.json(
+        { error: createSessionError?.message ?? 'Unable to start dining session.' },
+        { status: 400, headers: rateLimitHeaders(limit) }
+      )
     }
 
     sessionId = createdSession.id
@@ -159,7 +175,10 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (orderError || !order) {
-    return NextResponse.json({ error: orderError?.message ?? 'Unable to create order.' }, { status: 400 })
+    return NextResponse.json(
+      { error: orderError?.message ?? 'Unable to create order.' },
+      { status: 400, headers: rateLimitHeaders(limit) }
+    )
   }
 
   const { error: orderItemsError } = await admin.from('order_items').insert(
@@ -179,7 +198,10 @@ export async function POST(request: NextRequest) {
 
   if (orderItemsError) {
     await admin.from('orders').delete().eq('id', order.id)
-    return NextResponse.json({ error: orderItemsError.message }, { status: 400 })
+    return NextResponse.json(
+      { error: orderItemsError.message },
+      { status: 400, headers: rateLimitHeaders(limit) }
+    )
   }
 
   const { error: historyError } = await admin.from('order_status_history').insert({
@@ -190,21 +212,27 @@ export async function POST(request: NextRequest) {
   })
 
   if (historyError) {
-    return NextResponse.json({
-      order,
-      warning: 'Order created, but status history could not be recorded.',
-    })
+    return NextResponse.json(
+      {
+        order,
+        warning: 'Order created, but status history could not be recorded.',
+      },
+      { headers: rateLimitHeaders(limit) }
+    )
   }
 
-  return NextResponse.json({
-    order,
-    table: {
-      id: typedTable.id,
-      name: typedTable.name,
+  return NextResponse.json(
+    {
+      order,
+      table: {
+        id: typedTable.id,
+        name: typedTable.name,
+      },
+      restaurant: {
+        name: restaurant?.name ?? 'Restaurant',
+        currency: restaurant?.currency ?? 'EUR',
+      },
     },
-    restaurant: {
-      name: restaurant?.name ?? 'Restaurant',
-      currency: restaurant?.currency ?? 'EUR',
-    },
-  })
+    { headers: rateLimitHeaders(limit) }
+  )
 }

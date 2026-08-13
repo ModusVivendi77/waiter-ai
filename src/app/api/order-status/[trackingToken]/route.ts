@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { createAdminClient } from '@/lib/supabase/server'
-import { rateLimit } from '@/lib/utils/rateLimit'
+import { getRateLimitHeaders, rateLimit } from '@/lib/utils/rateLimit'
+
+function rateLimitHeaders(limit: ReturnType<typeof rateLimit>) {
+  return getRateLimitHeaders(limit)
+}
 
 function getClientKey(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for')
@@ -67,10 +71,7 @@ export async function GET(request: NextRequest, { params }: Props) {
       { error: 'Too many status requests. Please try again later.' },
       {
         status: 429,
-        headers: {
-          'Retry-After': String(Math.max(1, Math.ceil((limit.resetTime - Date.now()) / 1000))),
-          'X-RateLimit-Remaining': String(limit.remaining),
-        },
+        headers: rateLimitHeaders(limit),
       }
     )
   }
@@ -86,29 +87,35 @@ export async function GET(request: NextRequest, { params }: Props) {
     .maybeSingle()
 
   if (error || !data) {
-    return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
+    return NextResponse.json(
+      { error: 'Order not found.' },
+      { status: 404, headers: rateLimitHeaders(limit) }
+    )
   }
 
   const order = data as OrderRow
   const table = Array.isArray(order.restaurant_tables) ? order.restaurant_tables[0] : order.restaurant_tables
   const restaurant = Array.isArray(order.restaurants) ? order.restaurants[0] : order.restaurants
 
-  return NextResponse.json({
-    order: {
-      id: order.id,
-      status: order.status,
-      total: order.total,
-      currency: order.currency,
-      customer_note: order.customer_note,
-      created_at: order.created_at,
+  return NextResponse.json(
+    {
+      order: {
+        id: order.id,
+        status: order.status,
+        total: order.total,
+        currency: order.currency,
+        customer_note: order.customer_note,
+        created_at: order.created_at,
+      },
+      table: {
+        name: table?.name || 'Unknown table',
+      },
+      restaurant: {
+        name: restaurant?.name || 'Restaurant',
+      },
+      items: order.order_items || [],
+      history: order.order_status_history || [],
     },
-    table: {
-      name: table?.name || 'Unknown table',
-    },
-    restaurant: {
-      name: restaurant?.name || 'Restaurant',
-    },
-    items: order.order_items || [],
-    history: order.order_status_history || [],
-  })
+    { headers: rateLimitHeaders(limit) }
+  )
 }

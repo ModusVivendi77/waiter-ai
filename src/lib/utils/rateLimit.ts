@@ -35,3 +35,21 @@ export function rateLimit(
 export function clearRateLimits() {
   requestCounts.clear()
 }
+
+/**
+ * Builds HTTP rate-limit headers for a rateLimit() result.
+ * `X-RateLimit-Remaining` is included on every response so clients can
+ * track their remaining quota; `Retry-After` is only meaningful when the
+ * request was blocked (429).
+ */
+export function getRateLimitHeaders(result: RateLimitResult): Record<string, string> {
+  const headers: Record<string, string> = {
+    'X-RateLimit-Remaining': String(result.remaining),
+  }
+
+  if (!result.allowed) {
+    headers['Retry-After'] = String(Math.max(1, Math.ceil((result.resetTime - Date.now()) / 1000)))
+  }
+
+  return headers
+}

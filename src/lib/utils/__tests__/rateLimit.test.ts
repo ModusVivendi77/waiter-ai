@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { clearRateLimits, rateLimit } from '@/lib/utils/rateLimit'
+import { clearRateLimits, getRateLimitHeaders, rateLimit } from '@/lib/utils/rateLimit'
 
 describe('rateLimit', () => {
   afterEach(() => {
@@ -55,5 +55,23 @@ describe('rateLimit', () => {
   it('returns a future reset time', () => {
     const result = rateLimit('client-6', 5, 60_000)
     expect(result.resetTime).toBeGreaterThan(Date.now())
+  })
+
+  it('builds headers with a remaining quota on allowed requests', () => {
+    const limit = rateLimit('client-7', 5, 60_000)
+    const headers = getRateLimitHeaders(limit)
+    expect(headers['X-RateLimit-Remaining']).toBe('4')
+    expect(headers['Retry-After']).toBeUndefined()
+  })
+
+  it('builds headers with Retry-After when the request is blocked', () => {
+    const max = 2
+    rateLimit('client-8', max, 60_000)
+    rateLimit('client-8', max, 60_000)
+    const blocked = rateLimit('client-8', max, 60_000)
+    expect(blocked.allowed).toBe(false)
+    const headers = getRateLimitHeaders(blocked)
+    expect(headers['X-RateLimit-Remaining']).toBe('0')
+    expect(headers['Retry-After']).toMatch(/^\d+$/)
   })
 })
