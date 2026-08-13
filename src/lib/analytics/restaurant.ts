@@ -28,6 +28,16 @@ function formatCurrency(value: number): number {
   return Math.round(value * 100) / 100
 }
 
+// Local-timezone date key (YYYY-MM-DD) so "today"/"week"/"month" bucketing is
+// consistent regardless of the server's UTC offset. Using toISOString() here
+// would shift dates for timezones east of UTC (e.g. Europe/Athens at UTC+3).
+function toLocalDateKey(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export async function getRestaurantAnalytics(restaurantId: string): Promise<AnalyticsMetrics> {
   const supabase = createClient()
 
@@ -39,9 +49,9 @@ export async function getRestaurantAnalytics(restaurantId: string): Promise<Anal
   const monthAgo = new Date(today)
   monthAgo.setDate(monthAgo.getDate() - 30)
 
-  const todayISO = today.toISOString().split('T')[0]
-  const weekAgoISO = weekAgo.toISOString().split('T')[0]
-  const monthAgoISO = monthAgo.toISOString().split('T')[0]
+  const todayISO = toLocalDateKey(today)
+  const weekAgoISO = toLocalDateKey(weekAgo)
+  const monthAgoISO = toLocalDateKey(monthAgo)
 
   // Fetch all orders for the restaurant in the last 30 days
   const { data: orders, error: ordersError } = await supabase
@@ -75,7 +85,7 @@ export async function getRestaurantAnalytics(restaurantId: string): Promise<Anal
 
   for (const order of typedOrders) {
     const orderDate = new Date(order.created_at)
-    const orderDateISO = orderDate.toISOString().split('T')[0]
+    const orderDateISO = toLocalDateKey(orderDate)
 
     // Daily tracking
     const current = dailyMap.get(orderDateISO) || { count: 0, value: 0 }
@@ -131,7 +141,7 @@ export async function getRestaurantAnalytics(restaurantId: string): Promise<Anal
   for (let i = 6; i >= 0; i--) {
     const date = new Date(today)
     date.setDate(date.getDate() - i)
-    const dateISO = date.toISOString().split('T')[0]
+    const dateISO = toLocalDateKey(date)
     const metrics = dailyMap.get(dateISO) || { count: 0, value: 0 }
     lastSevenDays.push({
       date: dateISO,

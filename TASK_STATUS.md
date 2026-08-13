@@ -295,8 +295,8 @@
 ---
 
 ### Phase 8: Testing & Hardening (Week 8) 🟡 IN PROGRESS
-- [x] Unit tests (41 passing: order validation, auth schemas, rate limiter, CSV import)
-- [ ] Integration tests
+- [x] Unit tests (48 passing: order validation, auth schemas, rate limiter, CSV import, analytics)
+- [x] Integration tests (analytics query libraries with mocked Supabase client)
 - [x] Initial E2E tests/config added
 - [x] Expanded E2E coverage for setup rename/delete/import and public QR menu flow
 - [x] Rate limiting added (Task 6.3) and wired into public API routes
@@ -310,6 +310,9 @@
 - Rate limiter applies to `/api/orders` POST (30 req / 10 min) and `/api/order-status/[trackingToken]` GET (120 req / min) with `Retry-After` and `X-RateLimit-Remaining` headers
 - Extracted CSV parsing from `RestaurantSetupConsole` into `src/lib/csv/menu-import.ts` (shared, testable)
 - `src/lib/csv/__tests__/menu-import.test.ts` — 15 cases covering quoting, escaped quotes, trimming, validation errors, price checks, and duplicate detection
+- `src/lib/analytics/__tests__/restaurant.test.ts` — 4 cases: zeroed metrics, query error, today/week/month totals, top products, 7-day trend, null items
+- `src/lib/analytics/__tests__/platform.test.ts` — 3 cases: query error, cross-restaurant metrics, join array/unknown-name handling
+- Fixed timezone bug in `getRestaurantAnalytics`: date bucketing now uses local-timezone date keys (toLocalDateKey) instead of `toISOString().split('T')` which shifted dates in timezones east of UTC (e.g. Europe/Athens)
 - Initial security review: `.env*` gitignored, service-role key server-only, rate limits on public APIs, broadcast publishing gated to staff (migration 007), order data only exposed via API routes
 
 ---
@@ -331,8 +334,8 @@
 | 4. Restaurant Setup | 🟡 95% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, and E2E coverage |
 | 5. Customer Ordering | 🟢 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling and status timeline |
 | 6. Real-Time & Dashboard | 🟡 80% | Staff real-time subscriptions + public broadcast tracking implemented; staging E2E verification pending; rate limits added |
-| 7. Analytics & Admin | 🟡 90% | Analytics dashboards with charts, exports, and trend visualization complete |
-| 8. Testing | 🟡 45% | 41 unit tests passing; rate limiting + security pass complete; integration tests pending |
+| 7. Analytics & Admin | 🟡 90% | Analytics dashboards with charts, exports, and trend visualization complete; restaurant analytics timezone bucketing fixed |
+| 8. Testing | 🟡 55% | 48 unit/integration tests passing; rate limiting + security pass complete |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
 ---
@@ -341,19 +344,18 @@
 
 ### Right Now (Do This First)
 ```bash
-# 1. Commit Phase 8 CSV module + expanded unit tests
+# 1. Commit Phase 8 analytics tests + timezone fix
 git add .
-git commit -m "test: extract CSV import module and expand unit test coverage
+git commit -m "test: add analytics integration tests and fix restaurant timezone bucketing
 
-- Extract CSV parsing from RestaurantSetupConsole into src/lib/csv/menu-import.ts
-- Add 15 unit tests for CSV line/row parsing, quoting, validation, and duplicates
-- Complete initial security review (env secrets, service-role boundary, rate limits, broadcast auth)"
+- Add mocked-Supabase integration tests for getRestaurantAnalytics (4) and getPlatformAnalytics (3)
+- Fix restaurant analytics date keys to use local timezone (toLocalDateKey) — toISOString shifted days in UTC+ timezones"
 git push origin master
 
 # 2. Validate changes with production build and tests
 npm run typecheck && npm run build && npx vitest run
 
-# 3. Next: Phase 8 integration tests or re-run E2E suite with real-time implementation
+# 3. Next: Re-run E2E suite with real-time implementation or Phase 7 comparison analytics
 ```
 
 ### After Timeline Verified
@@ -399,5 +401,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** Phase 6 public real-time tracking (`3c48850`)
-**Next commit:** Phase 8 CSV module + expanded unit tests (see commit command above)
+**Last commit:** Phase 8 CSV module + expanded unit tests (`078d725`)
+**Next commit:** Phase 8 analytics tests + timezone fix (see commit command above)
