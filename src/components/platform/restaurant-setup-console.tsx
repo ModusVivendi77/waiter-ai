@@ -142,7 +142,12 @@ export function RestaurantSetupConsole() {
   const [staffOptions, setStaffOptions] = useState<Array<{ id: string; name: string }>>([])
 
   const supabase = useMemo(() => createClient(), [])
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  // QR URLs should point at the origin the staff member is actually using
+  // (production on Vercel, localhost during local dev) — never hardcode localhost.
+  const appUrl =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_APP_URL || 'https://waiter-ai-iota.vercel.app'
 
   async function loadData(restaurantOverrideId?: string) {
     const context = await getClientUserContext()

@@ -118,6 +118,12 @@ export function OrdersConsole() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [teamEmailMap, setTeamEmailMap] = useState<Record<string, string>>({})
   const [activeSessionIds, setActiveSessionIds] = useState<Set<string>>(new Set())
+  const [newOrderNotice, setNewOrderNotice] = useState<{
+    orderId: string
+    tableName: string
+    total: number
+    currency: string
+  } | null>(null)
   const activeRestaurantIdRef = useRef<string | null>(null)
 
   async function loadData(restaurantOverrideId?: string) {
@@ -265,6 +271,61 @@ export function OrdersConsole() {
     )
   }
 
+  // Handle real-time new orders: prepend, show an in-app banner, and fire a
+  // best-effort browser notification when permission is already granted.
+  const handleOrderInsert = async (payload: any) => {
+    const inserted = payload.new as { id: string; restaurant_id: string }
+    if (activeRestaurantIdRef.current !== inserted.restaurant_id) {
+      return // Ignore orders for other restaurants
+    }
+
+    const { data: orderData, error: orderError } = await supabase
+      .from('orders')
+      .select('id, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, waiter_id, session_id, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes, modifiers)')
+      .eq('id', inserted.id)
+      .maybeSingle()
+
+    if (orderError || !orderData) {
+      return
+    }
+
+    const order = orderData as OrderRow
+    setOrders((current) => [order, ...current].slice(0, 30))
+    setNewOrderNotice({
+      orderId: order.id,
+      tableName: getTableName(order),
+      total: order.total,
+      currency: order.currency,
+    })
+
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(`New order from ${getTableName(order)}`, {
+          body: `${formatCurrency(order.total, order.currency)} — open the orders workspace.`,
+        })
+      } catch {
+        // Browser notifications unavailable; the in-app banner covers it.
+      }
+    }
+  }
+
+  const handleOrderChange = async (payload: any) => {
+    if (payload.eventType === 'INSERT') {
+      await handleOrderInsert(payload)
+    } else {
+      await handleOrderUpdate(payload)
+    }
+  }
+
+  // Auto-dismiss the new-order banner after a few seconds.
+  useEffect(() => {
+    if (!newOrderNotice) {
+      return
+    }
+    const timer = setTimeout(() => setNewOrderNotice(null), 6000)
+    return () => clearTimeout(timer)
+  }, [newOrderNotice])
+
   // Handle real-time order item changes (quantity, notes, added/removed items)
   const handleOrderItemChange = async (payload: any) => {
     const { eventType, new: newItem, old: oldItem } = payload
@@ -319,8 +380,8 @@ export function OrdersConsole() {
   useSupabaseSubscription(
     `orders_${activeRestaurantIdRef.current || 'init'}`,
     'orders',
-    ['UPDATE'],
-    handleOrderUpdate,
+    ['INSERT', 'UPDATE'],
+    handleOrderChange,
     [activeRestaurantIdRef.current]
   )
 
@@ -634,6 +695,17 @@ export function OrdersConsole() {
         ) : null}
         {notice ? <div className="success">{notice}</div> : null}
         {error ? <div className="error-box">{error}</div> : null}
+        {newOrderNotice ? (
+          <div className="message" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+            <strong>
+              🔔 New order received — {newOrderNotice.tableName} ·{' '}
+              {formatCurrency(newOrderNotice.total, newOrderNotice.currency)}
+            </strong>
+            <button className="button-secondary" type="button" onClick={() => setNewOrderNotice(null)}>
+              Dismiss
+            </button>
+          </div>
+        ) : null}
       </section>
 
       <section className="panel stack">

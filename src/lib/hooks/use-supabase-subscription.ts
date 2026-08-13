@@ -55,20 +55,28 @@ export function useSupabaseSubscription(
     const subscribe = () => {
       cleanupChannel()
 
-      const channel = supabase
-        .channel(channelName)
-        .on('postgres_changes', { event: events.join(',') as any, schema: 'public', table: tableName }, (payload) => {
-          void handlerRef.current(payload)
-        })
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            console.log(`[Real-time] Subscribed to ${channelName}`)
-            retries = 0
-          } else if (status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
-            console.warn(`[Real-time] Channel ${status.toLowerCase()} for ${channelName}; retrying.`)
-            scheduleRetry()
+      // Register one postgres_changes listener per event. Supabase Realtime
+      // does not match comma-joined event strings (e.g. 'INSERT,UPDATE'), so
+      // multi-event subscriptions must bind each event separately.
+      let channel = supabase.channel(channelName)
+      for (const event of events) {
+        channel = channel.on(
+          'postgres_changes',
+          { event, schema: 'public', table: tableName },
+          (payload) => {
+            void handlerRef.current(payload)
           }
-        })
+        )
+      }
+      channel = channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`[Real-time] Subscribed to ${channelName}`)
+          retries = 0
+        } else if (status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
+          console.warn(`[Real-time] Channel ${status.toLowerCase()} for ${channelName}; retrying.`)
+          scheduleRetry()
+        }
+      })
 
       channelRef.current = channel
     }

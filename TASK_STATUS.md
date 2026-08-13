@@ -234,6 +234,17 @@
   - [x] Assign each item to a guest, with per-guest totals
 - [x] **UI refresh** — modern sans-serif design system: new palette, gradient buttons, cleaner cards/inputs/nav/typography across the app
 
+### Final touch (navigation, home dashboard, notifications) 🟢 COMPLETE
+- [x] **Navigation simplified** to Home / Login / Orders / Analytics / Admin; Platform Analytics now lives under the Admin console
+- [x] **QR code URLs use the live site origin** (`window.location.origin`) instead of a hardcoded `localhost`
+- [x] **New-order notifications for staff/owners** — real-time banner in the Orders workspace ("🔔 New order received — Table · €total") with auto-dismiss; best-effort browser Notification when permission is granted
+- [x] **Home dashboard** (`/platform`) — restaurant card, **live tables** (free/occupied + assigned staff), **live orders** (real-time), and **team** roster (owners/admins); restaurant switcher for multi-restaurant/SUPER_ADMIN
+- [x] **Staff table claiming** — `claim_table_staff` SECURITY DEFINER RPC (migration 011): owners/managers/admins can assign anyone; staff can assign **themselves**; "Claim table" on the home dashboard
+- [x] **Critical realtime fixes:**
+  - `supabase_realtime` publication never included application tables (migration 012) — postgres_changes events (staff order updates, new-order notifications, home dashboard) were never delivered; only broadcast worked
+  - `useSupabaseSubscription` joined multi-events into `'INSERT,UPDATE'` which Realtime doesn't match — now binds one listener per event
+  - Live-verified: new-order banner fires on INSERT; staff order status updates via realtime
+
 **What still needs to happen:**
 1. Add public guardrails around order edits/cancellation windows if needed
 2. Expand automated checks around multi-item totals and item removal edge cases
@@ -434,8 +445,9 @@
 17. **✅ Done** — Menu modifiers + allergens: schema (migration 010), setup editor, customer option selection with delta pricing, API validation/snapshotting, display everywhere
 18. **✅ Done** — Split the bill on the tracking page (equal split or per-item guest assignment) — live-verified
 19. **✅ Done** — UI refresh: modern sans-serif design system across the app
-20. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
-21. **Future work** — Resend domain verification for customer-facing confirmation emails
+20. **✅ Done** — Final touch: simplified nav, QR URLs use site origin, new-order notifications, home dashboard (tables/orders/team), staff table claiming, realtime publication + multi-event hook fixes
+21. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+22. **Future work** — Resend domain verification for customer-facing confirmation emails
 
 ### After Timeline Verified
 ```bash
@@ -480,5 +492,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — menu modifiers & allergens, split-the-bill, UI refresh (see log for hash)
+**Last commit:** feat — final touch: simplified nav, home dashboard, new-order notifications, staff table claiming, QR site URLs, realtime fixes (see log for hash)
 **Next commit:** confirm "Confirm signup" template site URL; Resend domain verification + shift-based table assignment (future work)
