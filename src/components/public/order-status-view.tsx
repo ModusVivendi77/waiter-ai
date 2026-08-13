@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { usePublicOrderStatus } from '@/lib/hooks/use-public-order-status'
+import { useLanguage } from '@/components/app/language-provider'
 
 type OrderStatusPayload = {
   order: {
@@ -40,16 +41,6 @@ type Props = {
   initialOrder: OrderStatusPayload
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  NEW: 'Order received',
-  ACCEPTED: 'Restaurant accepted',
-  PREPARING: 'Preparing',
-  READY: 'Ready',
-  SERVED: 'Served',
-  CANCELLED: 'Cancelled',
-  REJECTED: 'Rejected',
-}
-
 const STATUS_ORDER = ['NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED']
 
 function formatCurrency(value: number, currency: string) {
@@ -77,6 +68,7 @@ function formatDateTime(value: string) {
 }
 
 export function OrderStatusView({ trackingToken, initialOrder }: Props) {
+  const { t } = useLanguage()
   const [data, setData] = useState(initialOrder)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState(new Date())
@@ -180,14 +172,20 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
     <main className="page-shell">
       <div className="page-grid">
         <section className="hero-card">
-          <span className="eyebrow">Order Status</span>
+          <span className="eyebrow">{t('track.eyebrow')}</span>
           <h1 className="hero-title">{data.restaurant.name}</h1>
           <p className="lead">
-            Order {data.order.id.slice(0, 8)} for {data.table.name} is currently <strong>{data.order.status}</strong>.
+            {t('track.currently', {
+              id: data.order.id.slice(0, 8),
+              table: data.table.name,
+              status: t(`status.${data.order.status}`),
+            })}
           </p>
           <div className="pill-row">
             <span className="badge">{data.table.name}</span>
-            <span className="badge">Last updated: {lastUpdated.toLocaleTimeString()}</span>
+            <span className="badge">
+              {t('track.lastUpdated')}: {lastUpdated.toLocaleTimeString()}
+            </span>
           </div>
           <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
             <button
@@ -196,16 +194,18 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
               onClick={handleManualRefresh}
               disabled={isRefreshing}
             >
-              {isRefreshing ? 'Refreshing...' : 'Refresh Now'}
+              {isRefreshing ? t('track.refreshing') : t('track.refreshNow')}
             </button>
           </div>
         </section>
 
         <section className="panel stack">
-          <span className="eyebrow">Status Timeline</span>
+          <span className="eyebrow">{t('track.statusTimeline')}</span>
           {isTerminal ? (
             <div className="message">
-              This order has been {currentStatus === 'SERVED' ? 'served' : currentStatus.toLowerCase()}.
+              {currentStatus === 'SERVED'
+                ? t('track.servedMessage')
+                : t('track.terminalMessage', { status: t(`statusLabel.${currentStatus}`) })}
             </div>
           ) : null}
 
@@ -252,9 +252,9 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
                         margin: 0,
                       }}
                     >
-                      {STATUS_LABELS[status] ?? status}
+                      {t(`statusLabel.${status}`) ?? status}
                       {isCurrent ? (
-                        <span style={{ marginLeft: 8, fontSize: 12, color: '#16a34a' }}>● current</span>
+                        <span style={{ marginLeft: 8, fontSize: 12, color: '#16a34a' }}>● {t('track.current')}</span>
                       ) : null}
                     </p>
                     {historyEntry ? (
@@ -270,12 +270,12 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
 
           {timelineEntries.length > 0 ? (
             <div style={{ marginTop: 8 }}>
-              <span className="eyebrow">History</span>
+              <span className="eyebrow">{t('track.history')}</span>
               <ul className="list">
                 {timelineEntries.map((entry) => (
                   <li key={entry.key}>
                     <div className="cart-line-header">
-                      <strong>{STATUS_LABELS[entry.status] ?? entry.status}</strong>
+                      <strong>{t(`statusLabel.${entry.status}`) ?? entry.status}</strong>
                       <span>{formatTime(entry.reachedAt)}</span>
                     </div>
                   </li>
@@ -286,7 +286,7 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
         </section>
 
         <section className="panel stack">
-          <span className="eyebrow">Summary</span>
+          <span className="eyebrow">{t('track.summary')}</span>
           {error ? <div className="error-box">{error}</div> : null}
           <ul className="list">
             {data.items.map((item) => (
@@ -295,27 +295,30 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
                   <strong>{item.item_name}</strong>
                   <span>{formatCurrency(item.unit_price * item.quantity, data.order.currency)}</span>
                 </div>
-                <p className="muted">Quantity: {item.quantity}</p>
+                <p className="muted">
+                  {t('track.quantity')}: {item.quantity}
+                </p>
                 {item.modifiers && item.modifiers.length > 0 ? (
                   <p className="muted">{item.modifiers.join(' · ')}</p>
                 ) : null}
-                {item.notes ? <p className="muted">Note: {item.notes}</p> : null}
+                {item.notes ? (
+                  <p className="muted">
+                    {t('track.note')}: {item.notes}
+                  </p>
+                ) : null}
               </li>
             ))}
           </ul>
-          {data.order.customer_note ? <div className="message">Order note: {data.order.customer_note}</div> : null}
+          {data.order.customer_note ? <div className="message">{t('track.orderNote')}: {data.order.customer_note}</div> : null}
           <div className="cart-summary">
-            <strong>Total</strong>
+            <strong>{t('track.total')}</strong>
             <strong>{formatCurrency(data.order.total, data.order.currency)}</strong>
           </div>
         </section>
 
         <section className="panel stack">
-          <span className="eyebrow">Split the bill</span>
-          <p className="helper-text">
-            Divide the total equally between everyone, or assign each item to a guest. Splits are calculated on your
-            device — no account needed.
-          </p>
+          <span className="eyebrow">{t('track.splitBill')}</span>
+          <p className="helper-text">{t('track.splitHelper')}</p>
 
           <div className="pill-row">
             <button
@@ -323,21 +326,21 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
               type="button"
               onClick={() => setSplitMode('equal')}
             >
-              Equally
+              {t('track.equal')}
             </button>
             <button
               className={splitMode === 'items' ? 'button' : 'button-secondary'}
               type="button"
               onClick={() => setSplitMode('items')}
             >
-              By items
+              {t('track.byItems')}
             </button>
           </div>
 
           {splitMode === 'equal' ? (
             <div className="stack">
               <div className="field">
-                <label htmlFor="splitPeopleCount">Number of people</label>
+                <label htmlFor="splitPeopleCount">{t('track.numberPeople')}</label>
                 <input
                   id="splitPeopleCount"
                   type="number"
@@ -351,7 +354,9 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
                 {equalShares.map((share, index) => (
                   <li key={`share-${index}`}>
                     <div className="cart-line-header">
-                      <strong>Person {index + 1}</strong>
+                      <strong>
+                        {t('track.person')} {index + 1}
+                      </strong>
                       <span>{formatCurrency(share, data.order.currency)}</span>
                     </div>
                   </li>
@@ -363,7 +368,7 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
           {splitMode === 'items' ? (
             <div className="stack">
               <div className="field">
-                <label htmlFor="splitItemsPeopleCount">Number of guests</label>
+                <label htmlFor="splitItemsPeopleCount">{t('track.numberGuests')}</label>
                 <input
                   id="splitItemsPeopleCount"
                   type="number"
@@ -381,7 +386,7 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
                       <span>{formatCurrency(item.unit_price * item.quantity, data.order.currency)}</span>
                     </div>
                     <div className="field">
-                      <label htmlFor={`guest-${item.id}`}>Guest</label>
+                      <label htmlFor={`guest-${item.id}`}>{t('track.guest')}</label>
                       <select
                         id={`guest-${item.id}`}
                         value={guestAssignments[item.id] ?? 0}
@@ -394,7 +399,7 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
                       >
                         {Array.from({ length: peopleCountParsed }, (_, index) => (
                           <option key={index} value={index}>
-                            Guest {index + 1}
+                            {t('track.guest')} {index + 1}
                           </option>
                         ))}
                       </select>
@@ -402,12 +407,14 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
                   </li>
                 ))}
               </ul>
-              <span className="eyebrow">Guest totals</span>
+              <span className="eyebrow">{t('track.guestTotals')}</span>
               <ul className="list">
                 {Array.from({ length: peopleCountParsed }, (_, index) => (
                   <li key={`guest-total-${index}`}>
                     <div className="cart-line-header">
-                      <strong>Guest {index + 1}</strong>
+                      <strong>
+                        {t('track.guest')} {index + 1}
+                      </strong>
                       <span>{formatCurrency(guestTotals[index] || 0, data.order.currency)}</span>
                     </div>
                   </li>

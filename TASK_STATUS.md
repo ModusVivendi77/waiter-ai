@@ -244,6 +244,12 @@
   - `supabase_realtime` publication never included application tables (migration 012) — postgres_changes events (staff order updates, new-order notifications, home dashboard) were never delivered; only broadcast worked
   - `useSupabaseSubscription` joined multi-events into `'INSERT,UPDATE'` which Realtime doesn't match — now binds one listener per event
   - Live-verified: new-order banner fires on INSERT; staff order status updates via realtime
+- [x] **Greek translation (i18n)** — custom lightweight language system (no new dependency):
+  - [x] `LanguageProvider` context + `t()` helper with `{placeholder}` interpolation; persisted in `localStorage`, `EN`/`EL` toggle in the nav
+  - [x] Translated: navigation, home dashboard, orders workspace, customer ordering page, tracking page (incl. split bill), login
+  - [x] Order statuses translated (ΝΕΑ / ΑΠΟΔΕΚΤΗ / ΕΤΟΙΜΑΖΕΤΑΙ / ΕΤΟΙΜΗ / ΕΞΥΠΗΡΕΤΗΘΗΚΕ …)
+- [x] **Login separated in nav** — divider + distinct filled button styling
+- [x] **Table status pills** — free = green pill w/ white text, occupied = red pill w/ white text (home dashboard)
 
 **What still needs to happen:**
 1. Add public guardrails around order edits/cancellation windows if needed
@@ -446,8 +452,9 @@
 18. **✅ Done** — Split the bill on the tracking page (equal split or per-item guest assignment) — live-verified
 19. **✅ Done** — UI refresh: modern sans-serif design system across the app
 20. **✅ Done** — Final touch: simplified nav, QR URLs use site origin, new-order notifications, home dashboard (tables/orders/team), staff table claiming, realtime publication + multi-event hook fixes
-21. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
-22. **Future work** — Resend domain verification for customer-facing confirmation emails
+21. **✅ Done** — Greek translation (EN/EL toggle, persisted), Login separated in nav, green/red table status pills
+22. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+23. **Future work** — Resend domain verification for customer-facing confirmation emails
 
 ### After Timeline Verified
 ```bash
@@ -492,5 +499,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — final touch: simplified nav, home dashboard, new-order notifications, staff table claiming, QR site URLs, realtime fixes (see log for hash)
+**Last commit:** feat — Greek translation (EN/EL), separated Login nav button, green/red table status pills (see log for hash)
 **Next commit:** confirm "Confirm signup" template site URL; Resend domain verification + shift-based table assignment (future work)

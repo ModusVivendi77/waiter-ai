@@ -7,6 +7,7 @@ import { getClientUserContext } from '@/lib/auth/client'
 import { listTeamMembers, type TeamMember } from '@/lib/auth/team-actions'
 import { createClient } from '@/lib/supabase/client'
 import { useSupabaseSubscription } from '@/lib/hooks/use-supabase-subscription'
+import { useLanguage } from '@/components/app/language-provider'
 
 type TableRow = {
   id: string
@@ -63,6 +64,7 @@ const STATUS_ORDER = ['NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED']
 
 export function HomeDashboard() {
   const supabase = useMemo(() => createClient(), [])
+  const { t } = useLanguage()
   const activeRestaurantIdRef = useRef<string | null>(null)
 
   const [loading, setLoading] = useState(true)
@@ -212,7 +214,7 @@ export function HomeDashboard() {
       return
     }
 
-    setNotice('Table assignment updated.')
+    setNotice(t('home.claimNotice'))
     await loadDashboard(activeRestaurantIdRef.current || undefined)
   }
 
@@ -224,28 +226,25 @@ export function HomeDashboard() {
       <main className="page-shell">
         <div className="page-grid">
           <section className="panel stack">
-            <span className="eyebrow">Home</span>
-            <h1 className="section-title">Loading your workspace...</h1>
+            <span className="eyebrow">{t('home.eyebrow')}</span>
+            <h1 className="section-title">{t('home.loadingWorkspace')}</h1>
           </section>
         </div>
       </main>
     )
   }
 
-
   return (
     <main className="page-shell">
       <div className="page-grid">
         <section className="panel stack">
-          <span className="eyebrow">Home</span>
-          <h1 className="section-title">{restaurantName ?? 'Your restaurant'}</h1>
-          <p className="lead">
-            Live overview of your tables, orders, and team. Head to Orders to manage order flow.
-          </p>
+          <span className="eyebrow">{t('home.eyebrow')}</span>
+          <h1 className="section-title">{restaurantName ?? t('orders.yourRestaurant')}</h1>
+          <p className="lead">{t('home.lead')}</p>
 
           {restaurantOptions.length > 1 ? (
             <div className="field">
-              <label htmlFor="homeRestaurantSelector">Restaurant context</label>
+              <label htmlFor="homeRestaurantSelector">{t('home.restaurantContext')}</label>
               <select
                 id="homeRestaurantSelector"
                 value={selectedRestaurantId}
@@ -265,49 +264,50 @@ export function HomeDashboard() {
           {error ? <div className="error-box">{error}</div> : null}
 
           <div className="pill-row">
-            <span className="badge">{isPlatformAdmin ? 'SUPER_ADMIN' : 'Restaurant access'}</span>
+            <span className="badge">{isPlatformAdmin ? 'SUPER_ADMIN' : t('common.role')}</span>
             <Link className="button-secondary" href="/platform/orders">
-              Open orders
+              {t('home.openOrders')}
             </Link>
             <Link className="button-secondary" href="/platform/analytics">
-              Analytics
+              {t('nav.analytics')}
             </Link>
             <Link className="button-secondary" href="/platform/setup">
-              Restaurant setup
+              {t('home.restaurantSetup')}
             </Link>
           </div>
         </section>
 
         <section className="panel stack">
-          <span className="eyebrow">Live tables</span>
-          <p className="helper-text">
-            Assigning staff to a table is optional. Claim a table to show you are handling it — owners can assign any
-            staff member from Setup.
-          </p>
-          {activeTables.length === 0 ? <p className="muted">No active tables for this restaurant.</p> : null}
+          <span className="eyebrow">{t('home.liveTables')}</span>
+          <p className="helper-text">{t('home.tableAssignmentHelper')}</p>
+          {activeTables.length === 0 ? <p className="muted">{t('home.noActiveTables')}</p> : null}
           <div className="panel-grid">
             {activeTables.map((table) => {
               const hasActiveSession = (table.dining_sessions || []).some((session) => session.status === 'ACTIVE')
               const assignedName = table.assigned_staff_id
                 ? table.assigned_staff_id === currentUserId
-                  ? 'you'
-                  : staffEmailMap[table.assigned_staff_id] ?? 'Staff member'
-                : null
+                  ? t('home.handledByYou')
+                  : `${t('home.handledBy')} ${staffEmailMap[table.assigned_staff_id] ?? t('home.staffMember')}`
+                : t('home.unassigned')
 
               return (
                 <article className="metric" key={table.id}>
-                  <span className="eyebrow">{hasActiveSession ? 'Occupied' : 'Free'}</span>
+                  <span
+                    className={
+                      hasActiveSession ? 'status-pill status-pill-occupied' : 'status-pill status-pill-free'
+                    }
+                  >
+                    {hasActiveSession ? t('home.occupied') : t('home.free')}
+                  </span>
                   <strong>{getTableName(table)}</strong>
-                  <p className="muted">
-                    {assignedName ? `Handled by ${assignedName}` : 'Unassigned'}
-                  </p>
+                  <p className="muted">{assignedName}</p>
                   <button
                     className="button-secondary"
                     type="button"
                     disabled={saving}
                     onClick={() => void handleClaimTable(table.id)}
                   >
-                    {table.assigned_staff_id === currentUserId ? 'Claimed ✓' : 'Claim table'}
+                    {table.assigned_staff_id === currentUserId ? `${t('home.claimed')} ✓` : t('home.claimTable')}
                   </button>
                 </article>
               )
@@ -316,18 +316,22 @@ export function HomeDashboard() {
         </section>
 
         <section className="panel stack">
-          <span className="eyebrow">Live orders</span>
-          {liveOrders.length === 0 ? <p className="muted">No live orders right now.</p> : null}
+          <span className="eyebrow">{t('home.liveOrders')}</span>
+          {liveOrders.length === 0 ? <p className="muted">{t('home.noLiveOrders')}</p> : null}
           <ul className="list">
             {liveOrders.map((order) => (
               <li key={order.id}>
                 <div className="cart-line-header">
                   <div>
-                    <strong>Table {getOrderTableName(order)}</strong>
-                    <p className="muted">Status: {order.status}</p>
+                    <strong>
+                      {t('home.table')} {getOrderTableName(order)}
+                    </strong>
+                    <p className="muted">
+                      {t('common.status')}: {t(`status.${order.status}`)}
+                    </p>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <span className="badge">{order.status}</span>
+                    <span className="badge">{t(`status.${order.status}`)}</span>
                     <strong>{formatCurrency(order.total, order.currency)}</strong>
                   </div>
                 </div>
@@ -337,27 +341,26 @@ export function HomeDashboard() {
         </section>
 
         <section className="panel stack">
-          <span className="eyebrow">Team</span>
-          {staff.length === 0 ? (
-            <p className="muted">Team roster is only visible to owners and platform admins.</p>
-          ) : (
-            <ul className="list">
-              {staff.map((member) => (
-                <li key={member.userId}>
-                  <div className="cart-line-header">
-                    <div>
-                      <strong>{member.email}</strong>
-                      <p className="muted">Role: {member.role}</p>
-                    </div>
-                    <span className="badge">{member.role}</span>
+          <span className="eyebrow">{t('home.team')}</span>
+          {staff.length === 0 ? <p className="muted">{t('home.teamRosterHidden')}</p> : null}
+          <ul className="list">
+            {staff.map((member) => (
+              <li key={member.userId}>
+                <div className="cart-line-header">
+                  <div>
+                    <strong>{member.email}</strong>
+                    <p className="muted">
+                      {t('common.role')}: {member.role}
+                    </p>
                   </div>
-                </li>
-              ))}
-            </ul>
-          )}
+                  <span className="badge">{member.role}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
           {isPlatformAdmin || staff.some((member) => member.role === 'OWNER') ? (
             <Link className="button-secondary" href="/platform/team">
-              Manage team
+              {t('home.manageTeam')}
             </Link>
           ) : null}
         </section>

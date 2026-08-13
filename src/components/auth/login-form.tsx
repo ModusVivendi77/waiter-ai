@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { FormEvent, useState } from 'react'
 
 import { createClient } from '@/lib/supabase/client'
+import { useLanguage } from '@/components/app/language-provider'
 
 export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { t } = useLanguage()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -44,7 +46,7 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit}>
       <div className="field">
-        <label htmlFor="email">Email</label>
+        <label htmlFor="email">{t('login.email')}</label>
         <input
           id="email"
           name="email"
@@ -57,7 +59,7 @@ export function LoginForm() {
       </div>
 
       <div className="field">
-        <label htmlFor="password">Password</label>
+        <label htmlFor="password">{t('login.password')}</label>
         <input
           id="password"
           name="password"
@@ -72,12 +74,12 @@ export function LoginForm() {
       {error ? <div className="error-box">{error}</div> : null}
 
       <button className="button" type="submit" disabled={pending}>
-        {pending ? 'Signing in...' : 'Sign in'}
+        {pending ? t('login.signingIn') : t('login.signIn')}
       </button>
 
       <div className="link-row">
-        <Link href="/forgot-password">Forgot password?</Link>
-        <Link href="/platform/signup">Create restaurant account</Link>
+        <Link href="/forgot-password">{t('login.forgot')}</Link>
+        <Link href="/platform/signup">{t('login.createAccount')}</Link>
       </div>
     </form>
   )

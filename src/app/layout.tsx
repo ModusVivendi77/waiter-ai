@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { TopNav } from '@/components/app/top-nav'
+import { AppShell } from '@/components/app/app-shell'
 
 import './globals.css'
 
@@ -17,8 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <TopNav />
-        {children}
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   )

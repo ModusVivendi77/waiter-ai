@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 
 import type { CreateOrderInput } from '@/lib/validation/orders'
+import { useLanguage } from '@/components/app/language-provider'
 
 type Category = {
   id: string
@@ -67,6 +68,7 @@ function formatCurrency(value: number, currency: string) {
 }
 
 export function TableOrderingExperience({ token, restaurantName, tableName, currency, categories, items }: Props) {
+  const { t } = useLanguage()
   const [cart, setCart] = useState<Record<string, CartLine>>({})
   const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string[]>>({})
   const [customerNote, setCustomerNote] = useState('')
@@ -199,21 +201,18 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
     <main className="page-shell">
       <div className="page-grid">
         <section className="hero-card">
-          <span className="eyebrow">Table Ordering</span>
+          <span className="eyebrow">{t('customer.eyebrow')}</span>
           <h1 className="hero-title">{restaurantName}</h1>
-          <p className="lead">
-            You are ordering for {tableName}. Browse the menu, pick your options, and send your order directly to the
-            team.
-          </p>
+          <p className="lead">{t('customer.orderingFor', { table: tableName })}</p>
           <div className="pill-row">
             <span className="badge">{tableName}</span>
-            <span className="badge">No sign-in required</span>
+            <span className="badge">{t('customer.noSignIn')}</span>
           </div>
         </section>
 
         <div className="order-layout">
           <section className="panel stack">
-            <span className="eyebrow">Menu</span>
+            <span className="eyebrow">{t('customer.menu')}</span>
             {itemsByCategory.map((category) => (
               <div className="stack" key={category.id}>
                 <div>
@@ -232,14 +231,14 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
                         {item.description ? <p className="muted">{item.description}</p> : null}
                         {item.allergens && item.allergens.length > 0 ? (
                           <p className="muted">
-                            <strong>Allergens:</strong> {item.allergens.join(', ')}
+                            <strong>{t('customer.allergens')}:</strong> {item.allergens.join(', ')}
                           </p>
                         ) : null}
                         <p>{formatCurrency(item.price, currency)}</p>
 
                         {modifiers.length > 0 ? (
                           <div className="stack" style={{ gap: '6px' }}>
-                            <span className="muted">Options</span>
+                            <span className="muted">{t('customer.options')}</span>
                             {modifiers.map((modifier) => {
                               const checked = selected.includes(modifier.name)
                               return (
@@ -262,7 +261,7 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
                         ) : null}
 
                         <button className="button" type="button" onClick={() => addToCart(item)}>
-                          Add to cart
+                          {t('customer.addToCart')}
                           {selected.length > 0
                             ? ` · ${formatCurrency(unitPriceFor(item, selected), currency)}`
                             : ''}
@@ -272,8 +271,8 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
                   })}
                   {category.items.length === 0 ? (
                     <article className="metric">
-                      <strong>No available items</strong>
-                      <p className="muted">This category is temporarily unavailable.</p>
+                      <strong>{t('customer.noAvailableItems')}</strong>
+                      <p className="muted">{t('customer.categoryUnavailable')}</p>
                     </article>
                   ) : null}
                 </div>
@@ -283,16 +282,19 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
 
 
           <aside className="panel stack">
-            <span className="eyebrow">Cart</span>
-            <h2 className="section-title">Your order</h2>
+            <span className="eyebrow">{t('customer.cart')}</span>
+            <h2 className="section-title">{t('customer.yourOrder')}</h2>
             {error ? <div className="error-box">{error}</div> : null}
             {success ? (
               <div className="success">
-                Order {success.id.slice(0, 8)} submitted with status {success.status}. Total:{' '}
-                {formatCurrency(success.total, success.currency)}.
+                {t('customer.orderSubmitted', {
+                  id: success.id.slice(0, 8),
+                  status: t(`status.${success.status}`),
+                  total: formatCurrency(success.total, success.currency),
+                })}
                 <div style={{ marginTop: '10px' }}>
                   <Link className="button-secondary" href={`/orders/${success.public_tracking_token}`}>
-                    Track order status
+                    {t('customer.trackOrder')}
                   </Link>
                 </div>
               </div>
@@ -300,7 +302,7 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
             {warning ? <div className="message">{warning}</div> : null}
 
             {cartItems.length === 0 ? (
-              <p className="muted">Your cart is empty.</p>
+              <p className="muted">{t('customer.emptyCart')}</p>
             ) : (
               <ul className="list">
                 {cartItems.map(({ item, line }) => (
@@ -328,7 +330,7 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
                       </button>
                     </div>
                     <div className="field">
-                      <label htmlFor={`notes-${item.id}`}>Item note</label>
+                      <label htmlFor={`notes-${item.id}`}>{t('customer.itemNote')}</label>
                       <textarea
                         id={`notes-${item.id}`}
                         value={line.notes}
@@ -342,7 +344,7 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
             )}
 
             <div className="field">
-              <label htmlFor="customerNote">Order note</label>
+              <label htmlFor="customerNote">{t('customer.orderNote')}</label>
               <textarea
                 id="customerNote"
                 value={customerNote}
@@ -352,7 +354,7 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
             </div>
 
             <div className="cart-summary">
-              <strong>Total</strong>
+              <strong>{t('customer.total')}</strong>
               <strong>{formatCurrency(total, currency)}</strong>
             </div>
 
@@ -362,7 +364,7 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
               disabled={pending || cartItems.length === 0}
               onClick={() => void handleSubmitOrder()}
             >
-              {pending ? 'Submitting order...' : 'Submit order'}
+              {pending ? t('customer.submitting') : t('customer.submitOrder')}
             </button>
           </aside>
         </div>
