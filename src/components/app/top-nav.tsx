@@ -6,7 +6,9 @@ const navLinks = [
   { href: '/platform', label: 'Platform' },
   { href: '/platform/setup', label: 'Setup' },
   { href: '/platform/orders', label: 'Orders' },
+  { href: '/platform/analytics', label: 'Analytics' },
   { href: '/admin', label: 'Admin' },
+  { href: '/admin/analytics', label: 'Platform Analytics' },
 ]
 
 export function TopNav() {

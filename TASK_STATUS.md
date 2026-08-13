@@ -1,7 +1,7 @@
 # Waiter AI — Task Status Tracker
 
 **Last Updated:** August 13, 2026
-**Current Phase:** 6/6 — Real-Time & Dashboard Updates
+**Current Phase:** 7/9 — Analytics & Admin Implementation
 
 ---
 
@@ -221,11 +221,43 @@
 
 ---
 
-### Phase 7: Analytics & Admin (Week 7)
-- [ ] Restaurant analytics
+### Phase 7: Analytics & Admin 🟡 IN PROGRESS
+
+**What's ready:**
 - [x] SUPER_ADMIN account foundation (schema + admin route guard)
 - [x] Platform admin assignment UI (grant/revoke SUPER_ADMIN)
-- [ ] Full platform admin panel (tenant analytics and controls)
+- [x] Restaurant analytics dashboard at `/platform/analytics`
+  - [x] Today, this week, and 30-day metrics
+  - [x] Order count and order value tracking
+  - [x] Average order value calculation
+  - [x] Top 5 products by quantity sold
+  - [x] Daily trend visualization (last 7 days)
+- [x] Platform admin analytics panel at `/admin/analytics`
+  - [x] Total restaurants and active restaurants (30d)
+  - [x] Total tables and tables per restaurant
+  - [x] Total orders and today's orders
+  - [x] Average order value across platform
+  - [x] Total order value (30d) and per-restaurant average
+  - [x] Top 5 restaurants by order volume
+- [x] Dedicated analytics query libraries
+  - [x] `/lib/analytics/restaurant.ts` for restaurant-level queries
+  - [x] `/lib/analytics/platform.ts` for platform-wide queries
+
+**Implementation details:**
+- Created `AnalyticsConsole` component for restaurant analytics
+- Created `PlatformAnalyticsConsole` component for platform analytics
+- Analytics queries built for 30-day trend analysis
+- Queries handle currency formatting and date grouping
+- Role-based access: OWNER/MANAGER see restaurant analytics, SUPER_ADMIN sees platform analytics
+- Added `/platform/analytics` and `/admin/analytics` routes
+- Updated top navigation to include both analytics links
+
+**What still needs to happen:**
+1. Add trend charts/visualizations (Chart.js or Recharts)
+2. Add export/download capabilities for reports
+3. Test analytics with larger datasets
+4. Add time range selector for custom date ranges
+5. Add customer acquisition funnel metrics
 
 ---
 
@@ -255,8 +287,8 @@
 | 4. Restaurant Setup | 🟡 95% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, and E2E coverage |
 | 5. Customer Ordering | � 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling |
 | 6. Real-Time & Dashboard | 🟡 50% | Real-time subscriptions for staff implemented; public real-time tracking pending |
-| 7. Analytics & Admin | 🟡 20% | SUPER_ADMIN model and assignment management now live |
-| 8. Testing | ⚪ 10% | Initial E2E config in place; real-time scenarios to be added |
+| 7. Analytics & Admin | 🟡 60% | Restaurant and platform analytics dashboards now live with 30-day trend analysis |
+| 8. Testing | ⚪ 10% | Initial E2E config in place; real-time and analytics scenarios to be added |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
 ---
@@ -265,30 +297,32 @@
 
 ### Right Now (Do This First)
 ```bash
-# 1. Commit Phase 6 real-time changes
+# 1. Commit Phase 7 analytics changes
 git add .
-git commit -m "feat: add real-time subscriptions for staff order updates
+git commit -m "feat: add analytics dashboards for restaurants and platform admins
 
-- Implement Supabase real-time subscriptions for orders and order_items tables
-- Real-time status updates when staff change order status
-- Real-time item updates when items are added/edited/deleted
-- Optimized polling for public customers (5-second intervals)
-- Add manual refresh button for customers on order tracking page
-- Add restaurant_id field to enable per-restaurant subscription filtering"
+- Create restaurant analytics dashboard at /platform/analytics
+- Create platform admin analytics panel at /admin/analytics
+- Implement 30-day trend analysis with daily breakdowns
+- Track orders, order values, and top products
+- Platform metrics include restaurant rankings and active restaurant counts
+- Role-based access: OWNER/MANAGER see restaurant analytics, SUPER_ADMIN sees platform
+- Add dedicated analytics query libraries for restaurant and platform metrics
+- Updated top navigation with analytics links"
 git push origin master
 
-# 2. Validate latest changes with E2E tests
+# 2. Validate changes with production build and E2E tests
+npm run typecheck && npm run build
 E2E_EMAIL='platform_owner@test.com' E2E_PASSWORD='Password123!' E2E_BRAND='The Green Bar' npm run test:e2e
 
-# 3. Start Phase 7 Analytics iteration or Phase 5 customer timeline feature
+# 3. Next: Phase 5 customer status timeline or Phase 8 comprehensive testing
 ```
 
-### After Supabase Real-Time Verified
+### After Analytics Verified
 ```bash
-# Monitor Supabase real-time connection logs
-# Check browser console for real-time subscription status
-# Validate that staff orders update instantly when items/status change
-# Test with multiple browsers/tabs to verify cross-tab real-time sync
+# Monitor analytics queries with sample data
+# Verify 30-day trend calculations are accurate
+# Test platform analytics with multiple restaurants
 ```
 
 ---
@@ -327,5 +361,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** Phase 6 real-time subscriptions (pending)
-**Next commit:** E2E test validation and Phase 7 planning
+**Last commit:** Phase 6 real-time subscriptions (`698ad7e`)
+**Next commit:** Phase 7 analytics dashboards (pending)
