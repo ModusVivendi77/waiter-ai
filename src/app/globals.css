@@ -1,16 +1,18 @@
 :root {
   color-scheme: light;
-  --bg: #f5f1e8;
-  --panel: rgba(255, 252, 247, 0.92);
-  --panel-border: rgba(124, 75, 47, 0.18);
-  --text: #201712;
-  --muted: #6f6258;
-  --accent: #0b7a75;
-  --accent-dark: #075a56;
-  --danger: #9f2f2f;
-  --ring: rgba(11, 122, 117, 0.24);
-  --shadow: 0 24px 60px rgba(53, 35, 25, 0.12);
-  font-family: Georgia, 'Times New Roman', serif;
+  --bg: #f6f8fb;
+  --panel: rgba(255, 255, 255, 0.96);
+  --panel-border: rgba(15, 23, 42, 0.08);
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #0d9488;
+  --accent-dark: #0f766e;
+  --accent-soft: rgba(13, 148, 136, 0.1);
+  --danger: #dc2626;
+  --ring: rgba(13, 148, 136, 0.22);
+  --shadow: 0 10px 34px rgba(15, 23, 42, 0.09);
+  --shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.05);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 * {
@@ -22,8 +24,9 @@ body {
   margin: 0;
   min-height: 100%;
   background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.7), transparent 24%),
-    linear-gradient(135deg, #efe2cf 0%, #f7f2e8 48%, #e1efe9 100%);
+    radial-gradient(1100px 560px at 8% -8%, rgba(13, 148, 136, 0.1), transparent 58%),
+    radial-gradient(900px 480px at 108% 8%, rgba(37, 99, 235, 0.07), transparent 55%),
+    var(--bg);
   color: var(--text);
 }
 
@@ -45,12 +48,12 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 18px;
+  padding: 12px 18px;
   border: 1px solid var(--panel-border);
-  border-radius: 999px;
-  background: rgba(255, 252, 247, 0.82);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-sm);
 }
 
 .global-nav-brand {
@@ -118,6 +121,10 @@ select {
   padding: 36px;
 }
 
+.hero-card {
+  background: linear-gradient(135deg, rgba(13, 148, 136, 0.06), rgba(255, 255, 255, 0.9) 55%);
+}
+
 .eyebrow {
   display: inline-block;
   margin-bottom: 14px;
@@ -134,8 +141,10 @@ select {
 }
 
 .hero-title {
-  font-size: clamp(2.5rem, 5vw, 4.75rem);
-  max-width: 10ch;
+  font-size: clamp(2rem, 4.5vw, 3.4rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  max-width: 14ch;
 }
 
 .lead,
@@ -172,26 +181,32 @@ select {
 }
 
 .button {
-  background: var(--accent);
-  color: #f7fcfb;
+  background: linear-gradient(135deg, #0d9488, #0f766e);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.28);
 }
 
 .button:hover,
 .button-secondary:hover,
 .button-danger:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+}
+
+.button:hover {
+  box-shadow: 0 6px 20px rgba(13, 148, 136, 0.36);
 }
 
 .button-secondary {
   border-color: var(--panel-border);
-  background: rgba(255, 255, 255, 0.58);
+  background: #ffffff;
   color: var(--text);
+  box-shadow: var(--shadow-sm);
 }
 
 .button-danger {
-  background: #fff3f2;
+  background: #fef2f2;
   color: var(--danger);
-  border-color: rgba(159, 47, 47, 0.16);
+  border-color: rgba(220, 38, 38, 0.18);
 }
 
 .button:disabled,
@@ -235,11 +250,12 @@ select {
   width: 100%;
   min-height: 48px;
   padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(97, 74, 58, 0.18);
-  background: rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
   color: var(--text);
   outline: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .field textarea {
@@ -293,15 +309,30 @@ select {
 
 .metric {
   padding: 18px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px solid rgba(96, 80, 63, 0.14);
+  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-sm);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.metric:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
 }
 
 .metric strong {
   display: block;
-  font-size: 1.7rem;
+  font-size: 1.15rem;
   margin-top: 10px;
+  line-height: 1.3;
+}
+
+.modifier-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
 }
 
 .app-nav {
@@ -318,6 +349,8 @@ select {
 
 .section-title {
   font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .list {
@@ -330,9 +363,10 @@ select {
 
 .list li {
   padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid rgba(96, 80, 63, 0.14);
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-sm);
 }
 
 .badge {
@@ -342,9 +376,10 @@ select {
   min-height: 30px;
   padding: 0 12px;
   border-radius: 999px;
-  background: rgba(11, 122, 117, 0.1);
+  background: var(--accent-soft);
   color: var(--accent-dark);
   font-size: 0.88rem;
+  font-weight: 600;
 }
 
 .qr-sheet {

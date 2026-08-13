@@ -39,6 +39,7 @@ type OrderRow = {
         quantity: number
         unit_price: number
         notes: string | null
+        modifiers: string[]
       }>
     | null
   order_status_history:
@@ -59,7 +60,7 @@ export default async function PublicOrderStatusPage({ params }: Props) {
 
   const { data, error } = await admin
     .from('orders')
-    .select('id, status, total, currency, customer_note, created_at, restaurant_tables(name), restaurants(name), order_items(id, item_name, quantity, unit_price, notes), order_status_history(id, old_status, new_status, created_at)')
+    .select('id, status, total, currency, customer_note, created_at, restaurant_tables(name), restaurants(name), order_items(id, item_name, quantity, unit_price, notes, modifiers), order_status_history(id, old_status, new_status, created_at)')
     .eq('public_tracking_token', trackingToken)
     .order('created_at', { foreignTable: 'order_status_history', ascending: true })
     .maybeSingle()

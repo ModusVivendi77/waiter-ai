@@ -25,6 +25,7 @@ type OrderStatusPayload = {
     quantity: number
     unit_price: number
     notes: string | null
+    modifiers: string[]
   }>
   history: Array<{
     id: string
@@ -80,6 +81,9 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [splitMode, setSplitMode] = useState<'equal' | 'items' | null>(null)
+  const [peopleCount, setPeopleCount] = useState('2')
+  const [guestAssignments, setGuestAssignments] = useState<Record<string, number>>({})
 
   const refreshFromServer = useCallback(async () => {
     const response = await fetch(`/api/order-status/${trackingToken}`, { cache: 'no-store' })
@@ -152,6 +156,25 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
 
   // Determine how far along the happy path the current status is.
   const currentStepIndex = STATUS_ORDER.indexOf(currentStatus)
+
+  // --- Split the bill (client-side calculator) ---
+  const peopleCountParsed = Math.max(1, parseInt(peopleCount, 10) || 1)
+
+  // Equal split: total / N in cents; first guests absorb the remainder so the
+  // shares always add back up to the exact total.
+  const totalCents = Math.round(data.order.total * 100)
+  const baseShareCents = Math.floor(totalCents / peopleCountParsed)
+  const remainderCents = totalCents - baseShareCents * peopleCountParsed
+  const equalShares = Array.from({ length: peopleCountParsed }, (_, index) =>
+    (baseShareCents + (index < remainderCents ? 1 : 0)) / 100
+  )
+
+  // Item split: each item is assigned to a guest (defaults to guest 1).
+  const guestTotals: number[] = []
+  for (const item of data.items) {
+    const guestIndex = Math.max(0, guestAssignments[item.id] ?? 0)
+    guestTotals[guestIndex] = (guestTotals[guestIndex] || 0) + Number(item.unit_price) * item.quantity
+  }
 
   return (
     <main className="page-shell">
@@ -273,6 +296,9 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
                   <span>{formatCurrency(item.unit_price * item.quantity, data.order.currency)}</span>
                 </div>
                 <p className="muted">Quantity: {item.quantity}</p>
+                {item.modifiers && item.modifiers.length > 0 ? (
+                  <p className="muted">{item.modifiers.join(' · ')}</p>
+                ) : null}
                 {item.notes ? <p className="muted">Note: {item.notes}</p> : null}
               </li>
             ))}
@@ -282,6 +308,113 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
             <strong>Total</strong>
             <strong>{formatCurrency(data.order.total, data.order.currency)}</strong>
           </div>
+        </section>
+
+        <section className="panel stack">
+          <span className="eyebrow">Split the bill</span>
+          <p className="helper-text">
+            Divide the total equally between everyone, or assign each item to a guest. Splits are calculated on your
+            device — no account needed.
+          </p>
+
+          <div className="pill-row">
+            <button
+              className={splitMode === 'equal' ? 'button' : 'button-secondary'}
+              type="button"
+              onClick={() => setSplitMode('equal')}
+            >
+              Equally
+            </button>
+            <button
+              className={splitMode === 'items' ? 'button' : 'button-secondary'}
+              type="button"
+              onClick={() => setSplitMode('items')}
+            >
+              By items
+            </button>
+          </div>
+
+          {splitMode === 'equal' ? (
+            <div className="stack">
+              <div className="field">
+                <label htmlFor="splitPeopleCount">Number of people</label>
+                <input
+                  id="splitPeopleCount"
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={peopleCount}
+                  onChange={(event) => setPeopleCount(event.target.value)}
+                />
+              </div>
+              <ul className="list">
+                {equalShares.map((share, index) => (
+                  <li key={`share-${index}`}>
+                    <div className="cart-line-header">
+                      <strong>Person {index + 1}</strong>
+                      <span>{formatCurrency(share, data.order.currency)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {splitMode === 'items' ? (
+            <div className="stack">
+              <div className="field">
+                <label htmlFor="splitItemsPeopleCount">Number of guests</label>
+                <input
+                  id="splitItemsPeopleCount"
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={peopleCount}
+                  onChange={(event) => setPeopleCount(event.target.value)}
+                />
+              </div>
+              <ul className="list">
+                {data.items.map((item) => (
+                  <li key={item.id}>
+                    <div className="cart-line-header">
+                      <strong>{item.item_name}</strong>
+                      <span>{formatCurrency(item.unit_price * item.quantity, data.order.currency)}</span>
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`guest-${item.id}`}>Guest</label>
+                      <select
+                        id={`guest-${item.id}`}
+                        value={guestAssignments[item.id] ?? 0}
+                        onChange={(event) =>
+                          setGuestAssignments((current) => ({
+                            ...current,
+                            [item.id]: Number(event.target.value),
+                          }))
+                        }
+                      >
+                        {Array.from({ length: peopleCountParsed }, (_, index) => (
+                          <option key={index} value={index}>
+                            Guest {index + 1}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <span className="eyebrow">Guest totals</span>
+              <ul className="list">
+                {Array.from({ length: peopleCountParsed }, (_, index) => (
+                  <li key={`guest-total-${index}`}>
+                    <div className="cart-line-header">
+                      <strong>Guest {index + 1}</strong>
+                      <span>{formatCurrency(guestTotals[index] || 0, data.order.currency)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
       </div>
     </main>

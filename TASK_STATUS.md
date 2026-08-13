@@ -223,6 +223,16 @@
 - [x] Customer-visible status timeline with checkmark stepper (NEW → ACCEPTED → PREPARING → READY → SERVED)
 - [x] Status history panel showing timestamps from `order_status_history`
 - [x] Tracking page and API now include full status history
+- [x] **Menu modifiers & allergens (migration 010, live-applied):**
+  - [x] `menu_item_modifiers` table + `menu_items.allergens` + `order_items.modifiers`
+  - [x] Setup console: allergens (comma list) + modifier editor ("Name +price" per line) per menu item
+  - [x] Customer menu: allergen labels + checkbox option selection; line price includes modifier deltas
+  - [x] Order API validates modifiers, prices lines with deltas, snapshots names on `order_items`
+  - [x] Modifiers shown on tracking page, orders console, and cart
+- [x] **Split the bill** (client-side on the tracking page):
+  - [x] Divide equally by number of people (cent-exact, first guests absorb rounding)
+  - [x] Assign each item to a guest, with per-guest totals
+- [x] **UI refresh** — modern sans-serif design system: new palette, gradient buttons, cleaner cards/inputs/nav/typography across the app
 
 **What still needs to happen:**
 1. Add public guardrails around order edits/cancellation windows if needed
@@ -421,8 +431,11 @@
 14. **✅ Done** — Staff performance analytics (orders handled, revenue served, tables, avg order value) + SUPER_ADMIN branch in analytics console
 15. **✅ Done** — Critical RLS fix (migration 009): staff could not see their own memberships → couldn't use the platform; now they can
 16. **✅ Done** — Reset-password verified end-to-end with a real inbox-backed account (request reset → email link → `/reset-password` → update password → login with new password)
-17. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
-18. **Future work** — Resend domain verification for customer-facing confirmation emails
+17. **✅ Done** — Menu modifiers + allergens: schema (migration 010), setup editor, customer option selection with delta pricing, API validation/snapshotting, display everywhere
+18. **✅ Done** — Split the bill on the tracking page (equal split or per-item guest assignment) — live-verified
+19. **✅ Done** — UI refresh: modern sans-serif design system across the app
+20. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+21. **Future work** — Resend domain verification for customer-facing confirmation emails
 
 ### After Timeline Verified
 ```bash
@@ -467,5 +480,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — team management, staff-to-table assignment, staff performance analytics, and critical memberships RLS fix (see log for hash)
-**Next commit:** live reset-password verification; confirm "Confirm signup" template site URL; Resend domain verification + shift-based table assignment (future work)
+**Last commit:** feat — menu modifiers & allergens, split-the-bill, UI refresh (see log for hash)
+**Next commit:** confirm "Confirm signup" template site URL; Resend domain verification + shift-based table assignment (future work)

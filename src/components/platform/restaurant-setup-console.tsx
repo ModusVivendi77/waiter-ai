@@ -34,6 +34,15 @@ type MenuItem = {
   price: number
   available: boolean
   category_id: string
+  allergens: string[]
+  menu_item_modifiers:
+    | Array<{
+        id: string
+        name: string
+        price_delta: number
+        active: boolean
+      }>
+    | null
   menu_categories?:
     | {
         name: string
@@ -52,6 +61,43 @@ function createQrToken() {
 function getCategoryName(item: MenuItem) {
   const category = Array.isArray(item.menu_categories) ? item.menu_categories[0] : item.menu_categories
   return category?.name || 'Uncategorized'
+}
+
+type ParsedModifier = {
+  name: string
+  price_delta: number
+}
+
+// Parses modifier lines like "Extra cheese +1.50" / "Bacon +2" / "Gluten-free bun".
+function parseModifiersText(text: string): ParsedModifier[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(/^(.+?)\s+([+\-]?\d+(?:\.\d{1,2})?)\s*$/)
+      if (match) {
+        return { name: match[1].trim(), price_delta: Math.max(0, Number(match[2])) }
+      }
+      return { name: line, price_delta: 0 }
+    })
+}
+
+function modifiersToText(modifiers: Array<{ name: string; price_delta: number }>): string {
+  return modifiers
+    .map((modifier) =>
+      Number(modifier.price_delta) > 0
+        ? `${modifier.name} +${Number(modifier.price_delta).toFixed(2)}`
+        : modifier.name
+    )
+    .join('\n')
+}
+
+function parseAllergensText(text: string): string[] {
+  return text
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
 }
 
 export function RestaurantSetupConsole() {
@@ -74,6 +120,8 @@ export function RestaurantSetupConsole() {
   const [itemDescription, setItemDescription] = useState('')
   const [itemPrice, setItemPrice] = useState('')
   const [itemCategoryId, setItemCategoryId] = useState('')
+  const [itemAllergens, setItemAllergens] = useState('')
+  const [itemModifiersText, setItemModifiersText] = useState('')
   const [csvText, setCsvText] = useState('')
   const [csvReport, setCsvReport] = useState<string | null>(null)
   const [csvPreviewRows, setCsvPreviewRows] = useState<CsvPreviewRow[]>([])
@@ -89,6 +137,8 @@ export function RestaurantSetupConsole() {
   const [editingItemDescription, setEditingItemDescription] = useState('')
   const [editingItemPrice, setEditingItemPrice] = useState('')
   const [editingItemCategoryId, setEditingItemCategoryId] = useState('')
+  const [editingItemAllergens, setEditingItemAllergens] = useState('')
+  const [editingItemModifiersText, setEditingItemModifiersText] = useState('')
   const [staffOptions, setStaffOptions] = useState<Array<{ id: string; name: string }>>([])
 
   const supabase = useMemo(() => createClient(), [])
@@ -173,7 +223,7 @@ export function RestaurantSetupConsole() {
           .order('sort_order'),
         supabase
           .from('menu_items')
-          .select('id, name, description, price, available, category_id, menu_categories(name)')
+          .select('id, name, description, price, available, category_id, allergens, menu_item_modifiers(id, name, price_delta, active), menu_categories(name)')
           .eq('restaurant_id', activeRestaurantId)
           .order('created_at', { ascending: false })
           .limit(50),
@@ -526,25 +576,47 @@ export function RestaurantSetupConsole() {
     setError(null)
     setNotice(null)
 
-    const { error: insertError } = await supabase.from('menu_items').insert({
-      restaurant_id: restaurantId,
-      category_id: itemCategoryId,
-      name: itemName.trim(),
-      description: itemDescription.trim() || null,
-      price: numericPrice,
-      available: true,
-    })
+    const { data: createdItem, error: insertError } = await supabase
+      .from('menu_items')
+      .insert({
+        restaurant_id: restaurantId,
+        category_id: itemCategoryId,
+        name: itemName.trim(),
+        description: itemDescription.trim() || null,
+        price: numericPrice,
+        available: true,
+        allergens: parseAllergensText(itemAllergens),
+      })
+      .select('id')
+      .single()
 
     setSaving(false)
 
-    if (insertError) {
-      setError(insertError.message)
+    if (insertError || !createdItem) {
+      setError(insertError?.message ?? 'Unable to create the menu item.')
       return
+    }
+
+    const modifiers = parseModifiersText(itemModifiersText)
+    if (modifiers.length > 0) {
+      const { error: modifiersError } = await supabase.from('menu_item_modifiers').insert(
+        modifiers.map((modifier) => ({
+          menu_item_id: createdItem.id,
+          name: modifier.name,
+          price_delta: modifier.price_delta,
+        }))
+      )
+      if (modifiersError) {
+        setError(modifiersError.message)
+        return
+      }
     }
 
     setItemName('')
     setItemDescription('')
     setItemPrice('')
+    setItemAllergens('')
+    setItemModifiersText('')
     setNotice('Menu item created.')
     await loadData()
   }
@@ -623,22 +695,55 @@ export function RestaurantSetupConsole() {
         description: editingItemDescription.trim() || null,
         price: numericPrice,
         category_id: editingItemCategoryId,
+        allergens: parseAllergensText(editingItemAllergens),
       })
       .eq('id', itemId)
       .eq('restaurant_id', restaurantId)
 
-    setSaving(false)
-
     if (updateError) {
+      setSaving(false)
       setError(updateError.message)
       return
     }
+
+    // Sync modifiers: delete the current set and insert the edited one.
+    const modifiers = parseModifiersText(editingItemModifiersText)
+    const { error: deleteModifiersError } = await supabase
+      .from('menu_item_modifiers')
+      .delete()
+      .eq('menu_item_id', itemId)
+
+    if (deleteModifiersError) {
+      setSaving(false)
+      setError(deleteModifiersError.message)
+      return
+    }
+
+    if (modifiers.length > 0) {
+      const { error: insertModifiersError } = await supabase.from('menu_item_modifiers').insert(
+        modifiers.map((modifier) => ({
+          menu_item_id: itemId,
+          name: modifier.name,
+          price_delta: modifier.price_delta,
+        }))
+      )
+
+      if (insertModifiersError) {
+        setSaving(false)
+        setError(insertModifiersError.message)
+        return
+      }
+    }
+
+    setSaving(false)
 
     setEditingItemId(null)
     setEditingItemName('')
     setEditingItemDescription('')
     setEditingItemPrice('')
     setEditingItemCategoryId('')
+    setEditingItemAllergens('')
+    setEditingItemModifiersText('')
     setNotice('Menu item updated.')
     await loadData()
   }
@@ -1050,6 +1155,27 @@ export function RestaurantSetupConsole() {
             </select>
           </div>
 
+          <div className="field">
+            <label htmlFor="itemAllergens">Allergens</label>
+            <input
+              id="itemAllergens"
+              value={itemAllergens}
+              onChange={(event) => setItemAllergens(event.target.value)}
+              placeholder="Gluten, Dairy, Nuts (comma separated)"
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="itemModifiersText">Options / modifiers</label>
+            <textarea
+              id="itemModifiersText"
+              value={itemModifiersText}
+              onChange={(event) => setItemModifiersText(event.target.value)}
+              placeholder={'Extra cheese +1.50\nBacon +2.00\nGluten-free bun +1.00'}
+            />
+            <p className="helper-text">One option per line: "Name +price" (price optional).</p>
+          </div>
+
           <button className="button" type="submit" disabled={saving || categories.length === 0}>
             {saving ? 'Saving...' : 'Add menu item'}
           </button>
@@ -1103,12 +1229,41 @@ export function RestaurantSetupConsole() {
                       ))}
                     </select>
                   </div>
+
+                  <div className="field">
+                    <label htmlFor={`edit-item-allergens-${item.id}`}>Allergens</label>
+                    <input
+                      id={`edit-item-allergens-${item.id}`}
+                      value={editingItemAllergens}
+                      onChange={(event) => setEditingItemAllergens(event.target.value)}
+                      placeholder="Gluten, Dairy, Nuts (comma separated)"
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor={`edit-item-modifiers-${item.id}`}>Options / modifiers</label>
+                    <textarea
+                      id={`edit-item-modifiers-${item.id}`}
+                      value={editingItemModifiersText}
+                      onChange={(event) => setEditingItemModifiersText(event.target.value)}
+                      placeholder={'Extra cheese +1.50\nBacon +2.00\nGluten-free bun +1.00'}
+                    />
+                    <p className="helper-text">One option per line: "Name +price" (price optional).</p>
+                  </div>
                 </>
               ) : (
                 <>
                   <strong>{item.name}</strong>
                   <p className="muted">Category: {getCategoryName(item)}</p>
                   <p className="muted">Price: EUR {Number(item.price).toFixed(2)}</p>
+                  {item.allergens && item.allergens.length > 0 ? (
+                    <p className="muted">Allergens: {item.allergens.join(', ')}</p>
+                  ) : null}
+                  {item.menu_item_modifiers && item.menu_item_modifiers.length > 0 ? (
+                    <p className="muted">
+                      Options: {item.menu_item_modifiers.map((modifier) => modifier.name).join(', ')}
+                    </p>
+                  ) : null}
                 </>
               )}
               <p className="muted">Status: {item.available ? 'Available' : 'Unavailable'}</p>
@@ -1128,6 +1283,8 @@ export function RestaurantSetupConsole() {
                         setEditingItemDescription('')
                         setEditingItemPrice('')
                         setEditingItemCategoryId('')
+                        setEditingItemAllergens('')
+                        setEditingItemModifiersText('')
                       }}
                     >
                       Cancel
@@ -1144,6 +1301,8 @@ export function RestaurantSetupConsole() {
                       setEditingItemDescription(item.description || '')
                       setEditingItemPrice(String(item.price))
                       setEditingItemCategoryId(item.category_id)
+                      setEditingItemAllergens((item.allergens || []).join(', '))
+                      setEditingItemModifiersText(modifiersToText(item.menu_item_modifiers || []))
                     }}
                   >
                     Edit

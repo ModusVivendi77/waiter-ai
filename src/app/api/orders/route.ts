@@ -41,6 +41,14 @@ type MenuItemRow = {
   name: string
   price: number
   available: boolean
+  menu_item_modifiers:
+    | Array<{
+        id: string
+        name: string
+        price_delta: number
+        active: boolean
+      }>
+    | null
 }
 
 export async function POST(request: NextRequest) {
@@ -99,7 +107,7 @@ export async function POST(request: NextRequest) {
   const menuItemIds = items.map((item) => item.menuItemId)
   const { data: menuItems, error: menuError } = await admin
     .from('menu_items')
-    .select('id, name, price, available')
+    .select('id, name, price, available, menu_item_modifiers(id, name, price_delta, active)')
     .eq('restaurant_id', typedTable.restaurant_id)
     .in('id', menuItemIds)
 
@@ -119,10 +127,45 @@ export async function POST(request: NextRequest) {
   }
 
   const itemMap = new Map(typedMenuItems.map((item) => [item.id, item]))
-  const subtotal = items.reduce((sum, item) => {
-    const menuItem = itemMap.get(item.menuItemId)
-    return sum + Number(menuItem?.price || 0) * item.quantity
-  }, 0)
+
+  // Resolve each line's unit price (base + selected modifier deltas) and
+  // validate that every requested modifier actually belongs to the menu item.
+  const resolvedLines = items.map((item) => {
+    const menuItem = itemMap.get(item.menuItemId) as MenuItemRow
+    const activeModifiers = (menuItem.menu_item_modifiers || []).filter((modifier) => modifier.active)
+    const modifierNames: string[] = []
+
+    for (const name of item.modifiers || []) {
+      const found = activeModifiers.find((modifier) => modifier.name.toLowerCase() === name.toLowerCase())
+      if (!found) {
+        return { error: `"${name}" is not a valid option for ${menuItem.name}.` }
+      }
+      modifierNames.push(found.name)
+    }
+
+    const modifierDelta = modifierNames.reduce((sum, name) => {
+      const modifier = activeModifiers.find((entry) => entry.name.toLowerCase() === name.toLowerCase())
+      return sum + Number(modifier?.price_delta || 0)
+    }, 0)
+
+    return {
+      menuItem,
+      modifierNames,
+      unitPrice: Number(menuItem.price) + modifierDelta,
+      quantity: item.quantity,
+      notes: item.notes || null,
+    }
+  })
+
+  const invalidLine = resolvedLines.find((line) => 'error' in line) as { error: string } | undefined
+  if (invalidLine) {
+    return NextResponse.json({ error: invalidLine.error }, { status: 400, headers: rateLimitHeaders(limit) })
+  }
+
+  const subtotal = (resolvedLines as Array<{ unitPrice: number; quantity: number }>).reduce(
+    (sum, line) => sum + line.unitPrice * line.quantity,
+    0
+  )
 
   const { data: activeSession, error: sessionError } = await admin
     .from('dining_sessions')
@@ -182,18 +225,22 @@ export async function POST(request: NextRequest) {
   }
 
   const { error: orderItemsError } = await admin.from('order_items').insert(
-    items.map((item) => {
-      const menuItem = itemMap.get(item.menuItemId) as MenuItemRow
-      return {
-        order_id: order.id,
-        restaurant_id: typedTable.restaurant_id,
-        menu_item_id: menuItem.id,
-        item_name: menuItem.name,
-        quantity: item.quantity,
-        unit_price: menuItem.price,
-        notes: item.notes || null,
-      }
-    })
+    (resolvedLines as Array<{
+      menuItem: MenuItemRow
+      modifierNames: string[]
+      unitPrice: number
+      quantity: number
+      notes: string | null
+    }>).map((line) => ({
+      order_id: order.id,
+      restaurant_id: typedTable.restaurant_id,
+      menu_item_id: line.menuItem.id,
+      item_name: line.menuItem.name,
+      quantity: line.quantity,
+      unit_price: line.unitPrice,
+      modifiers: line.modifierNames,
+      notes: line.notes,
+    }))
   )
 
   if (orderItemsError) {

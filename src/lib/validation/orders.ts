@@ -8,6 +8,7 @@ export const createOrderSchema = z.object({
         menuItemId: z.string().uuid(),
         quantity: z.number().int().min(1).max(50),
         notes: z.string().trim().max(500).optional(),
+        modifiers: z.array(z.string().trim().min(1).max(60)).max(10).optional(),
       })
     )
     .min(1, 'Add at least one item to the order.'),

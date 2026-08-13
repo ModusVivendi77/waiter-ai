@@ -40,6 +40,15 @@ type MenuItemRow = {
   price: number
   available: boolean
   sort_order: number
+  allergens: string[]
+  menu_item_modifiers:
+    | Array<{
+        id: string
+        name: string
+        price_delta: number
+        active: boolean
+      }>
+    | null
 }
 
 export const dynamic = 'force-dynamic'
@@ -71,7 +80,7 @@ export default async function TableTokenPage({ params }: Props) {
       .order('sort_order'),
     admin
       .from('menu_items')
-      .select('id, category_id, name, description, price, available, sort_order')
+      .select('id, category_id, name, description, price, available, sort_order, allergens, menu_item_modifiers(id, name, price_delta, active)')
       .eq('restaurant_id', typedTable.restaurant_id)
       .eq('available', true)
       .order('sort_order'),

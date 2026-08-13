@@ -41,6 +41,7 @@ type OrderItemRow = {
   quantity: number
   unit_price: number
   notes: string | null
+  modifiers: string[]
 }
 
 type OrderRow = {
@@ -195,7 +196,7 @@ export function OrdersConsole() {
     const [{ data: orderRows, error: orderError }, { data: menuRows, error: menuError }, teamResult, sessionResult] = await Promise.all([
       supabase
         .from('orders')
-        .select('id, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, waiter_id, session_id, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes)')
+        .select('id, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, waiter_id, session_id, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes, modifiers)')
         .eq('restaurant_id', activeRestaurantId)
         .order('created_at', { ascending: false })
         .limit(30),
@@ -722,6 +723,9 @@ export function OrdersConsole() {
                         <strong>{line.item_name}</strong>
                         <span>{formatCurrency(line.unit_price * line.quantity, order.currency)}</span>
                       </div>
+                      {line.modifiers && line.modifiers.length > 0 ? (
+                        <p className="muted">{line.modifiers.join(' · ')}</p>
+                      ) : null}
                       <div className="field">
                         <label htmlFor={`line-qty-${line.id}`}>Quantity</label>
                         <input
