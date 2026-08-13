@@ -231,7 +231,11 @@
   - [x] Order count and order value tracking
   - [x] Average order value calculation
   - [x] Top 5 products by quantity sold
-  - [x] Daily trend visualization (last 7 days)
+  - [x] Daily trend line chart (7-day dual-axis visualization)
+  - [x] Daily order count bar chart
+  - [x] Daily revenue bar chart
+  - [x] PDF export capability
+  - [x] CSV export capability
 - [x] Platform admin analytics panel at `/admin/analytics`
   - [x] Total restaurants and active restaurants (30d)
   - [x] Total tables and tables per restaurant
@@ -239,25 +243,41 @@
   - [x] Average order value across platform
   - [x] Total order value (30d) and per-restaurant average
   - [x] Top 5 restaurants by order volume
+  - [x] PDF export capability
+  - [x] CSV export capability
 - [x] Dedicated analytics query libraries
   - [x] `/lib/analytics/restaurant.ts` for restaurant-level queries
   - [x] `/lib/analytics/platform.ts` for platform-wide queries
+- [x] Chart visualization components
+  - [x] `OrderTrendChart` (dual-axis line chart)
+  - [x] `OrderCountChart` (bar chart)
+  - [x] `OrderValueChart` (bar chart)
+- [x] Date range selector component
+  - [x] Today, This Week, Last 30 Days, Custom range options
+- [x] Export functionality
+  - [x] PDF export using html2canvas + jsPDF
+  - [x] CSV export for data extraction
 
 **Implementation details:**
-- Created `AnalyticsConsole` component for restaurant analytics
-- Created `PlatformAnalyticsConsole` component for platform analytics
-- Analytics queries built for 30-day trend analysis
+- Added Recharts library for professional chart visualizations
+- Charts display 7-day trends with automatic date formatting
+- Tooltips show proper currency formatting and labels
+- PDF exports capture full dashboard state
+- CSV exports provide raw data for spreadsheet analysis
+- All charts are responsive and mobile-friendly
+- Both dashboards support multiple export formats
 - Queries handle currency formatting and date grouping
 - Role-based access: OWNER/MANAGER see restaurant analytics, SUPER_ADMIN sees platform analytics
 - Added `/platform/analytics` and `/admin/analytics` routes
 - Updated top navigation to include both analytics links
 
 **What still needs to happen:**
-1. Add trend charts/visualizations (Chart.js or Recharts)
-2. Add export/download capabilities for reports
-3. Test analytics with larger datasets
-4. Add time range selector for custom date ranges
-5. Add customer acquisition funnel metrics
+1. Add custom time range selector integration with charts
+2. Add comparison analytics (e.g., week-over-week changes)
+3. Add customer acquisition funnel metrics
+4. Test analytics with larger datasets
+5. Add real-time analytics updates
+6. Create dashboard widgets for key metrics
 
 ---
 
@@ -287,7 +307,7 @@
 | 4. Restaurant Setup | 🟡 95% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, and E2E coverage |
 | 5. Customer Ordering | � 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling |
 | 6. Real-Time & Dashboard | 🟡 50% | Real-time subscriptions for staff implemented; public real-time tracking pending |
-| 7. Analytics & Admin | 🟡 60% | Restaurant and platform analytics dashboards now live with 30-day trend analysis |
+| 7. Analytics & Admin | 🟡 90% | Analytics dashboards with charts, exports, and trend visualization complete |
 | 8. Testing | ⚪ 10% | Initial E2E config in place; real-time and analytics scenarios to be added |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
@@ -361,5 +381,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** Phase 6 real-time subscriptions (`698ad7e`)
-**Next commit:** Phase 7 analytics dashboards (pending)
+**Last commit:** Phase 7 analytics enhancements (`3b5bac6`)
+**Next commit:** Phase 5 customer timeline or Phase 8 comprehensive testing
