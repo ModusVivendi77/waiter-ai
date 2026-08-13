@@ -272,6 +272,9 @@ export function HomeDashboard() {
             <Link className="button-secondary" href="/platform/analytics">
               Analytics
             </Link>
+            <Link className="button-secondary" href="/platform/setup">
+              Restaurant setup
+            </Link>
           </div>
         </section>
 

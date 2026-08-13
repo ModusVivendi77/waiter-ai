@@ -5,6 +5,7 @@ const navLinks = [
   { href: '/login', label: 'Login' },
   { href: '/platform/orders', label: 'Orders' },
   { href: '/platform/analytics', label: 'Analytics' },
+  { href: '/platform/setup', label: 'Setup' },
   { href: '/admin', label: 'Admin' },
 ]
 

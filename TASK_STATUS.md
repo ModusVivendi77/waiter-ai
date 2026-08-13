@@ -235,7 +235,7 @@
 - [x] **UI refresh** — modern sans-serif design system: new palette, gradient buttons, cleaner cards/inputs/nav/typography across the app
 
 ### Final touch (navigation, home dashboard, notifications) 🟢 COMPLETE
-- [x] **Navigation simplified** to Home / Login / Orders / Analytics / Admin; Platform Analytics now lives under the Admin console
+- [x] **Navigation simplified** to Home / Login / Orders / Analytics / **Setup** / Admin; Platform Analytics now lives under the Admin console
 - [x] **QR code URLs use the live site origin** (`window.location.origin`) instead of a hardcoded `localhost`
 - [x] **New-order notifications for staff/owners** — real-time banner in the Orders workspace ("🔔 New order received — Table · €total") with auto-dismiss; best-effort browser Notification when permission is granted
 - [x] **Home dashboard** (`/platform`) — restaurant card, **live tables** (free/occupied + assigned staff), **live orders** (real-time), and **team** roster (owners/admins); restaurant switcher for multi-restaurant/SUPER_ADMIN
