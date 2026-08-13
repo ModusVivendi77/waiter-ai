@@ -5,9 +5,10 @@ import { redirect } from 'next/navigation'
 import type { GenerateSignupLinkParams } from '@supabase/supabase-js'
 
 import { createAdminClient } from '@/lib/supabase/server'
-import { registerRestaurantSchema } from '@/lib/auth/schemas'
+import { registerRestaurantSchema, restaurantNameSchema } from '@/lib/auth/schemas'
 import { isResendConfigured, sendConfirmationEmail, sendRegistrationEmail } from '@/lib/notifications/email'
 import { rateLimit } from '@/lib/utils/rateLimit'
+import { requireUser } from '@/lib/auth/guards'
 
 export type RegisterState = {
   error?: string
@@ -19,6 +20,11 @@ export type RegisterState = {
 }
 
 export type VerifyEmailState = {
+  error?: string
+  success?: string
+}
+
+export type AddRestaurantState = {
   error?: string
   success?: string
 }
@@ -180,6 +186,60 @@ export async function registerRestaurant(_: RegisterState, formData: FormData): 
   return {
     success: email,
   }
+}
+
+/**
+ * Lets an already-authenticated user register an additional restaurant. The
+ * restaurant is created and the current user is linked as its OWNER. Unlike
+ * `registerRestaurant`, no new auth user or email confirmation is involved —
+ * the caller's existing session is reused.
+ */
+export async function addRestaurant(_: AddRestaurantState, formData: FormData): Promise<AddRestaurantState> {
+  const parsed = restaurantNameSchema.safeParse({
+    restaurantName: formData.get('restaurantName'),
+  })
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Restaurant name is required.' }
+  }
+
+  const user = await requireUser()
+
+  const limit = rateLimit(`add-restaurant:${user.id}`, 5, 10 * 60 * 1000)
+  if (!limit.allowed) {
+    return { error: 'Too many restaurant creations. Please wait a few minutes and try again.' }
+  }
+
+  const admin = createAdminClient()
+  const slug = slugify(parsed.data.restaurantName)
+
+  const { data: restaurant, error: restaurantError } = await admin
+    .from('restaurants')
+    .insert({
+      name: parsed.data.restaurantName,
+      slug,
+    })
+    .select('id, name')
+    .single()
+
+  if (restaurantError || !restaurant) {
+    return { error: restaurantError?.message ?? 'Unable to create the restaurant.' }
+  }
+
+  const { error: membershipError } = await admin.from('restaurant_users').insert({
+    restaurant_id: restaurant.id,
+    user_id: user.id,
+    role: 'OWNER',
+  })
+
+  if (membershipError) {
+    await admin.from('restaurants').delete().eq('id', restaurant.id)
+    return { error: membershipError.message }
+  }
+
+  revalidatePath('/platform')
+
+  return { success: restaurant.name }
 }
 
 export async function resendConfirmationEmail(_: VerifyEmailState, formData: FormData): Promise<VerifyEmailState> {

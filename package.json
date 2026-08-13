@@ -16,7 +16,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@supabase/ssr": "^0.0.9",
+    "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.38.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",

@@ -35,6 +35,8 @@ export function AnalyticsConsole() {
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'custom'>('month')
   const [customRange, setCustomRange] = useState<AnalyticsRange | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [restaurantOptions, setRestaurantOptions] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState('')
 
   async function loadAnalytics(range?: AnalyticsRange) {
     try {
@@ -46,11 +48,25 @@ export function AnalyticsConsole() {
         return
       }
 
-      const membership = context.memberships.find((m) => ['OWNER', 'MANAGER'].includes(m.role))
-      if (!membership) {
+      const memberships = context.memberships.filter((m) => ['OWNER', 'MANAGER'].includes(m.role))
+      if (memberships.length === 0) {
         setError('You need restaurant access to view analytics.')
         setLoading(false)
         return
+      }
+
+      const savedRestaurantId = typeof window !== 'undefined' ? localStorage.getItem('staffAnalyticsRestaurantId') || '' : ''
+      const candidateId = selectedRestaurantId || savedRestaurantId
+      const membership = memberships.find((m) => m.restaurantId === candidateId) ?? memberships[0]
+
+      if (memberships.length > 1) {
+        setRestaurantOptions(memberships.map((m) => ({ id: m.restaurantId, name: m.restaurantName })))
+        setSelectedRestaurantId(membership.restaurantId)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('staffAnalyticsRestaurantId', membership.restaurantId)
+        }
+      } else {
+        setRestaurantOptions([])
       }
 
       setRestaurantName(membership.restaurantName)
@@ -74,6 +90,13 @@ export function AnalyticsConsole() {
     setLoading(true)
     setCustomRange({ from, to })
     void loadAnalytics({ from, to })
+  }
+
+  function handleRestaurantSelection(nextRestaurantId: string) {
+    setLoading(true)
+    setSelectedRestaurantId(nextRestaurantId)
+    const range = dateRange === 'custom' && customRange ? customRange : undefined
+    void loadAnalytics(range)
   }
 
   function handleRangeChange(range: 'today' | 'week' | 'month' | 'custom') {
@@ -135,6 +158,23 @@ export function AnalyticsConsole() {
         <span className="eyebrow">Analytics</span>
         <h1 className="section-title">Analytics for {restaurantName}</h1>
         <p className="lead">View order trends, revenue insights, and popular items for your restaurant.</p>
+        {restaurantOptions.length > 0 ? (
+          <div className="field">
+            <label htmlFor="analyticsRestaurantSelector">Restaurant context</label>
+            <select
+              id="analyticsRestaurantSelector"
+              value={selectedRestaurantId}
+              onChange={(event) => handleRestaurantSelection(event.target.value)}
+              disabled={loading}
+            >
+              {restaurantOptions.map((restaurant) => (
+                <option key={restaurant.id} value={restaurant.id}>
+                  {restaurant.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
           <button type="button" className="button-secondary" onClick={handleExportPDF} disabled={exporting}>
             {exporting ? 'Exporting...' : 'Export as PDF'}

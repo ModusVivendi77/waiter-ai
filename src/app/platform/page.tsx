@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 import { SignOutButton } from '@/components/platform/sign-out-button'
+import { AddRestaurantForm } from '@/components/platform/add-restaurant-form'
 import { getClientUserContext } from '@/lib/auth/client'
 import type { RestaurantMembership } from '@/lib/auth/types'
 
@@ -129,6 +130,16 @@ export default function PlatformHomePage() {
               </article>
             )}
           </div>
+        </section>
+
+        <section className="panel">
+          <span className="eyebrow">Add another restaurant</span>
+          <p className="helper-text">
+            Register an additional restaurant under this account. It is created instantly and you are linked as its
+            owner — no email confirmation needed. Use the restaurant selector inside Orders and Setup to switch between
+            them.
+          </p>
+          <AddRestaurantForm />
         </section>
       </div>
     </main>

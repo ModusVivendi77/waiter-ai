@@ -127,19 +127,30 @@ export function RestaurantSetupConsole() {
         localStorage.setItem('platformAdminRestaurantId', selectedRestaurant.id)
       }
     } else {
-      const membership =
-        context.memberships.find((entry) => entry.role === 'OWNER' || entry.role === 'MANAGER') ?? context.memberships[0]
-
-      if (!membership) {
+      const memberships = context.memberships.filter((entry) => entry.role === 'OWNER' || entry.role === 'MANAGER')
+      if (memberships.length === 0) {
         setError('You need OWNER or MANAGER access to edit restaurant setup.')
         setLoading(false)
         return
       }
 
-      activeRestaurantId = membership.restaurantId
-      activeRestaurantName = membership.restaurantName
-      setRestaurantOptions([])
-      setSelectedRestaurantId('')
+      const savedRestaurantId = typeof window !== 'undefined' ? localStorage.getItem('staffSetupRestaurantId') || '' : ''
+      const candidateId = restaurantOverrideId || selectedRestaurantId || savedRestaurantId
+      const selectedMembership = memberships.find((entry) => entry.restaurantId === candidateId) ?? memberships[0]
+
+      if (memberships.length > 1) {
+        setRestaurantOptions(memberships.map((entry) => ({ id: entry.restaurantId, name: entry.restaurantName })))
+        setSelectedRestaurantId(selectedMembership.restaurantId)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('staffSetupRestaurantId', selectedMembership.restaurantId)
+        }
+      } else {
+        setRestaurantOptions([])
+        setSelectedRestaurantId('')
+      }
+
+      activeRestaurantId = selectedMembership.restaurantId
+      activeRestaurantName = selectedMembership.restaurantName
     }
 
     setRestaurantId(activeRestaurantId)
@@ -721,9 +732,11 @@ export function RestaurantSetupConsole() {
           Configure tables, generate QR links, and manage categories and menu items for
           {restaurantName ? ` ${restaurantName}` : ' your restaurant'}.
         </p>
-        {isPlatformAdmin && restaurantOptions.length > 0 ? (
+        {restaurantOptions.length > 0 ? (
           <div className="field">
-            <label htmlFor="adminRestaurantSelector">Restaurant context (SUPER_ADMIN)</label>
+            <label htmlFor="adminRestaurantSelector">
+              {isPlatformAdmin ? 'Restaurant context (SUPER_ADMIN)' : 'Restaurant context'}
+            </label>
             <select
               id="adminRestaurantSelector"
               value={selectedRestaurantId}

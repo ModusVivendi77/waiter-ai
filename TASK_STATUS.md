@@ -172,11 +172,17 @@
 - [x] Quoted-field CSV preview before import write
 - [x] Initial setup E2E coverage scaffolded with Playwright
 - [x] Shared top navigation bar added across the app
+- [x] **Multi-restaurant support (NEW):**
+  - [x] `addRestaurant` server action — an authenticated user can register additional restaurants (reuses their session, no new auth user, no email confirmation, rate-limited 5/10 min)
+  - [x] "Add another restaurant" form on `/platform` with auto-reload of memberships
+  - [x] **Restaurant switcher for all multi-membership users** in Orders, Setup, and Analytics consoles (previously SUPER_ADMIN only); selection persisted per-console in `localStorage`
+  - [x] **Root-cause fix:** upgraded `@supabase/ssr` `0.0.9` → `0.12.4` — the old version only supported the legacy `get`/`set`/`remove` cookie API, so the app's modern `getAll`/`setAll` config silently failed and **all server-side auth reads returned "Auth session missing!"** (latent because pages authenticate client-side). This also fixes `/auth/callback` session persistence for the reset-password flow.
 
 **What still needs to happen:**
 1. Add broader setup E2E scenarios for rename/delete/import success paths
 2. Add QR PDF/export batching if printable assets need exact page sizing
 3. Decide whether to graduate Phase 4 from scaffold/hardening into full production verification
+4. **Future work:** Resend domain verification (`*.vercel.app` can't be verified — needs a custom domain at resend.com/domains + `RESEND_FROM_EMAIL` set) so confirmation emails reach customers, not just the owner
 
 ---
 
@@ -394,8 +400,11 @@
 7. **✅ Done** — Reset-password recovery redirect fixed in `/auth/callback` (recovery links now go to `/reset-password` after `verifyOtp`)
 8. **✅ Done** — Confirmation email flow hardened: hybrid `dispatchConfirmationEmail` (generateLink + Resend primary, Supabase fallback); "email rate limit exceeded" root cause fixed; register form now shows a pending state with a direct resend path
 9. **✅ Done** — Real `RESEND_API_KEY` added to `.env.local` + Vercel; delivery verified to the owner's address. To send to customers, verify a domain at resend.com/domains and set `RESEND_FROM_EMAIL`
-10. **Next** — Verify reset-password end-to-end with a real inbox-backed account (request reset → click email link → confirm redirect lands on `/reset-password` → update password → login with new password)
-11. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+10. **✅ Done** — Multi-restaurant support: `addRestaurant` server action + "Add another restaurant" form on `/platform`; restaurant switcher for multi-membership users in Orders/Setup/Analytics (live-verified end-to-end)
+11. **✅ Done** — Root-cause fix for server-side auth: upgraded `@supabase/ssr` `0.0.9` → `0.12.4` (old version silently ignored the app's `getAll`/`setAll` cookie API → every server-side `getUser()` returned "Auth session missing!"); all 5 E2E tests still pass
+12. **Next** — Verify reset-password end-to-end with a real inbox-backed account (request reset → click email link → confirm redirect lands on `/reset-password` → update password → login with new password)
+13. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+14. **Future work** — Resend domain verification for customer-facing confirmation emails
 
 ### After Timeline Verified
 ```bash
@@ -440,5 +449,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — hybrid confirmation email dispatch (generateLink + Resend primary, Supabase fallback), email-pending register UX (see log for hash)
-**Next commit:** docs — Resend free-plan domain verification note for customer emails
+**Last commit:** feat — multi-restaurant support (addRestaurant action + restaurant switchers) and @supabase/ssr 0.0.9 → 0.12.4 upgrade (see log for hash)
+**Next commit:** live reset-password verification; confirm "Confirm signup" template site URL; Resend domain verification (future work)

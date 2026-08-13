@@ -153,18 +153,32 @@ export function OrdersConsole() {
         localStorage.setItem('platformAdminOrdersRestaurantId', selectedRestaurant.id)
       }
     } else {
-      const membership = context.memberships.find((item) => ['OWNER', 'MANAGER', 'STAFF'].includes(item.role)) as RestaurantMembership | undefined
-      if (!membership) {
+      const memberships = context.memberships.filter((item) => ['OWNER', 'MANAGER', 'STAFF'].includes(item.role)) as RestaurantMembership[]
+      if (memberships.length === 0) {
         setError('You need restaurant access to manage orders.')
         setLoading(false)
         return
       }
 
-      activeRestaurantId = membership.restaurantId
-      activeRestaurantName = membership.restaurantName
-      currentRole = membership.role
-      setRestaurantOptions([])
-      setSelectedRestaurantId('')
+      const requestedRestaurantId = searchParams.get('restaurantId') || ''
+      const savedRestaurantId = typeof window !== 'undefined' ? localStorage.getItem('staffOrdersRestaurantId') || '' : ''
+      const candidateId = restaurantOverrideId || requestedRestaurantId || selectedRestaurantId || savedRestaurantId
+      const selectedMembership = memberships.find((item) => item.restaurantId === candidateId) ?? memberships[0]
+
+      if (memberships.length > 1) {
+        setRestaurantOptions(memberships.map((item) => ({ id: item.restaurantId, name: item.restaurantName })))
+        setSelectedRestaurantId(selectedMembership.restaurantId)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('staffOrdersRestaurantId', selectedMembership.restaurantId)
+        }
+      } else {
+        setRestaurantOptions([])
+        setSelectedRestaurantId('')
+      }
+
+      activeRestaurantId = selectedMembership.restaurantId
+      activeRestaurantName = selectedMembership.restaurantName
+      currentRole = selectedMembership.role
     }
 
     setRestaurantId(activeRestaurantId)
@@ -533,9 +547,11 @@ export function OrdersConsole() {
         <span className="eyebrow">Orders Dashboard</span>
         <h1 className="section-title">Order operations for {restaurantName ?? 'your restaurant'}</h1>
         <p className="lead">Staff can review, update, and modify live orders, including line items and order status.</p>
-        {isPlatformAdmin && restaurantOptions.length > 0 ? (
+        {restaurantOptions.length > 0 ? (
           <div className="field">
-            <label htmlFor="ordersRestaurantSelector">Restaurant context (SUPER_ADMIN)</label>
+            <label htmlFor="ordersRestaurantSelector">
+              {isPlatformAdmin ? 'Restaurant context (SUPER_ADMIN)' : 'Restaurant context'}
+            </label>
             <select
               id="ordersRestaurantSelector"
               value={selectedRestaurantId}

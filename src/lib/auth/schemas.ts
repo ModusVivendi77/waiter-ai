@@ -15,6 +15,10 @@ export const registerRestaurantSchema = z
     path: ['confirmPassword'],
   })
 
+export const restaurantNameSchema = z.object({
+  restaurantName: z.string().trim().min(2, 'Restaurant name is required.'),
+})
+
 export const passwordResetSchema = z
   .object({
     password: passwordField,
