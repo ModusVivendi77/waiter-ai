@@ -77,7 +77,7 @@
 **What still needs to happen:**
 1. Complete the reset-password flow with a real inbox-backed account
 2. Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings (no longer required for the Resend path, but keeps the Supabase fallback correct)
-3. **Recommended:** add a real `RESEND_API_KEY` (free plan: 100 emails/day) so confirmation emails bypass Supabase's rate limits entirely
+3. **Resend configured** (real `RESEND_API_KEY` in `.env.local` + Vercel). Delivery verified to the owner's address. **Free-plan caveat:** with the default `onboarding@resend.dev` sender, Resend only delivers to the account owner's email — to email customers, verify a domain at resend.com/domains and set `RESEND_FROM_EMAIL` to an address on it
 4. Decide whether to keep the current client-side protected-route strategy or revisit SSR session handling later
 
 **Reference:** See `IMPLEMENTATION_PLAN.md` Part 5
@@ -393,7 +393,7 @@
 6. **✅ Done** — Broadcast flow verified & fixed: channel-name mismatch in `usePublicOrderStatus` (listener vs publisher) fixed; new E2E test proves order acceptance updates the tracking page history panel via broadcast in <3.5s
 7. **✅ Done** — Reset-password recovery redirect fixed in `/auth/callback` (recovery links now go to `/reset-password` after `verifyOtp`)
 8. **✅ Done** — Confirmation email flow hardened: hybrid `dispatchConfirmationEmail` (generateLink + Resend primary, Supabase fallback); "email rate limit exceeded" root cause fixed; register form now shows a pending state with a direct resend path
-9. **Next** — Add a real `RESEND_API_KEY` to `.env.local` (and Vercel) so confirmation emails bypass Supabase's rate limits; then re-test registration end-to-end
+9. **✅ Done** — Real `RESEND_API_KEY` added to `.env.local` + Vercel; delivery verified to the owner's address. To send to customers, verify a domain at resend.com/domains and set `RESEND_FROM_EMAIL`
 10. **Next** — Verify reset-password end-to-end with a real inbox-backed account (request reset → click email link → confirm redirect lands on `/reset-password` → update password → login with new password)
 11. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
 
@@ -441,4 +441,4 @@ Refer to these documents in order:
 ---
 
 **Last commit:** feat — hybrid confirmation email dispatch (generateLink + Resend primary, Supabase fallback), email-pending register UX (see log for hash)
-**Next commit:** add real RESEND_API_KEY and re-test registration; live reset-password verification; confirm "Confirm signup" template site URL
+**Next commit:** docs — Resend free-plan domain verification note for customer emails
