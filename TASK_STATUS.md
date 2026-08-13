@@ -50,6 +50,9 @@
 - [x] Restaurant owner registration scaffolded
 - [x] Login, logout, forgot-password, and reset-password flows scaffolded
 - [x] Protected platform routes with role gates for OWNER, MANAGER, and STAFF
+- [x] **Email verification code flow** — registration now creates an unconfirmed user and sends a 6-digit OTP
+- [x] `/verify-email` page with code entry, resend button (rate-limited 3 per 10 min), and login CTA
+- [x] Registration success state links to `/verify-email?email=...` with the email pre-filled
 
 **Live verification completed:**
 - [x] Owner signup creates `auth.users`, `restaurants`, and `restaurant_users` records
@@ -58,9 +61,16 @@
 - [x] Forgot-password request path is wired and returns a live auth response
 - [x] Registration notification email hook added (Resend-backed when configured)
 
+**Implementation details:**
+- `registerRestaurant` now uses `email_confirm: false` and dispatches `admin.auth.signInWithOtp` to send the verification code
+- `verifyEmailCode` validates `verifyEmailSchema` and calls `admin.auth.verifyOtp({ type: 'email' })`
+- `resendVerificationCode` is rate-limited to 3 sends per 10 minutes per email
+- `sendVerificationEmail` added to the Resend-backed notifications module (falls back with a console warning when no API key)
+
 **What still needs to happen:**
 1. Complete the reset-password flow with a real inbox-backed account
-2. Decide whether to keep the current client-side protected-route strategy or revisit SSR session handling later
+2. Verify the OTP email template is configured in the live Supabase project (Auth → Email Templates → OTP)
+3. Decide whether to keep the current client-side protected-route strategy or revisit SSR session handling later
 
 **Reference:** See `IMPLEMENTATION_PLAN.md` Part 5
 
@@ -295,7 +305,7 @@
 ---
 
 ### Phase 8: Testing & Hardening (Week 8) 🟡 IN PROGRESS
-- [x] Unit tests (48 passing: order validation, auth schemas, rate limiter, CSV import, analytics)
+- [x] Unit tests (52 passing: order validation, auth schemas (incl. verify-email), rate limiter, CSV import, analytics)
 - [x] Integration tests (analytics query libraries with mocked Supabase client)
 - [x] Initial E2E tests/config added
 - [x] Expanded E2E coverage for setup rename/delete/import and public QR menu flow
@@ -330,12 +340,12 @@
 |-------|--------|-----------|
 | 1. Foundation | 🟢 100% | Supabase and Vercel deployment complete |
 | 2. Database | 🟢 100% | Schema applied and seeded on the live Supabase project |
-| 3. Auth | 🟡 95% | Registration email hook added; reset-password end-to-end still pending inbox confirmation |
+| 3. Auth | 🟡 95% | Registration email hook added; email verification code flow live (OTP + /verify-email); reset-password end-to-end still pending inbox confirmation |
 | 4. Restaurant Setup | 🟡 95% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, and E2E coverage |
 | 5. Customer Ordering | 🟢 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling and status timeline |
 | 6. Real-Time & Dashboard | 🟡 80% | Staff real-time subscriptions + public broadcast tracking implemented; staging E2E verification pending; rate limits added |
 | 7. Analytics & Admin | 🟡 90% | Analytics dashboards with charts, exports, and trend visualization complete; restaurant analytics timezone bucketing fixed |
-| 8. Testing | 🟡 55% | 48 unit/integration tests passing; rate limiting + security pass complete |
+| 8. Testing | 🟡 60% | 52 unit/integration tests passing; rate limiting + security pass complete |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
 ---
@@ -344,18 +354,20 @@
 
 ### Right Now (Do This First)
 ```bash
-# 1. Commit Phase 8 analytics tests + timezone fix
+# 1. Commit Phase 2 email verification flow
 git add .
-git commit -m "test: add analytics integration tests and fix restaurant timezone bucketing
+git commit -m "feat: require email verification code after owner registration
 
-- Add mocked-Supabase integration tests for getRestaurantAnalytics (4) and getPlatformAnalytics (3)
-- Fix restaurant analytics date keys to use local timezone (toLocalDateKey) — toISOString shifted days in UTC+ timezones"
+- Register now creates an unconfirmed user and sends a 6-digit OTP via Supabase Auth
+- Add /verify-email page with code entry, resend (rate-limited), and login CTA
+- Add verifyEmailSchema + unit tests; wrap page in Suspense for useSearchParams
+- Registration success state links to /verify-email with email pre-filled"
 git push origin master
 
 # 2. Validate changes with production build and tests
 npm run typecheck && npm run build && npx vitest run
 
-# 3. Next: Re-run E2E suite with real-time implementation or Phase 7 comparison analytics
+# 3. Next: Verify OTP email template in Supabase dashboard, then Phase 7 comparison analytics or E2E re-run
 ```
 
 ### After Timeline Verified
@@ -401,5 +413,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** Phase 8 CSV module + expanded unit tests (`078d725`)
-**Next commit:** Phase 8 analytics tests + timezone fix (see commit command above)
+**Last commit:** Phase 8 analytics tests + timezone fix (`dd50661`)
+**Next commit:** Phase 2 email verification flow (see commit command above)

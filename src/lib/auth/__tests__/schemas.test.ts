@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { passwordResetSchema, registerRestaurantSchema } from '@/lib/auth/schemas'
+import { passwordResetSchema, registerRestaurantSchema, verifyEmailSchema } from '@/lib/auth/schemas'
 
 describe('registerRestaurantSchema', () => {
   const validPayload = {
@@ -54,6 +54,46 @@ describe('registerRestaurantSchema', () => {
       expect(result.data.fullName).toBe('Jane Owner')
       expect(result.data.restaurantName).toBe('The Green Bar')
       expect(result.data.email).toBe('jane@example.com')
+    }
+  })
+})
+
+describe('verifyEmailSchema', () => {
+  it('accepts a valid email and 6-digit code', () => {
+    const result = verifyEmailSchema.safeParse({
+      email: 'jane@example.com',
+      code: '123456',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects an invalid email', () => {
+    const result = verifyEmailSchema.safeParse({
+      email: 'not-an-email',
+      code: '123456',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects codes that are not exactly 6 digits', () => {
+    const short = verifyEmailSchema.safeParse({ email: 'jane@example.com', code: '12345' })
+    const long = verifyEmailSchema.safeParse({ email: 'jane@example.com', code: '1234567' })
+    const letters = verifyEmailSchema.safeParse({ email: 'jane@example.com', code: 'abcdef' })
+
+    expect(short.success).toBe(false)
+    expect(long.success).toBe(false)
+    expect(letters.success).toBe(false)
+  })
+
+  it('trims whitespace from email and code', () => {
+    const result = verifyEmailSchema.safeParse({
+      email: '  jane@example.com  ',
+      code: '  123456  ',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.email).toBe('jane@example.com')
+      expect(result.data.code).toBe('123456')
     }
   })
 })
