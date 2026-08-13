@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+
+import { usePublicOrderStatus } from '@/lib/hooks/use-public-order-status'
 
 type OrderStatusPayload = {
   order: {
@@ -79,19 +81,24 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
 
+  const refreshFromServer = useCallback(async () => {
+    const response = await fetch(`/api/order-status/${trackingToken}`, { cache: 'no-store' })
+    const next = (await response.json()) as OrderStatusPayload | { error: string }
+
+    if (!response.ok || 'error' in next) {
+      setError('Unable to refresh order status right now.')
+      return
+    }
+
+    setData(next)
+    setLastUpdated(new Date())
+    setError(null)
+  }, [trackingToken])
+
   const handleManualRefresh = async () => {
     setIsRefreshing(true)
     try {
-      const response = await fetch(`/api/order-status/${trackingToken}`, { cache: 'no-store' })
-      const next = (await response.json()) as OrderStatusPayload | { error: string }
-
-      if (!response.ok || 'error' in next) {
-        setError('Unable to refresh order status right now.')
-      } else {
-        setData(next)
-        setLastUpdated(new Date())
-        setError(null)
-      }
+      await refreshFromServer()
     } catch {
       setError('Failed to refresh order status.')
     } finally {
@@ -99,31 +106,30 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
     }
   }
 
+  // Poll every 5 seconds as a reliable fallback.
   useEffect(() => {
     let cancelled = false
     const intervalId = window.setInterval(async () => {
-      const response = await fetch(`/api/order-status/${trackingToken}`, { cache: 'no-store' })
-      const next = (await response.json()) as OrderStatusPayload | { error: string }
-
       if (cancelled) {
         return
       }
-
-      if (!response.ok || 'error' in next) {
-        setError('Unable to refresh order status right now.')
-        return
+      try {
+        await refreshFromServer()
+      } catch {
+        // The refresh function handles its own error state.
       }
-
-      setData(next)
-      setLastUpdated(new Date())
-      setError(null)
-    }, 5_000) // Poll every 5 seconds instead of 10 for better responsiveness
+    }, 5_000)
 
     return () => {
       cancelled = true
       window.clearInterval(intervalId)
     }
-  }, [trackingToken])
+  }, [refreshFromServer])
+
+  // Instant updates when staff change the order status via real-time broadcast.
+  usePublicOrderStatus(data.order.id, () => {
+    void refreshFromServer()
+  })
 
   const currentStatus = data.order.status
   const isTerminal = currentStatus === 'CANCELLED' || currentStatus === 'REJECTED' || currentStatus === 'SERVED'

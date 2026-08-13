@@ -343,6 +343,25 @@ export function OrdersConsole() {
         old_status: order.status,
         new_status: nextStatus,
       })
+
+      // Publish a real-time broadcast so the public tracking page updates instantly.
+      // Public customers listen on the `order-status-<orderId>` channel without auth.
+      supabase
+        .channel(`order-status-${order.id}`)
+        .send({
+          type: 'broadcast',
+          event: 'order-status-update',
+          payload: {
+            orderId: order.id,
+            status: nextStatus,
+            timestamp: new Date().toISOString(),
+          },
+        })
+        .then((broadcastResult) => {
+          if (broadcastResult === 'error') {
+            console.warn(`[Real-time] Broadcast failed for order ${order.id.slice(0, 8)}; customers will fall back to polling.`)
+          }
+        })
     }
 
     setSaving(false)

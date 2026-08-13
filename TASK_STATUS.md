@@ -207,6 +207,9 @@
 - [x] Manual order status updates
 - [x] Customer-facing status timeline now includes timestamps from `order_status_history`
 - [x] Rate limiting added to public `/api/orders` (30 req / 10 min) and `/api/order-status/[trackingToken]` (120 req / min)
+- [x] Public real-time status updates via auth-less broadcast channels (`order-status-<orderId>`)
+- [x] 5-second polling retained as a reliable fallback for customers
+- [x] Broadcast authorization gated to restaurant staff only (migration 007)
 
 **Implementation details:**
 - Added `/lib/hooks/use-supabase-subscription.ts` for real-time subscription management
@@ -217,13 +220,17 @@
 - Added `src/lib/utils/rateLimit.ts` in-memory rate limiter with per-client key tracking
 - `getClientKey` resolves from `x-forwarded-for` / `x-real-ip` headers
 - Rate-limit responses include `Retry-After` and `X-RateLimit-Remaining` headers
+- Added `src/lib/hooks/use-public-order-status.ts` — auth-less broadcast subscription for the public tracking page
+- `OrdersConsole.handleStatusChange` publishes a broadcast after the DB update + status history insert succeed
+- `OrderStatusView` re-fetches from `/api/order-status/[trackingToken]` on broadcast receipt, keeping the timeline/history consistent
+- Migration `007_public_realtime_order_status.sql` adds a Realtime Authorization INSERT policy allowing only authenticated restaurant staff to publish; listening remains open for anon customers
+- No RLS changes on the orders table — public customers still read via API routes only
 
 **What still needs to happen:**
-1. Add real-time subscriptions for public customers (requires auth-less tracking or new RLS policy)
-2. Test real-time functionality end-to-end in staging
-3. Monitor real-time connection stability and latency metrics
-4. Add reconnection/retry logic if needed
-5. Re-run full E2E suite with new real-time implementation
+1. Test real-time functionality end-to-end in staging
+2. Monitor real-time connection stability and latency metrics
+3. Add reconnection/retry logic if needed
+4. Re-run full E2E suite with new real-time implementation
 
 ---
 
@@ -320,7 +327,7 @@
 | 3. Auth | 🟡 95% | Registration email hook added; reset-password end-to-end still pending inbox confirmation |
 | 4. Restaurant Setup | 🟡 95% | Setup workspace now supports create/edit/toggle/delete flows, QR print/export, preview-first CSV import, and E2E coverage |
 | 5. Customer Ordering | 🟢 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling and status timeline |
-| 6. Real-Time & Dashboard | 🟡 60% | Real-time subscriptions for staff implemented; public real-time tracking pending; rate limits added to public APIs |
+| 6. Real-Time & Dashboard | 🟡 80% | Staff real-time subscriptions + public broadcast tracking implemented; staging E2E verification pending; rate limits added |
 | 7. Analytics & Admin | 🟡 90% | Analytics dashboards with charts, exports, and trend visualization complete |
 | 8. Testing | 🟡 35% | 26 unit tests passing; rate limiting added; E2E config in place; integration/security review pending |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
@@ -331,21 +338,21 @@
 
 ### Right Now (Do This First)
 ```bash
-# 1. Commit Phase 8 testing + Phase 5 status timeline changes
+# 1. Commit Phase 6 public real-time tracking changes
 git add .
-git commit -m "feat: add customer status timeline, rate limiting, and unit tests
+git commit -m "feat: add public real-time order status tracking via broadcasts
 
-- Add customer-visible status timeline with checkmark stepper on /orders/[trackingToken]
-- Tracking API and page now include order_status_history with timestamps
-- Add in-memory rate limiter (src/lib/utils/rateLimit.ts) for public endpoints
-- Wire rate limiting into /api/orders (30 req / 10 min) and /api/order-status/[trackingToken] (120 req / min)
-- Add vitest @ alias resolution and 26 unit tests (order validation, auth schemas, rate limiter)"
+- Add auth-less broadcast channel subscription for customers on /orders/[trackingToken]
+- OrdersConsole publishes status changes to order-status-<orderId> channel after DB writes
+- OrderStatusView re-fetches on broadcast receipt; 5s polling remains as fallback
+- Add migration 007 gating broadcast publishing to authenticated restaurant staff
+- Add usePublicOrderStatus hook for public subscription management"
 git push origin master
 
 # 2. Validate changes with production build and tests
 npm run typecheck && npm run build && npx vitest run
 
-# 3. Next: Phase 6 public real-time tracking, Phase 8 integration tests, or security review
+# 3. Next: Apply migration 007, Phase 8 integration tests, or security review
 ```
 
 ### After Timeline Verified
@@ -391,5 +398,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** Phase 7 analytics enhancements (`3b5bac6`)
-**Next commit:** Phase 8 testing + Phase 5 customer timeline (see commit command above)
+**Last commit:** Phase 8 testing + Phase 5 customer timeline (`d4b3202`)
+**Next commit:** Phase 6 public real-time tracking (see commit command above)
