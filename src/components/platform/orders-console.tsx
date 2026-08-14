@@ -151,6 +151,8 @@ export function OrdersConsole() {
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({})
   const [lineDrafts, setLineDrafts] = useState<Record<string, LineDraft>>({})
   const [addItemDrafts, setAddItemDrafts] = useState<Record<string, AddItemDraft>>({})
+  const [expandedCustomerNote, setExpandedCustomerNote] = useState<Record<string, boolean>>({})
+  const [expandedLineNote, setExpandedLineNote] = useState<Record<string, boolean>>({})
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [teamEmailMap, setTeamEmailMap] = useState<Record<string, string>>({})
   const [activeSessionIds, setActiveSessionIds] = useState<Set<string>>(new Set())
@@ -907,17 +909,30 @@ export function OrdersConsole() {
                 ) : null}
               </div>
 
-              <div className="field" style={{ marginTop: '12px' }}>
-                <label htmlFor={`order-note-${order.id}`}>{t('orders.customerNoteLabel')}</label>
-                <textarea
-                  id={`order-note-${order.id}`}
-                  value={noteDrafts[order.id] ?? ''}
-                  onChange={(event) => setNoteDrafts((current) => ({ ...current, [order.id]: event.target.value }))}
-                />
-                <button className="button-secondary" type="button" disabled={saving} onClick={() => void handleSaveOrderNote(order.id)}>
-                  {t('orders.saveOrderNote')}
-                </button>
-              </div>
+              {order.customer_note || expandedCustomerNote[order.id] ? (
+                <div className="field" style={{ marginTop: '12px' }}>
+                  <label htmlFor={`order-note-${order.id}`}>{t('orders.customerNoteLabel')}</label>
+                  <textarea
+                    id={`order-note-${order.id}`}
+                    value={noteDrafts[order.id] ?? ''}
+                    onChange={(event) => setNoteDrafts((current) => ({ ...current, [order.id]: event.target.value }))}
+                  />
+                  <button className="button-secondary" type="button" disabled={saving} onClick={() => void handleSaveOrderNote(order.id)}>
+                    {t('orders.saveOrderNote')}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ marginTop: '12px' }}>
+                  <button
+                    className="button-secondary"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => setExpandedCustomerNote((current) => ({ ...current, [order.id]: true }))}
+                  >
+                    {t('orders.addCustomerNote')}
+                  </button>
+                </div>
+              )}
 
               <div className="stack" style={{ marginTop: '12px' }}>
                 <span className="eyebrow">{t('orders.itemsEyebrow')}</span>
@@ -947,19 +962,32 @@ export function OrdersConsole() {
                           }
                         />
                       </div>
-                      <div className="field">
-                        <label htmlFor={`line-notes-${line.id}`}>{t('orders.lineNote')}</label>
-                        <textarea
-                          id={`line-notes-${line.id}`}
-                          value={lineDrafts[line.id]?.notes ?? line.notes ?? ''}
-                          onChange={(event) =>
-                            setLineDrafts((current) => ({
-                              ...current,
-                              [line.id]: { quantity: current[line.id]?.quantity ?? String(line.quantity), notes: event.target.value },
-                            }))
-                          }
-                        />
-                      </div>
+                      {line.notes || expandedLineNote[line.id] ? (
+                        <div className="field">
+                          <label htmlFor={`line-notes-${line.id}`}>{t('orders.lineNote')}</label>
+                          <textarea
+                            id={`line-notes-${line.id}`}
+                            value={lineDrafts[line.id]?.notes ?? line.notes ?? ''}
+                            onChange={(event) =>
+                              setLineDrafts((current) => ({
+                                ...current,
+                                [line.id]: { quantity: current[line.id]?.quantity ?? String(line.quantity), notes: event.target.value },
+                              }))
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <div style={{ marginTop: '8px' }}>
+                          <button
+                            className="button-secondary"
+                            type="button"
+                            disabled={saving}
+                            onClick={() => setExpandedLineNote((current) => ({ ...current, [line.id]: true }))}
+                          >
+                            {t('orders.addLineNote')}
+                          </button>
+                        </div>
+                      )}
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         <button className="button-secondary" type="button" disabled={saving} onClick={() => void handleSaveOrderLine(order.id, line)}>
                           {t('orders.saveLine')}

@@ -474,8 +474,9 @@
 33. **✅ Done** — New-order notification banner has **Accept / Dismiss**: Accept moves the order to ACCEPTED (records status history + refreshes), Dismiss just hides it. E2E-covered
 34. **✅ Done** — Customer-facing pages are minimal: the platform navigation bar is hidden on `/t/[token]` and `/orders/[trackingToken]`; the tracking page now offers a **New order** button (clears the remembered order for the table and returns to the menu — table QR token is exposed via the order-status API). E2E-covered
 35. **✅ Done** — Timestamps made complete (`14 Aug 2026, 15:57`, with year) on the home live orders and Orders workspace; verified live-order timestamps and per-table order summaries render for both SUPER_ADMIN and STAFF (a stale Vercel deploy would show them missing)
-36. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
-37. **Future work** — Resend domain verification for customer-facing confirmation emails
+36. **✅ Done** — Orders workspace note fields are collapsible: the customer-note and line-note editors only render when they contain a note (or when "Add customer note / Add line note" is clicked); empty notes no longer take up space
+37. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+38. **Future work** — Resend domain verification for customer-facing confirmation emails
 
 ### After Timeline Verified
 ```bash
