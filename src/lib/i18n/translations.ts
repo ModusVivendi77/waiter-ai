@@ -83,6 +83,16 @@ export const translations: Record<string, Translation> = {
   'home.table': { en: 'Table', el: 'Τραπέζι' },
   'home.loadingWorkspace': { en: 'Loading your workspace...', el: 'Φόρτωση του χώρου εργασίας...' },
   'home.claimNotice': { en: 'Table assignment updated.', el: 'Η ανάθεση τραπεζιού ενημερώθηκε.' },
+  'home.newOrderBanner': {
+    en: '🔔 New order received — {table} · {total}',
+    el: '🔔 Νέα παραγγελία — {table} · {total}',
+  },
+  'home.viewSummary': { en: 'View summary', el: 'Προβολή σύνοψης' },
+  'home.hideSummary': { en: 'Hide summary', el: 'Απόκρυψη σύνοψης' },
+  'home.itemsCount': { en: '{count} item(s)', el: '{count} προϊόν(τα)' },
+  'home.noOrdersForTable': { en: 'No orders yet', el: 'Καμία παραγγελία ακόμη' },
+  'home.customerNoteLine': { en: 'Customer note: {note}', el: 'Σημείωση πελάτη: {note}' },
+  'home.quantity': { en: 'Qty', el: 'Ποσ.' },
 
   // Customer ordering
   'customer.eyebrow': { en: 'Table Ordering', el: 'Παραγγελία Τραπεζιού' },

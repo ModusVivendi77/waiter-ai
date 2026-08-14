@@ -105,4 +105,29 @@ test.describe('orders workspace', () => {
       await expect(page.getByText('No orders match this filter.')).toBeVisible()
     }
   })
+
+  test('home dashboard notifies the owner of a new order in realtime', async ({ browser }) => {
+    const context = await browser.newContext()
+    const customerPage = await context.newPage()
+    const ownerPage = await context.newPage()
+
+    // Owner opens the home dashboard for Green Bar.
+    await ownerPage.addInitScript((restaurantId: string) => {
+      localStorage.setItem('staffHomeRestaurantId', restaurantId)
+    }, greenBarRestaurantId)
+    await loginAsSuperAdmin(ownerPage)
+    await ownerPage.goto('/platform')
+    await expect(ownerPage.getByText('Live orders')).toBeVisible()
+
+    // Customer places an order.
+    await customerPage.goto('/t/X7k91Lm')
+    await customerPage.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await customerPage.getByRole('button', { name: 'Submit order' }).click()
+    await expect(customerPage.getByText(/submitted with status NEW/i)).toBeVisible()
+
+    // The owner's dashboard must show the realtime new-order banner.
+    await expect(ownerPage.getByText(/New order received/)).toBeVisible({ timeout: 10000 })
+    await ownerPage.getByRole('button', { name: 'Dismiss' }).click()
+    await expect(ownerPage.getByText(/New order received/)).toBeHidden()
+  })
 })

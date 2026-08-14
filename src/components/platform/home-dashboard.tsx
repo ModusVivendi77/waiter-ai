@@ -23,11 +23,22 @@ type TableRow = {
     | null
 }
 
+type OrderItemRow = {
+  id: string
+  item_name: string
+  quantity: number
+  unit_price: number
+  notes: string | null
+  modifiers: string[]
+}
+
 type OrderRow = {
   id: string
+  table_id: string
   status: string
   total: number
   currency: string
+  customer_note: string | null
   created_at: string
   restaurant_tables:
     | {
@@ -37,6 +48,7 @@ type OrderRow = {
         name: string
       }>
     | null
+  order_items: OrderItemRow[] | null
 }
 
 type RestaurantOption = {
@@ -92,6 +104,12 @@ export function HomeDashboard() {
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [todayStats, setTodayStats] = useState<{ orders: number; revenue: number }>({ orders: 0, revenue: 0 })
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
+  const [newOrderNotice, setNewOrderNotice] = useState<{ tableName: string; total: number; currency: string } | null>(
+    null
+  )
+  const [currentUserRole, setCurrentUserRole] = useState<'OWNER' | 'MANAGER' | 'STAFF' | null>(null)
+  const [restaurantCurrency, setRestaurantCurrency] = useState('EUR')
 
   async function loadDashboard(restaurantOverrideId?: string) {
     const context = await getClientUserContext()
@@ -147,6 +165,16 @@ export function HomeDashboard() {
     activeRestaurantIdRef.current = selected.id
     setRestaurantName(selected.name)
 
+    const membershipForRestaurant = context.memberships.find((membership) => membership.restaurantId === selected.id)
+    setCurrentUserRole(membershipForRestaurant?.role ?? null)
+
+    const { data: currencyRow } = await supabase
+      .from('restaurants')
+      .select('currency')
+      .eq('id', selected.id)
+      .maybeSingle()
+    setRestaurantCurrency((currencyRow?.currency as string | undefined) || 'EUR')
+
     const startOfToday = new Date()
     startOfToday.setHours(0, 0, 0, 0)
 
@@ -158,10 +186,12 @@ export function HomeDashboard() {
         .order('name'),
       supabase
         .from('orders')
-        .select('id, status, total, currency, created_at, restaurant_tables(name)')
+        .select(
+          'id, table_id, status, total, currency, customer_note, created_at, restaurant_tables(name), order_items(id, item_name, quantity, unit_price, notes, modifiers)'
+        )
         .eq('restaurant_id', selected.id)
         .order('created_at', { ascending: false })
-        .limit(10),
+        .limit(100),
       listTeamMembers(selected.id).catch(() => ({ error: undefined, members: undefined })),
       supabase
         .from('orders')
@@ -198,10 +228,12 @@ export function HomeDashboard() {
     if (!activeRestaurantIdRef.current) return
     const { data } = await supabase
       .from('orders')
-      .select('id, status, total, currency, created_at, restaurant_tables(name)')
+      .select(
+        'id, table_id, status, total, currency, customer_note, created_at, restaurant_tables(name), order_items(id, item_name, quantity, unit_price, notes, modifiers)'
+      )
       .eq('restaurant_id', activeRestaurantIdRef.current)
       .order('created_at', { ascending: false })
-      .limit(10)
+      .limit(100)
     if (data) {
       setOrders(data as OrderRow[])
     }
@@ -211,7 +243,37 @@ export function HomeDashboard() {
     `home_orders_${activeRestaurantIdRef.current || 'init'}`,
     'orders',
     ['INSERT', 'UPDATE'],
-    () => void refreshOrders(),
+    (payload) => {
+      // New-order notification for the restaurant owner and the staff member
+      // who claimed the table. Other staff still see the order refresh but get
+      // no banner.
+      if (payload?.eventType === 'INSERT') {
+        const inserted = payload.new as
+          | { restaurant_id?: string; table_id?: string; total?: number }
+          | undefined
+        if (
+          inserted &&
+          inserted.restaurant_id === activeRestaurantIdRef.current &&
+          inserted.table_id
+        ) {
+          const table = tables.find((entry) => entry.id === inserted.table_id)
+          const claimedByCurrentUser = Boolean(
+            currentUserId && table && table.assigned_staff_id === currentUserId
+          )
+          const isOwnerOrPlatformAdmin = isPlatformAdmin || currentUserRole === 'OWNER'
+          if (claimedByCurrentUser || isOwnerOrPlatformAdmin) {
+            // The realtime payload truncates the CHAR(3) currency column, so use
+            // the restaurant currency resolved on load instead.
+            setNewOrderNotice({
+              tableName: table?.name ?? 'Unknown table',
+              total: Number(inserted.total) || 0,
+              currency: restaurantCurrency,
+            })
+          }
+        }
+      }
+      void refreshOrders()
+    },
     [activeRestaurantIdRef.current]
   )
 
@@ -293,6 +355,29 @@ export function HomeDashboard() {
           {notice ? <div className="success">{notice}</div> : null}
           {error ? <div className="error-box">{error}</div> : null}
 
+          {newOrderNotice ? (
+            <div
+              className="message"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap',
+              }}
+            >
+              <strong>
+                {t('home.newOrderBanner', {
+                  table: newOrderNotice.tableName,
+                  total: formatCurrency(newOrderNotice.total, newOrderNotice.currency),
+                })}
+              </strong>
+              <button className="button-secondary" type="button" onClick={() => setNewOrderNotice(null)}>
+                {t('orders.dismiss')}
+              </button>
+            </div>
+          ) : null}
+
           <div className="pill-row">
             <span className="badge">{isPlatformAdmin ? 'SUPER_ADMIN' : t('common.role')}</span>
             <Link className="button-secondary" href="/platform/orders">
@@ -315,7 +400,7 @@ export function HomeDashboard() {
             </article>
             <article className="metric">
               <span className="eyebrow">{t('home.revenueToday')}</span>
-              <strong>{formatCurrency(todayStats.revenue, orders[0]?.currency || 'EUR')}</strong>
+              <strong>{formatCurrency(todayStats.revenue, restaurantCurrency)}</strong>
             </article>
             <article className="metric">
               <span className="eyebrow">{t('home.occupiedTables')}</span>
@@ -361,6 +446,7 @@ export function HomeDashboard() {
                   ? t('home.handledByYou')
                   : `${t('home.handledBy')} ${staffEmailMap[table.assigned_staff_id] ?? t('home.staffMember')}`
                 : t('home.unassigned')
+              const tableOrders = orders.filter((order) => order.table_id === table.id)
 
               return (
                 <article className="metric" key={table.id}>
@@ -373,6 +459,28 @@ export function HomeDashboard() {
                   </span>
                   <strong>{getTableName(table)}</strong>
                   <p className="muted">{assignedName}</p>
+                  <div style={{ marginTop: '10px' }}>
+                    {tableOrders.length === 0 ? (
+                      <p className="muted">{t('home.noOrdersForTable')}</p>
+                    ) : (
+                      <ul className="list">
+                        {tableOrders.map((order) => (
+                          <li key={order.id}>
+                            <div className="cart-line-header">
+                              <div>
+                                <strong>{t(`status.${order.status}`)}</strong>
+                                <p className="muted">
+                                  {t('home.itemsCount', { count: (order.order_items || []).length })} ·{' '}
+                                  {formatCurrency(order.total, order.currency)}
+                                </p>
+                              </div>
+                              <span className="badge">{formatDateTime(order.created_at)}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                   <button
                     className="button-secondary"
                     type="button"
@@ -391,24 +499,68 @@ export function HomeDashboard() {
           <span className="eyebrow">{t('home.liveOrders')}</span>
           {liveOrders.length === 0 ? <p className="muted">{t('home.noLiveOrders')}</p> : null}
           <ul className="list">
-            {liveOrders.map((order) => (
-              <li key={order.id}>
-                <div className="cart-line-header">
-                  <div>
-                    <strong>
-                      {t('home.table')} {getOrderTableName(order)}
-                    </strong>
-                    <p className="muted">
-                      {t('common.status')}: {t(`status.${order.status}`)} · {formatDateTime(order.created_at)}
-                    </p>
+            {liveOrders.map((order) => {
+              const isExpanded = expandedOrderId === order.id
+              const lineItems = order.order_items || []
+              return (
+                <li key={order.id}>
+                  <div className="cart-line-header">
+                    <div>
+                      <strong>
+                        {t('home.table')} {getOrderTableName(order)}
+                      </strong>
+                      <p className="muted">
+                        {t('common.status')}: {t(`status.${order.status}`)} ·{' '}
+                        {t('orders.submitted', { datetime: formatDateTime(order.created_at) })}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span className="badge">{t(`status.${order.status}`)}</span>
+                      <strong>{formatCurrency(order.total, order.currency)}</strong>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <span className="badge">{t(`status.${order.status}`)}</span>
-                    <strong>{formatCurrency(order.total, order.currency)}</strong>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
+                    <button
+                      className="button-secondary"
+                      type="button"
+                      onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                    >
+                      {isExpanded ? t('home.hideSummary') : t('home.viewSummary')}
+                    </button>
                   </div>
-                </div>
-              </li>
-            ))}
+                  {isExpanded ? (
+                    <div className="stack" style={{ marginTop: '12px' }}>
+                      <ul className="list">
+                        {lineItems.map((line) => (
+                          <li key={line.id}>
+                            <div className="cart-line-header">
+                              <div>
+                                <strong>{line.item_name}</strong>
+                                <p className="muted">
+                                  {t('home.quantity')}: {line.quantity} ·{' '}
+                                  {formatCurrency(line.unit_price, order.currency)}
+                                </p>
+                                {line.modifiers && line.modifiers.length > 0 ? (
+                                  <p className="muted">{line.modifiers.join(' · ')}</p>
+                                ) : null}
+                              </div>
+                              <span>{formatCurrency(line.unit_price * line.quantity, order.currency)}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                      {order.customer_note ? (
+                        <p className="muted">{t('home.customerNoteLine', { note: order.customer_note })}</p>
+                      ) : null}
+                      <div className="cart-line-header">
+                        <strong>{t('common.total')}</strong>
+                        <strong>{formatCurrency(order.total, order.currency)}</strong>
+                      </div>
+                    </div>
+                  ) : null}
+                </li>
+              )
+            })}
           </ul>
         </section>
 

@@ -468,8 +468,11 @@
 27. **✅ Done** — Orders workspace filters & sorting: status tabs (All / New / Accepted / Preparing / Ready / Served / Closed) with live counts, plus sort by submission time (newest/oldest) or workflow status; order fetch limit raised to 200; E2E-covered
 28. **✅ Done** — Greek translation extended across the platform: Orders, Home (finished), Admin, Team, Settings, Setup, Analytics, auth forms (register/forgot/reset/verify), sign-out and add-restaurant form — all wired through the i18n provider (`en` strings kept identical so E2E stays green)
 29. **✅ Done** — Home page revisited: live metrics (today's orders, open orders, revenue today, occupied tables), quick-actions panel (Orders / Analytics / Setup / Team / Admin for SUPER_ADMIN), recent-live-orders timestamps, and localized "Add another restaurant" block
-30. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
-31. **Future work** — Resend domain verification for customer-facing confirmation emails
+30. **✅ Done** — Home live orders: each order shows the submission timestamp and a "View summary / Hide summary" toggle with the customer-style line-item breakdown (items, modifiers, customer note, total); fetch widened to 100 orders with line items
+31. **✅ Done** — Home live tables: each table card now lists its linked orders with per-order status, item count, total, and submission time
+32. **✅ Done** — New-order notifications on the home dashboard are realtime and targeted: the restaurant owner/platform admin and the staff member who claimed the table get the "🔔 New order received" banner (other staff only see the refresh). Fixed a Supabase Realtime quirk where the `CHAR(3)` currency arrives truncated in INSERT payloads — banner now uses the restaurant's currency resolved on load. E2E-covered
+33. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+34. **Future work** — Resend domain verification for customer-facing confirmation emails
 
 ### After Timeline Verified
 ```bash
