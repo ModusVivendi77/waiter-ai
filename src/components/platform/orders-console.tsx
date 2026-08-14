@@ -7,7 +7,7 @@ import { getClientUserContext } from '@/lib/auth/client'
 import { listTeamMembers } from '@/lib/auth/team-actions'
 import { deleteOrder } from '@/lib/admin/data-actions'
 import { createClient } from '@/lib/supabase/client'
-import { useSupabaseSubscription } from '@/lib/hooks/use-supabase-subscription'
+import { useLiveOrders } from '@/lib/hooks/use-live-orders'
 import { useLanguage } from '@/components/app/language-provider'
 import { CLOSED_STATUSES, STATUS_OPTIONS, STATUS_PRIORITY, STATUS_TABS } from '@/lib/orders/status'
 
@@ -131,7 +131,6 @@ export function OrdersConsole() {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
   const [restaurantOptions, setRestaurantOptions] = useState<RestaurantOption[]>([])
   const [selectedRestaurantId, setSelectedRestaurantId] = useState('')
-  const [orders, setOrders] = useState<OrderRow[]>([])
   const [statusTab, setStatusTab] = useState<string>('ALL')
   const [sortMode, setSortMode] = useState<'created_desc' | 'created_asc' | 'status'>('created_desc')
   const [menuOptions, setMenuOptions] = useState<MenuOption[]>([])
@@ -151,6 +150,46 @@ export function OrdersConsole() {
     currency: string
   } | null>(null)
   const activeRestaurantIdRef = useRef<string | null>(null)
+
+  // Shared live-orders data layer (fetch + realtime refresh) — the same
+  // implementation the home dashboard uses. Realtime events run the handlers
+  // below (banner, line-draft sync), then the list refreshes from the server.
+  const { orders, refreshOrders, initialLoading } = useLiveOrders(restaurantId, {
+    onOrderInsert: handleOrderInsert,
+    onOrderItemChange: handleOrderItemChange,
+  })
+
+  // Initialize line/note/add-item drafts once per restaurant, after the shared
+  // orders fetch has loaded. Realtime refreshes never re-run this, so
+  // in-progress edits are preserved.
+  const draftsLoadedForRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (initialLoading) return
+    if (draftsLoadedForRef.current === restaurantId) return
+    draftsLoadedForRef.current = restaurantId
+
+    setNoteDrafts(Object.fromEntries(orders.map((order) => [order.id, order.customer_note || ''])))
+    setLineDrafts(
+      Object.fromEntries(
+        orders.flatMap((order) =>
+          ((order.order_items || []) as OrderItemRow[]).map((item) => [
+            item.id,
+            { quantity: String(item.quantity), notes: item.notes || '' },
+          ])
+        )
+      )
+    )
+    setAddItemDrafts((current) => {
+      const defaults = Object.fromEntries(
+        orders.map((order) => [
+          order.id,
+          current[order.id] || { menuItemId: menuOptions[0]?.id || '', quantity: '1' },
+        ])
+      )
+      return defaults
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialLoading, orders, restaurantId])
 
   async function loadData(restaurantOverrideId?: string) {
     const context = await getClientUserContext()
@@ -225,13 +264,7 @@ export function OrdersConsole() {
     setRole(currentRole)
     setCurrentUserId(context.user.id)
 
-    const [{ data: orderRows, error: orderError }, { data: menuRows, error: menuError }, teamResult, sessionResult] = await Promise.all([
-      supabase
-        .from('orders')
-        .select('id, order_number, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, waiter_id, session_id, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes, modifiers)')
-        .eq('restaurant_id', activeRestaurantId)
-        .order('created_at', { ascending: false })
-        .limit(200),
+    const [menuResult, teamResult, sessionResult] = await Promise.all([
       supabase
         .from('menu_items')
         .select('id, name, price, menu_categories(name)')
@@ -248,29 +281,13 @@ export function OrdersConsole() {
       Object.fromEntries((teamResult && teamResult.members ? teamResult.members : []).map((member) => [member.userId, member.email]))
     )
 
-    if (orderError || menuError) {
-      setError(orderError?.message || menuError?.message || t('orders.error.loadFailed'))
+    if (menuResult.error) {
+      setError(menuResult.error.message || t('orders.error.loadFailed'))
       setLoading(false)
       return
     }
 
-    const typedOrders = (orderRows as OrderRow[]) || []
-    setOrders(typedOrders)
-    setMenuOptions((menuRows as MenuOption[]) || [])
-    setNoteDrafts(Object.fromEntries(typedOrders.map((order) => [order.id, order.customer_note || ''])))
-    setLineDrafts(
-      Object.fromEntries(
-        typedOrders.flatMap((order) =>
-          ((order.order_items || []) as OrderItemRow[]).map((item) => [item.id, { quantity: String(item.quantity), notes: item.notes || '' }])
-        )
-      )
-    )
-    setAddItemDrafts((current) => {
-      const defaults = Object.fromEntries(
-        typedOrders.map((order) => [order.id, current[order.id] || { menuItemId: (menuRows as MenuOption[] | null)?.[0]?.id || '', quantity: '1' }])
-      )
-      return defaults
-    })
+    setMenuOptions((menuResult.data as MenuOption[]) || [])
     activeRestaurantIdRef.current = activeRestaurantId
     setLoading(false)
   }
@@ -302,31 +319,10 @@ export function OrdersConsole() {
     return sorted
   }, [orders, statusTab, sortMode])
 
-  // Handle real-time order updates (status, customer_note changes)
-  const handleOrderUpdate = async (payload: any) => {
-    const updatedOrder = payload.new as OrderRow
-    if (activeRestaurantIdRef.current !== updatedOrder.restaurant_id) {
-      return // Ignore updates for other restaurants
-    }
-
-    setOrders((current) =>
-      current.map((order) =>
-        order.id === updatedOrder.id
-          ? {
-              ...order,
-              status: updatedOrder.status,
-              customer_note: updatedOrder.customer_note,
-              subtotal: updatedOrder.subtotal,
-              total: updatedOrder.total,
-            }
-          : order
-      )
-    )
-  }
-
-  // Handle real-time new orders: prepend, show an in-app banner, and fire a
-  // best-effort browser notification when permission is already granted.
-  const handleOrderInsert = async (payload: any) => {
+  // Handle real-time new orders: show an in-app banner and fire a best-effort
+  // browser notification when permission is already granted. The shared hook
+  // refreshes the order list itself.
+  async function handleOrderInsert(payload: any) {
     const inserted = payload.new as { id: string; restaurant_id: string }
     if (activeRestaurantIdRef.current !== inserted.restaurant_id) {
       return // Ignore orders for other restaurants
@@ -343,7 +339,6 @@ export function OrdersConsole() {
     }
 
     const order = orderData as OrderRow
-    setOrders((current) => [order, ...current].slice(0, 30))
     setNewOrderNotice({
       orderId: order.id,
       tableName: getTableName(order),
@@ -362,14 +357,6 @@ export function OrdersConsole() {
     }
   }
 
-  const handleOrderChange = async (payload: any) => {
-    if (payload.eventType === 'INSERT') {
-      await handleOrderInsert(payload)
-    } else {
-      await handleOrderUpdate(payload)
-    }
-  }
-
   // Auto-dismiss the new-order banner after a few seconds.
   useEffect(() => {
     if (!newOrderNotice) {
@@ -379,9 +366,11 @@ export function OrdersConsole() {
     return () => clearTimeout(timer)
   }, [newOrderNotice])
 
-  // Handle real-time order item changes (quantity, notes, added/removed items)
-  const handleOrderItemChange = async (payload: any) => {
-    const { eventType, new: newItem, old: oldItem } = payload
+  // Handle real-time order item changes: reload the affected order so the
+  // line drafts (quantity/notes inputs) stay in sync with the server. The
+  // shared hook refreshes the order list itself.
+  async function handleOrderItemChange(payload: any) {
+    const { new: newItem, old: oldItem } = payload
     const itemRestaurantId = payload.new?.restaurant_id ?? payload.old?.restaurant_id
 
     if (activeRestaurantIdRef.current !== itemRestaurantId) {
@@ -399,18 +388,6 @@ export function OrdersConsole() {
 
       if (!orderError && orderData) {
         const updatedOrder = orderData as OrderRow
-        setOrders((current) =>
-          current.map((order) =>
-            order.id === updatedOrder.id
-              ? {
-                  ...order,
-                  order_items: updatedOrder.order_items,
-                  subtotal: updatedOrder.subtotal,
-                  total: updatedOrder.total,
-                }
-              : order
-          )
-        )
 
         // Update line drafts for the affected order
         const itemsMap = Object.fromEntries(
@@ -445,23 +422,6 @@ export function OrdersConsole() {
       return () => window.clearTimeout(timer)
     }
   }, [focusToken, orders])
-
-  // Set up real-time subscriptions for orders and items
-  useSupabaseSubscription(
-    `orders_${activeRestaurantIdRef.current || 'init'}`,
-    'orders',
-    ['INSERT', 'UPDATE'],
-    handleOrderChange,
-    [activeRestaurantIdRef.current]
-  )
-
-  useSupabaseSubscription(
-    `order_items_${activeRestaurantIdRef.current || 'init'}`,
-    'order_items',
-    ['INSERT', 'UPDATE', 'DELETE'],
-    handleOrderItemChange,
-    [activeRestaurantIdRef.current]
-  )
 
   async function refreshOrderTotals(orderId: string) {
     const { data: itemRows, error: itemError } = await supabase
@@ -533,7 +493,7 @@ export function OrdersConsole() {
     }
 
     setNotice(t('orders.notice.statusChanged', { id: getOrderLabel(order), status: nextStatus }))
-    await loadData(selectedRestaurantId || restaurantId || undefined)
+    await refreshOrders()
   }
 
   async function handleTakeOrder(order: OrderRow) {
@@ -560,7 +520,7 @@ export function OrdersConsole() {
     }
 
     setNotice(t('orders.notice.taken', { id: getOrderLabel(order) }))
-    await loadData(selectedRestaurantId || restaurantId || undefined)
+    await refreshOrders()
   }
 
   async function handleCloseSession(sessionId: string, tableName: string) {
@@ -604,7 +564,7 @@ export function OrdersConsole() {
     }
 
     setNotice(t('orders.notice.noteUpdated'))
-    await loadData(selectedRestaurantId || restaurantId || undefined)
+    await refreshOrders()
   }
 
   async function handleSaveOrderLine(orderId: string, line: OrderItemRow) {
@@ -643,7 +603,7 @@ export function OrdersConsole() {
     }
 
     setNotice(t('orders.notice.lineUpdated'))
-    await loadData(selectedRestaurantId || restaurantId || undefined)
+    await refreshOrders()
   }
 
   async function handleDeleteOrderLine(orderId: string, lineId: string) {
@@ -671,7 +631,7 @@ export function OrdersConsole() {
     }
 
     setNotice(t('orders.notice.lineRemoved'))
-    await loadData(selectedRestaurantId || restaurantId || undefined)
+    await refreshOrders()
   }
 
   async function handleAddItemToOrder(orderId: string) {
@@ -726,7 +686,7 @@ export function OrdersConsole() {
     }
 
     setNotice(t('orders.notice.itemAdded', { name: menuItem.name }))
-    await loadData(selectedRestaurantId || restaurantId || undefined)
+    await refreshOrders()
   }
 
   async function handleDeleteOrder(order: OrderRow) {
@@ -746,10 +706,10 @@ export function OrdersConsole() {
     }
 
     setNotice(result.notice || t('orders.notice.orderDeleted'))
-    await loadData(selectedRestaurantId || restaurantId || undefined)
+    await refreshOrders()
   }
 
-  if (loading) {
+  if (loading || initialLoading) {
     return (
       <section className="panel stack">
         <span className="eyebrow">{t('orders.eyebrow')}</span>

@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { getClientUserContext } from '@/lib/auth/client'
 import { listTeamMembers, type TeamMember } from '@/lib/auth/team-actions'
 import { createClient } from '@/lib/supabase/client'
-import { useSupabaseSubscription } from '@/lib/hooks/use-supabase-subscription'
+import { useLiveOrders } from '@/lib/hooks/use-live-orders'
 import { useLanguage } from '@/components/app/language-provider'
 import { HISTORY_STATUSES, OPEN_STATUSES } from '@/lib/orders/status'
 
@@ -202,7 +202,6 @@ export function HomeDashboard() {
   const [selectedRestaurantId, setSelectedRestaurantId] = useState('')
   const [restaurantName, setRestaurantName] = useState<string | null>(null)
   const [tables, setTables] = useState<TableRow[]>([])
-  const [orders, setOrders] = useState<OrderRow[]>([])
   const [staff, setStaff] = useState<TeamMember[]>([])
   const [staffEmailMap, setStaffEmailMap] = useState<Record<string, string>>({})
   const [notice, setNotice] = useState<string | null>(null)
@@ -227,6 +226,49 @@ export function HomeDashboard() {
   const [noticeSummaryOpen, setNoticeSummaryOpen] = useState(false)
   const [currentUserRole, setCurrentUserRole] = useState<'OWNER' | 'MANAGER' | 'STAFF' | null>(null)
   const [restaurantCurrency, setRestaurantCurrency] = useState('EUR')
+
+  // Shared live-orders data layer (fetch + realtime refresh) — the same
+  // implementation the Orders workspace uses.
+  const { orders, refreshOrders, initialLoading } = useLiveOrders(selectedRestaurantId, {
+    onOrderInsert: handleLiveOrderInsert,
+  })
+
+  // New-order notification for the restaurant owner and the staff member who
+  // claimed the table. Other staff still see the order refresh but get no banner.
+  async function handleLiveOrderInsert(payload: any) {
+    if (payload?.eventType !== 'INSERT') return
+    const inserted = payload.new as
+      | { id?: string; order_number?: number | null; restaurant_id?: string; table_id?: string; total?: number }
+      | undefined
+    if (
+      inserted &&
+      inserted.restaurant_id === activeRestaurantIdRef.current &&
+      inserted.table_id
+    ) {
+      const table = tables.find((entry) => entry.id === inserted.table_id)
+      const claimedByCurrentUser = Boolean(
+        currentUserId && table && table.assigned_staff_id === currentUserId
+      )
+      const isOwnerOrPlatformAdmin = isPlatformAdmin || currentUserRole === 'OWNER'
+      if (claimedByCurrentUser || isOwnerOrPlatformAdmin) {
+        // The realtime payload truncates the CHAR(3) currency column, so use
+        // the restaurant currency resolved on load instead.
+        const { data: orderItems } = await supabase
+          .from('order_items')
+          .select('id, item_name, quantity, unit_price, notes, modifiers')
+          .eq('order_id', inserted.id || '')
+        setNewOrderNotice({
+          orderId: inserted.id || '',
+          orderNumber: inserted.order_number ?? null,
+          tableName: table?.name ?? 'Unknown table',
+          total: Number(inserted.total) || 0,
+          currency: restaurantCurrency,
+          items: (orderItems as OrderItemRow[]) || [],
+        })
+        setNoticeSummaryOpen(false)
+      }
+    }
+  }
 
   async function loadDashboard(restaurantOverrideId?: string) {
     const context = await getClientUserContext()
@@ -295,20 +337,12 @@ export function HomeDashboard() {
     const startOfToday = new Date()
     startOfToday.setHours(0, 0, 0, 0)
 
-    const [tableResult, orderResult, teamResult, todayResult] = await Promise.all([
+    const [tableResult, teamResult, todayResult] = await Promise.all([
       supabase
         .from('restaurant_tables')
         .select('id, name, active, assigned_staff_id, dining_sessions(id, status)')
         .eq('restaurant_id', selected.id)
         .order('name'),
-      supabase
-        .from('orders')
-        .select(
-          'id, order_number, table_id, status, total, currency, customer_note, created_at, public_tracking_token, restaurant_tables(name), order_items(id, item_name, quantity, unit_price, notes, modifiers)'
-        )
-        .eq('restaurant_id', selected.id)
-        .order('created_at', { ascending: false })
-        .limit(200),
       listTeamMembers(selected.id).catch(() => ({ error: undefined, members: undefined })),
       supabase
         .from('orders')
@@ -317,11 +351,10 @@ export function HomeDashboard() {
         .gte('created_at', startOfToday.toISOString()),
     ])
 
-    if (tableResult.error || orderResult.error) {
-      setError(tableResult.error?.message || orderResult.error?.message || t('home.error.load'))
+    if (tableResult.error) {
+      setError(tableResult.error.message || t('home.error.load'))
     } else {
       setTables((tableResult.data as TableRow[]) || [])
-      setOrders((orderResult.data as OrderRow[]) || [])
     }
 
     const todayRows = (todayResult.data as Array<{ total: number }> | null) || []
@@ -340,67 +373,6 @@ export function HomeDashboard() {
     void loadDashboard()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  async function refreshOrders() {
-    if (!activeRestaurantIdRef.current) return
-    const { data } = await supabase
-      .from('orders')
-      .select(
-        'id, order_number, table_id, status, total, currency, customer_note, created_at, public_tracking_token, restaurant_tables(name), order_items(id, item_name, quantity, unit_price, notes, modifiers)'
-      )
-      .eq('restaurant_id', activeRestaurantIdRef.current)
-      .order('created_at', { ascending: false })
-      .limit(200)
-    if (data) {
-      setOrders(data as OrderRow[])
-    }
-  }
-
-  useSupabaseSubscription(
-    `home_orders_${activeRestaurantIdRef.current || 'init'}`,
-    'orders',
-    ['INSERT', 'UPDATE'],
-    async (payload) => {
-      // New-order notification for the restaurant owner and the staff member
-      // who claimed the table. Other staff still see the order refresh but get
-      // no banner.
-      if (payload?.eventType === 'INSERT') {
-        const inserted = payload.new as
-          | { id?: string; order_number?: number | null; restaurant_id?: string; table_id?: string; total?: number }
-          | undefined
-        if (
-          inserted &&
-          inserted.restaurant_id === activeRestaurantIdRef.current &&
-          inserted.table_id
-        ) {
-          const table = tables.find((entry) => entry.id === inserted.table_id)
-          const claimedByCurrentUser = Boolean(
-            currentUserId && table && table.assigned_staff_id === currentUserId
-          )
-          const isOwnerOrPlatformAdmin = isPlatformAdmin || currentUserRole === 'OWNER'
-          if (claimedByCurrentUser || isOwnerOrPlatformAdmin) {
-            // The realtime payload truncates the CHAR(3) currency column, so use
-            // the restaurant currency resolved on load instead.
-            const { data: orderItems } = await supabase
-              .from('order_items')
-              .select('id, item_name, quantity, unit_price, notes, modifiers')
-              .eq('order_id', inserted.id || '')
-            setNewOrderNotice({
-              orderId: inserted.id || '',
-              orderNumber: inserted.order_number ?? null,
-              tableName: table?.name ?? 'Unknown table',
-              total: Number(inserted.total) || 0,
-              currency: restaurantCurrency,
-              items: (orderItems as OrderItemRow[]) || [],
-            })
-            setNoticeSummaryOpen(false)
-          }
-        }
-      }
-      void refreshOrders()
-    },
-    [activeRestaurantIdRef.current]
-  )
 
   async function handleRestaurantSelection(nextRestaurantId: string) {
     setSelectedRestaurantId(nextRestaurantId)
@@ -527,7 +499,7 @@ export function HomeDashboard() {
   ).length
   const openOrdersCount = orders.filter((order) => OPEN_STATUSES.includes(order.status)).length
 
-  if (loading) {
+  if (loading || initialLoading) {
     return (
       <main className="page-shell">
         <div className="page-grid">
