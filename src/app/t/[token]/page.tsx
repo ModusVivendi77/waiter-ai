@@ -7,6 +7,9 @@ type Props = {
   params: Promise<{
     token: string
   }>
+  searchParams: Promise<{
+    reorder?: string
+  }>
 }
 
 type TableRow = {
@@ -53,8 +56,9 @@ type MenuItemRow = {
 
 export const dynamic = 'force-dynamic'
 
-export default async function TableTokenPage({ params }: Props) {
+export default async function TableTokenPage({ params, searchParams }: Props) {
   const { token } = await params
+  const { reorder } = await searchParams
   const admin = createAdminClient()
 
   const { data: table, error: tableError } = await admin
@@ -93,6 +97,7 @@ export default async function TableTokenPage({ params }: Props) {
   return (
     <TableOrderingExperience
       token={token}
+      reorderToken={reorder || null}
       restaurantName={restaurant?.name ?? 'Restaurant'}
       tableName={typedTable.name}
       currency={restaurant?.currency ?? 'EUR'}

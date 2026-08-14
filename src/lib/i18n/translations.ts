@@ -120,6 +120,19 @@ export const translations: Record<string, Translation> = {
     el: 'Παραγγέλνετε για το {table}. Περιηγηθείτε στο μενού, επιλέξτε τις επιλογές σας και στείλτε την παραγγελία σας απευθείας στην ομάδα.',
   },
   'customer.noSignIn': { en: 'No sign-in required', el: 'Χωρίς σύνδεση' },
+  'customer.dismiss': { en: 'Dismiss', el: 'Απόκρυψη' },
+  'customer.reorderNotice': {
+    en: 'Items from your last order were added to the cart ({count} item(s)) — remove anything you do not want.',
+    el: 'Τα προϊόντα από την προηγούμενη παραγγελία σας προστέθηκαν στο καλάθι ({count} προϊόν(τα)) — αφαιρέστε ό,τι δεν θέλετε.',
+  },
+  'customer.reorderEmpty': {
+    en: 'Your previous order has no items that are still on the menu.',
+    el: 'Η προηγούμενη παραγγελία σας δεν έχει προϊόντα που εξακολουθούν να υπάρχουν στο μενού.',
+  },
+  'customer.reorderFailed': {
+    en: 'Could not load your last order to repeat it.',
+    el: 'Δεν ήταν δυνατή η φόρτωση της προηγούμενης παραγγελίας για επανάληψη.',
+  },
   'customer.menu': { en: 'Menu', el: 'Μενού' },
   'customer.cart': { en: 'Cart', el: 'Καλάθι' },
   'customer.yourOrder': { en: 'Your order', el: 'Η παραγγελία σας' },
@@ -153,6 +166,7 @@ export const translations: Record<string, Translation> = {
   // Tracking page
   'track.eyebrow': { en: 'Order Status', el: 'Κατάσταση Παραγγελίας' },
   'track.newOrder': { en: 'New order', el: 'Νέα παραγγελία' },
+  'track.orderAgain': { en: 'Order again', el: 'Ξανά παραγγελία' },
   'track.currently': {
     en: 'Order {id} for {table} is currently {status}.',
     el: 'Η παραγγελία {id} για το {table} είναι τώρα {status}.',
@@ -325,6 +339,12 @@ export const translations: Record<string, Translation> = {
   'orders.notice.noteUpdated': { en: 'Order note updated.', el: 'Η σημείωση παραγγελίας ενημερώθηκε.' },
   'orders.notice.lineUpdated': { en: 'Order line updated.', el: 'Το προϊόν ενημερώθηκε.' },
   'orders.notice.lineRemoved': { en: 'Order line removed.', el: 'Το προϊόν αφαιρέθηκε.' },
+  'orders.notice.lineRepeated': { en: 'Added another {name}.', el: 'Προστέθηκε ακόμη ένα {name}.' },
+  'orders.repeatLinesHelper': {
+    en: 'Add more of the items already in this order:',
+    el: 'Προσθέστε περισσότερα από τα προϊόντα που υπάρχουν ήδη σε αυτή την παραγγελία:',
+  },
+  'orders.repeatLine': { en: '+ {name}', el: '+ {name}' },
   'orders.notice.itemAdded': { en: '{name} added to order.', el: 'Το {name} προστέθηκε στην παραγγελία.' },
   'orders.notice.statusChanged': {
     en: 'Order {id} moved to {status}.',

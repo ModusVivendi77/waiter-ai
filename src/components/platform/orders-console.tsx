@@ -634,6 +634,46 @@ export function OrdersConsole() {
     await refreshOrders()
   }
 
+  // "Add more": quickly add one more copy of an item already in the order
+  // (same menu item, unit price, modifiers and note) — the kitchen gets an
+  // extra of exactly what the table already ordered.
+  async function handleRepeatLine(order: OrderRow, line: OrderItemRow) {
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: insertError } = await supabase.from('order_items').insert({
+      order_id: order.id,
+      restaurant_id: order.restaurant_id,
+      menu_item_id: line.menu_item_id,
+      item_name: line.item_name,
+      quantity: 1,
+      unit_price: line.unit_price,
+      modifiers: line.modifiers || [],
+      notes: line.notes,
+    })
+
+    if (!insertError) {
+      try {
+        await refreshOrderTotals(order.id)
+      } catch (refreshError) {
+        setSaving(false)
+        setError(refreshError instanceof Error ? refreshError.message : t('orders.error.refreshTotals'))
+        return
+      }
+    }
+
+    setSaving(false)
+
+    if (insertError) {
+      setError(insertError.message)
+      return
+    }
+
+    setNotice(t('orders.notice.lineRepeated', { name: line.item_name }))
+    await refreshOrders()
+  }
+
   async function handleAddItemToOrder(orderId: string) {
     const draft = addItemDrafts[orderId]
     const menuItem = menuOptions.find((option) => option.id === draft?.menuItemId)
@@ -968,6 +1008,24 @@ export function OrdersConsole() {
 
               <div className="stack" style={{ marginTop: '12px' }}>
                 <span className="eyebrow">{t('orders.addItem')}</span>
+                {order.order_items && order.order_items.length > 0 ? (
+                  <div className="stack">
+                    <p className="muted">{t('orders.repeatLinesHelper')}</p>
+                    <div className="pill-row">
+                      {order.order_items.map((line) => (
+                        <button
+                          key={line.id}
+                          type="button"
+                          className="button-secondary"
+                          disabled={saving}
+                          onClick={() => void handleRepeatLine(order, line)}
+                        >
+                          {t('orders.repeatLine', { name: line.item_name })}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="field">
                   <label htmlFor={`order-item-search-${order.id}`}>{t('orders.menuItemSearch')}</label>
                   <input

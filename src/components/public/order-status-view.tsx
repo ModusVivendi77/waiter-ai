@@ -210,6 +210,21 @@ export function OrderStatusView({ trackingToken, tableQrToken, initialOrder }: P
             {currentTableQrToken ? (
               <button
                 type="button"
+                className="button-secondary"
+                onClick={() => {
+                  // Take the previous order's items to the menu so the customer
+                  // can repeat all or some of them (the menu page pre-fills the
+                  // cart from this order).
+                  clearStoredOrder(currentTableQrToken)
+                  router.push(`/t/${currentTableQrToken}?reorder=${trackingToken}`)
+                }}
+              >
+                {t('track.orderAgain')}
+              </button>
+            ) : null}
+            {currentTableQrToken ? (
+              <button
+                type="button"
                 className="button"
                 onClick={() => {
                   // Clear the remembered order for this table so the menu page

@@ -46,11 +46,24 @@ type CartLine = {
 
 type Props = {
   token: string
+  reorderToken?: string | null
   restaurantName: string
   tableName: string
   currency: string
   categories: Category[]
   items: MenuItem[]
+}
+
+type ReorderItem = {
+  menu_item_id?: string | null
+  item_name: string
+  quantity: number
+  notes: string | null
+  modifiers: string[]
+}
+
+type ReorderPayload = {
+  items?: ReorderItem[]
 }
 
 type OrderResponse = {
@@ -77,7 +90,7 @@ function formatCurrency(value: number, currency: string) {
 
 const TERMINAL_STATUSES = new Set(['SERVED', 'CANCELLED', 'REJECTED'])
 
-export function TableOrderingExperience({ token, restaurantName, tableName, currency, categories, items }: Props) {
+export function TableOrderingExperience({ token, reorderToken, restaurantName, tableName, currency, categories, items }: Props) {
   const { t } = useLanguage()
   const router = useRouter()
   const [cart, setCart] = useState<Record<string, CartLine>>({})
@@ -89,6 +102,7 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
   const [warning, setWarning] = useState<string | null>(null)
   const [restoring, setRestoring] = useState(true)
   const [cartToast, setCartToast] = useState<string | null>(null)
+  const [reorderNotice, setReorderNotice] = useState<string | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // If the customer already submitted an order from this table on this device,
@@ -98,6 +112,15 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
   // menu is shown again and the customer can order a new round.
   useEffect(() => {
     let cancelled = false
+
+    // "Order again" is an explicit navigation — skip the restore redirect so
+    // the menu page can pre-fill the cart from the previous order instead.
+    if (reorderToken) {
+      setRestoring(false)
+      return () => {
+        cancelled = true
+      }
+    }
 
     const stored = readStoredOrder(token)
     if (!stored) {
@@ -131,7 +154,77 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
     return () => {
       cancelled = true
     }
-  }, [router, token])
+  }, [router, token, reorderToken])
+
+  // "Order again": pre-fill the cart with all (or, after removal, some) of the
+  // items from the previous order. Menu items that no longer exist or are
+  // unavailable are skipped.
+  useEffect(() => {
+    if (!reorderToken) return
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const response = await fetch(`/api/order-status/${reorderToken}`, { cache: 'no-store' })
+        if (response.ok) {
+          const payload = (await response.json()) as ReorderPayload
+          const previousItems = payload.items || []
+          if (!cancelled) {
+            applyPreviousItems(previousItems)
+          }
+        } else if (!cancelled) {
+          setReorderNotice(t('customer.reorderFailed'))
+        }
+      } catch {
+        if (!cancelled) {
+          setReorderNotice(t('customer.reorderFailed'))
+        }
+      } finally {
+        if (!cancelled) {
+          setRestoring(false)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reorderToken])
+
+  function applyPreviousItems(previousItems: ReorderItem[]) {
+    const itemById = new Map(items.map((item) => [item.id, item]))
+    const mergedCart: Record<string, CartLine> = { ...cart }
+    const mergedModifiers: Record<string, string[]> = { ...selectedModifiers }
+    let addedCount = 0
+
+    for (const line of previousItems) {
+      if (!line.menu_item_id) continue
+      const menuItem = itemById.get(line.menu_item_id)
+      if (!menuItem || !menuItem.available) continue
+
+      const names = (line.modifiers || []).filter((name) =>
+        activeModifiers(menuItem).some((modifier) => modifier.name.toLowerCase() === name.toLowerCase())
+      )
+      const existing = mergedCart[menuItem.id]
+      mergedCart[menuItem.id] = {
+        quantity: (existing?.quantity || 0) + Math.max(1, Math.round(Number(line.quantity) || 1)),
+        notes: line.notes || existing?.notes || '',
+        modifiers: names,
+        unitPrice: unitPriceFor(menuItem, names),
+      }
+      mergedModifiers[menuItem.id] = names
+      addedCount += 1
+    }
+
+    if (addedCount > 0) {
+      setCart(mergedCart)
+      setSelectedModifiers(mergedModifiers)
+      setReorderNotice(t('customer.reorderNotice', { count: addedCount }))
+    } else {
+      setReorderNotice(t('customer.reorderEmpty'))
+    }
+  }
 
   const itemsByCategory = useMemo(() => {
     return categories.map((category) => ({
@@ -285,6 +378,16 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
       {cartToast ? <div className="toast">{cartToast}</div> : null}
       <LanguageToggle style={{ position: 'fixed', top: 14, right: 18, zIndex: 30 }} />
       <div className="page-grid">
+        {reorderNotice ? (
+          <section className="panel stack">
+            <div className="message" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <span>{reorderNotice}</span>
+              <button className="button-secondary" type="button" onClick={() => setReorderNotice(null)}>
+                {t('customer.dismiss')}
+              </button>
+            </div>
+          </section>
+        ) : null}
         <section className="hero-card">
           <span className="eyebrow">{t('customer.eyebrow')}</span>
           <h1 className="hero-title">{restaurantName}</h1>

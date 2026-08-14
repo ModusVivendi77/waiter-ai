@@ -77,4 +77,32 @@ test.describe('public ordering journey', () => {
     await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: /Add to cart/ }).click()
     await expect(page.getByText('Added to cart')).toBeVisible()
   })
+
+  test('order again pre-fills the cart from the previous order', async ({ page }) => {
+    // First round: two burgers.
+    await page.goto('/t/X7k91Lm')
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByRole('button', { name: 'Submit order' }).click()
+    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
+    await page.getByRole('link', { name: 'Track order status' }).click()
+    await page.waitForURL(/\/orders\//)
+
+    // "Order again" takes the previous items to the menu and pre-fills the cart.
+    await page.getByRole('button', { name: 'Order again' }).click()
+    await page.waitForURL(/\/t\/X7k91Lm\?reorder=/)
+    await expect(page.getByText(/items from your last order were added to the cart/i)).toBeVisible()
+
+    const cartEntry = page.getByRole('listitem').filter({ hasText: 'Burger' }).first()
+    await expect(cartEntry).toBeVisible()
+    await expect(cartEntry.locator('.cart-stepper span')).toHaveText('2')
+
+    // The customer can keep all or remove some before submitting.
+    await cartEntry.locator('.cart-stepper button').first().click()
+    await expect(cartEntry.locator('.cart-stepper span')).toHaveText('1')
+
+    // Submitting creates a fresh order (new tracking token + order number).
+    await page.getByRole('button', { name: 'Submit order' }).click()
+    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
+  })
 })

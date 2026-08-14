@@ -172,14 +172,34 @@ test.describe('orders workspace', () => {
     const orderCard = page.locator('[data-testid^="order-card-"]').first()
     await expect(orderCard).toBeVisible()
 
-    // Search narrows the menu items instead of a long dropdown.
+    // Search narrows the menu items instead of a long dropdown. The quick
+    // "+ {item}" repeat chips also match a bare /Burger/ query, so scope the
+    // click to the search-result list (rendered as "Category - Name €price").
     await orderCard.getByLabel('Search menu items').fill('Burger')
-    await orderCard.getByRole('button', { name: /Burger/ }).first().click()
+    await orderCard.locator('ul.list button').filter({ hasText: / - Burger/ }).first().click()
     await expect(orderCard.getByText('Selected:')).toBeVisible()
 
     await orderCard.getByRole('button', { name: 'Add item to order' }).click()
     // The confirmation notice renders at the top of the workspace, not inside the card.
     await expect(page.getByText(/added to order/i)).toBeVisible()
+  })
+
+  test('staff can quickly add more of the items already in an order', async ({ page }) => {
+    const uniqueNote = `E2E repeat line ${Date.now()}`
+    await page.goto('/t/X7k91Lm')
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByLabel('Order note').fill(uniqueNote)
+    await page.getByRole('button', { name: 'Submit order' }).click()
+    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
+
+    await loginAsSuperAdmin(page)
+    await page.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
+    const orderCard = page.locator('[data-testid^="order-card-"]').filter({ hasText: uniqueNote }).first()
+    await expect(orderCard).toBeVisible()
+
+    // The "+ Burger" chip adds one more of the already-ordered item.
+    await orderCard.getByRole('button', { name: '+ Burger' }).click()
+    await expect(page.getByText(/added another burger/i)).toBeVisible()
   })
 
   test('closing a table session makes the next visit produce a distinct order', async ({ browser }) => {
