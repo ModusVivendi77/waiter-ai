@@ -575,7 +575,7 @@ select {
 .qr-sheet {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
 }
 
 .qr-card {
@@ -584,6 +584,9 @@ select {
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(96, 80, 63, 0.14);
   display: grid;
+  /* Bind the single column to the card box so content (QR + URL) can never
+     force the card wider than its grid track. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   justify-items: center;
   text-align: center;
@@ -592,13 +595,19 @@ select {
 
 .qr-svg {
   width: 100%;
-  max-width: 190px;
+  max-width: 100%;
 }
 
 .qr-svg svg {
   width: 100%;
   height: auto;
   display: block;
+}
+
+.qr-card p {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .order-layout {

@@ -23,6 +23,26 @@ test.describe('platform setup workspace', () => {
     await expect(page.getByRole('heading', { name: 'Restaurant setup workspace' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Print QR sheet' })).toBeVisible()
 
+    // Regression guard: every QR code must render fully inside its card box
+    // (they previously overflowed because the card's implicit grid column was
+    // sized by the URL text's max-content, wider than the card itself).
+    await expect(page.locator('.qr-sheet .qr-card .qr-svg svg').first()).toBeVisible({ timeout: 15000 })
+    const qrsInsideCards = await page.locator('.qr-sheet .qr-card').evaluateAll((cards) =>
+      cards.every((card) => {
+        const svg = card.querySelector('.qr-svg svg')
+        if (!svg) return true
+        const cardBox = card.getBoundingClientRect()
+        const svgBox = svg.getBoundingClientRect()
+        return (
+          svgBox.width <= cardBox.width + 1 &&
+          svgBox.height <= cardBox.height + 1 &&
+          svgBox.left >= cardBox.left - 1 &&
+          svgBox.right <= cardBox.right + 1
+        )
+      })
+    )
+    expect(qrsInsideCards).toBe(true)
+
     await page
       .getByLabel('CSV rows')
       .fill('Drinks,"Tonic, Zero","Sugar-free mixer, bottled",4.50\nFood,Burger,Beef burger,12.00')
