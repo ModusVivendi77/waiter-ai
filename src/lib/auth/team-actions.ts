@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getCurrentUserContext } from '@/lib/auth/guards'
 import type { UserRole } from '@/lib/auth/types'
+import { sendInvitationEmail } from '@/lib/notifications/email'
 
 const roles: UserRole[] = ['OWNER', 'MANAGER', 'STAFF']
 
@@ -87,11 +88,32 @@ export async function addTeamMember(
   }
 
   const admin = createAdminClient()
-  const { data: users } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
-  const target = (users?.users || []).find((u) => (u.email || '').toLowerCase() === trimmedEmail)
 
+  const { data: restaurant } = await admin
+    .from('restaurants')
+    .select('name')
+    .eq('id', restaurantId)
+    .single()
+
+  const { data: users } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+  let target = (users?.users || []).find((u) => (u.email || '').toLowerCase() === trimmedEmail)
+
+  let createdNow = false
   if (!target) {
-    return { error: `No account found for ${trimmedEmail}. The user must register first.` }
+    // No prior account is required: create one, auto-confirmed, so the invited
+    // staff member never needs a separate registration or confirmation email.
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email: trimmedEmail,
+      password: crypto.randomUUID().replace(/-/g, '').slice(0, 20),
+      email_confirm: true,
+    })
+
+    if (createError || !created?.user) {
+      return { error: createError?.message ?? 'Unable to create the account for this email.' }
+    }
+
+    target = created.user
+    createdNow = true
   }
 
   const { error: insertError } = await admin.from('restaurant_users').insert({
@@ -105,6 +127,35 @@ export async function addTeamMember(
       return { error: 'This user is already a member of the restaurant.' }
     }
     return { error: insertError.message }
+  }
+
+  // Send an invitation with a "set your password" link so the staff member can
+  // sign in. Resend is primary; Supabase's built-in "Reset Password" email is
+  // the fallback when Resend is not configured.
+  if (createdNow) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const { data: linkData } = await admin.auth.admin.generateLink({
+      type: 'recovery',
+      email: trimmedEmail,
+      options: { redirectTo: `${appUrl}/auth/callback?next=/reset-password` },
+    })
+    const actionLink = linkData?.properties?.action_link
+
+    if (actionLink) {
+      const sent = await sendInvitationEmail({
+        email: trimmedEmail,
+        restaurantName: restaurant?.name ?? 'your restaurant',
+        setPasswordUrl: actionLink,
+      })
+      if (!sent) {
+        // Fallback: Supabase's built-in "Reset Password" template email.
+        // (The GoTrue admin API supports type: 'recovery' even though the
+        // client types only expose the narrower union.)
+        await admin.auth
+          .resend({ type: 'recovery' as 'signup', email: trimmedEmail })
+          .catch(() => undefined)
+      }
+    }
   }
 
   revalidatePath('/platform/team')

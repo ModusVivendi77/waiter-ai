@@ -35,6 +35,17 @@ test.describe('platform setup workspace', () => {
     await expect(page.getByRole('cell', { name: 'EUR 4.50' })).toBeVisible()
   })
 
+  test('anonymous visitors only see the login page', async ({ page }) => {
+    await page.goto('/platform/orders')
+    await page.waitForURL(/\/login/)
+    await expect(page.getByLabel('Email')).toBeVisible()
+    await expect(page.getByLabel('Password')).toBeVisible()
+
+    // The root landing page is also login-only for anonymous visitors.
+    await page.goto('/')
+    await page.waitForURL(/\/login/)
+  })
+
   test('handles rename, import, and cleanup flows', async ({ page }) => {
     const unique = Date.now().toString()
     const tableName = `E2E Table ${unique}`

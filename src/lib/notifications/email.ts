@@ -78,6 +78,68 @@ export async function sendConfirmationEmail(input: ConfirmationEmailInput): Prom
   }
 }
 
+type InvitationEmailInput = {
+  email: string
+  restaurantName: string
+  setPasswordUrl: string
+}
+
+/**
+ * Sends a staff invitation with a "set your password" link via Resend.
+ * Returns true when accepted; false when Resend is not configured or failed
+ * (callers then fall back to Supabase's built-in "Reset Password" email).
+ */
+export async function sendInvitationEmail(input: InvitationEmailInput): Promise<boolean> {
+  if (!isResendConfigured()) {
+    console.warn('Invitation email not sent: RESEND_API_KEY is not configured.')
+    return false
+  }
+
+  const body = {
+    from: process.env.RESEND_FROM_EMAIL || 'Waiter AI <onboarding@resend.dev>',
+    to: [input.email],
+    subject: `You've been added to ${input.restaurantName} on Waiter AI`,
+    html: `
+      <div style="font-family: Georgia, serif; line-height: 1.6; color: #1f1a17;">
+        <h2 style="margin-bottom: 8px;">You've been added to ${input.restaurantName}</h2>
+        <p style="margin-top: 0;">Set your password to sign in and start working:</p>
+        <p>
+          <a
+            href="${input.setPasswordUrl}"
+            style="display:inline-block;padding:10px 18px;background:#0d9488;color:#ffffff;border-radius:6px;text-decoration:none;"
+          >
+            Set my password
+          </a>
+        </p>
+        <p>If the button does not work, copy and paste this link into your browser:</p>
+        <p><a href="${input.setPasswordUrl}">${input.setPasswordUrl}</a></p>
+      </div>
+    `,
+  }
+
+  try {
+    const response = await fetch(RESEND_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Invitation email failed:', errorText)
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error('Invitation email request threw:', error)
+    return false
+  }
+}
+
 export async function sendRegistrationEmail(input: WelcomeEmailInput) {
   const apiKey = process.env.RESEND_API_KEY
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'

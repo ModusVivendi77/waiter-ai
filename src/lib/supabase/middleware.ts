@@ -17,6 +17,21 @@ type CookieToSet = {
   }
 }
 
+// Routes a logged-out visitor may use. Everything else (the platform, admin,
+// and the root landing page) is protected: anonymous users only see the login
+// page. The customer QR flow (/t/*, /orders/*) stays public.
+const PUBLIC_PREFIXES = [
+  '/t/',
+  '/orders/',
+  '/login',
+  '/forgot-password',
+  '/reset-password',
+  '/verify-email',
+  '/platform/signup',
+  '/auth/',
+  '/api/',
+]
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
     request,
@@ -50,7 +65,21 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  void user
+  const { pathname } = request.nextUrl
+  const isPublic = PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix))
+
+  if (!user && !isPublic) {
+    const loginUrl = new URL('/login', request.url)
+    if (pathname && pathname !== '/') {
+      loginUrl.searchParams.set('next', pathname)
+    }
+    return NextResponse.redirect(loginUrl)
+  }
+
+  // Logged-in users landing on the root go straight to their workspace.
+  if (user && pathname === '/') {
+    return NextResponse.redirect(new URL('/platform', request.url))
+  }
 
   return response
 }

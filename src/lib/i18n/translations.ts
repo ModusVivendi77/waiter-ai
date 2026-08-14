@@ -481,8 +481,8 @@ export const translations: Record<string, Translation> = {
   'team.addMember': { en: 'Add team member', el: 'Προσθήκη μέλους ομάδας' },
   'team.saving': { en: 'Saving...', el: 'Αποθήκευση...' },
   'team.helper': {
-    en: 'The invited user must already have an account (register once, then reuse the same account for any restaurant).',
-    el: 'Ο προσκεκλημένος χρήστης πρέπει να έχει ήδη λογαριασμό (εγγραφείτε μία φορά και χρησιμοποιήστε τον ίδιο λογαριασμό για οποιοδήποτε εστιατόριο).',
+    en: 'Invited staff do not need an existing account — one is created automatically and an invitation email with a password link is sent.',
+    el: 'Το προσκεκλημένο προσωπικό δεν χρειάζεται υπάρχοντα λογαριασμό — δημιουργείται αυτόματα και αποστέλλεται email πρόσκλησης με σύνδεσμο κωδικού.',
   },
   'team.currentEyebrow': { en: 'Current team', el: 'Τρέχουσα ομάδα' },
   'team.noMembers': {

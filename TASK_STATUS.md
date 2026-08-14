@@ -480,8 +480,18 @@
 39. **✅ Done** — Live tables are expandable in two steps: "Show orders / Hide orders" reveals a table's linked orders (status · items · total · time), and clicking an order expands the customer-style line-item summary
 40. **✅ Done** — "Add item" in the Orders workspace replaced the long `<select>` with a searchable picker (type to filter by name/category, click a result to select); keeps the quantity input and Add button
 41. **✅ Done** — E2E suite runs serially (`workers: 1`) because the tests share one live Supabase project and parallel workers were accepting/seeing each other's orders via the shared realtime stream
-42. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
-43. **Future work** — Resend domain verification for customer-facing confirmation emails
+42. **✅ Done** — Notification pane: banner persists until Accept/Dismiss; **Accept** moves the order to ACCEPTED everywhere (fixed a race where Accept could no-op if the order wasn't yet in local state); banner shows "🔔 Order {n} — Table · total" with a **View summary** toggle (line items)
+43. **✅ Done** — Customer language toggle (EN/EL) on the table menu and tracking pages via `src/components/app/language-toggle.tsx`
+44. **✅ Done** — "Added to cart" confirmation toast when an item is added
+45. **✅ Done** — Live-tables overflow fix: `.metric { min-width: 0 }` + wrapping order-row buttons so expanded cards don't overlap the next column
+46. **✅ Done** — "Dismiss order" on the home dashboard (live orders + table order summaries) marks the order REJECTED with confirm + status history
+47. **✅ Done** — Sequential order numbers: `013_order_number.sql` (per-restaurant sequence via trigger + advisory lock) **applied to the live DB**; UI shows "Order 89" everywhere (orders workspace, tracking page, banner, success box)
+48. **✅ Done** — Category horizontal bar on the ordering page (sticky, smooth-scroll to category)
+49. **✅ Done** — Email confirmation: code already delivers via Resend (primary) with Supabase fallback; staff invitations now auto-confirm (`email_confirm: true`) so they never need a confirmation email. Remaining is dashboard config (verify a Resend domain / Supabase SMTP + set Auth Site URL) — see item 52
+50. **✅ Done** — Anonymous users only see the login page: middleware protection added. **Important:** the app uses `src/` so Next expects middleware at `src/middleware.ts` — the root `middleware.ts` was never loaded; moved it and wired session-check redirects (public: `/t/*`, `/orders/*`, auth + signup routes). Login `next` param hardened against open redirects
+51. **✅ Done** — Staff invited by restaurant owner/manager without a prior account: `addTeamMember` now creates the auth user (`email_confirm: true`) and sends an invitation email with a password-set link (Resend primary, Supabase "Reset Password" fallback)
+52. **Next (manual config)** — Verify a custom domain in Resend + set `RESEND_FROM_EMAIL` to that sender (or configure Supabase Auth → SMTP), and set the "Confirm signup" template's **Site URL** to `<APP_URL>/auth/callback` so owner confirmation emails work reliably
+53. **Future work** — Shift-based table assignment
 
 ### After Timeline Verified
 ```bash

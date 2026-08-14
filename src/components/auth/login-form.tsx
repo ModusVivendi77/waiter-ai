@@ -33,7 +33,8 @@ export function LoginForm() {
         return
       }
 
-      const nextPath = searchParams.get('next') || '/platform'
+      const rawNext = searchParams.get('next') || ''
+      const nextPath = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/platform'
       router.replace(nextPath)
       router.refresh()
     } catch (clientError) {

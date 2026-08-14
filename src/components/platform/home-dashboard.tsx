@@ -381,11 +381,13 @@ export function HomeDashboard() {
   // "Accept" on the new-order notification: moves the order to ACCEPTED and
   // records the status history entry, matching the Orders workspace flow.
   async function handleAcceptNewOrder(orderId: string) {
-    const order = orders.find((entry) => entry.id === orderId)
-    if (!order) {
-      setNewOrderNotice(null)
-      return
-    }
+    const existing = orders.find((entry) => entry.id === orderId)
+    const oldStatus = existing?.status ?? 'NEW'
+    const label = existing
+      ? getOrderLabel(existing)
+      : newOrderNotice?.orderNumber != null
+        ? String(newOrderNotice.orderNumber)
+        : orderId.slice(0, 8)
 
     setSaving(true)
     setError(null)
@@ -399,12 +401,12 @@ export function HomeDashboard() {
     if (!updateError) {
       const { error: historyError } = await supabase.from('order_status_history').insert({
         order_id: orderId,
-        old_status: order.status,
+        old_status: oldStatus,
         new_status: 'ACCEPTED',
         changed_by: currentUserId,
       })
       if (!historyError) {
-        setNotice(t('orders.notice.statusChanged', { id: orderId.slice(0, 8), status: 'ACCEPTED' }))
+        setNotice(t('orders.notice.statusChanged', { id: label, status: 'ACCEPTED' }))
       }
       setNewOrderNotice(null)
       void refreshOrders()
