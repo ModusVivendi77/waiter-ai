@@ -8,6 +8,7 @@ import { listTeamMembers } from '@/lib/auth/team-actions'
 import { deleteOrder } from '@/lib/admin/data-actions'
 import { createClient } from '@/lib/supabase/client'
 import { useLiveOrders } from '@/lib/hooks/use-live-orders'
+import { LoadingBar } from '@/components/app/loading-bar'
 import { useLanguage } from '@/components/app/language-provider'
 import { CLOSED_STATUSES, STATUS_OPTIONS, STATUS_PRIORITY, STATUS_TABS } from '@/lib/orders/status'
 
@@ -117,6 +118,17 @@ function formatDateTime(value: string) {
   )}:${pad(date.getMinutes())}`
 }
 
+// Compact "time since submission" (e.g. "12m", "2h 05m", "now") so waiters can
+// spot waiting orders at a glance.
+function formatTimeAgo(value: string) {
+  const diffMs = Date.now() - new Date(value).getTime()
+  const minutes = Math.max(0, Math.floor(diffMs / 60_000))
+  if (minutes < 1) return 'now'
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ${String(minutes % 60).padStart(2, '0')}m`
+}
+
 export function OrdersConsole() {
   const supabase = useMemo(() => createClient(), [])
   const searchParams = useSearchParams()
@@ -142,6 +154,7 @@ export function OrdersConsole() {
   const [expandedLineNote, setExpandedLineNote] = useState<Record<string, boolean>>({})
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [teamEmailMap, setTeamEmailMap] = useState<Record<string, string>>({})
+  const [teamNameMap, setTeamNameMap] = useState<Record<string, string>>({})
   const [activeSessionIds, setActiveSessionIds] = useState<Set<string>>(new Set())
   const [newOrderNotice, setNewOrderNotice] = useState<{
     orderId: string
@@ -279,6 +292,11 @@ export function OrdersConsole() {
 
     setTeamEmailMap(
       Object.fromEntries((teamResult && teamResult.members ? teamResult.members : []).map((member) => [member.userId, member.email]))
+    )
+    setTeamNameMap(
+      Object.fromEntries(
+        (teamResult && teamResult.members ? teamResult.members : []).map((member) => [member.userId, member.name || member.email])
+      )
     )
 
     if (menuResult.error) {
@@ -634,46 +652,6 @@ export function OrdersConsole() {
     await refreshOrders()
   }
 
-  // "Add more": quickly add one more copy of an item already in the order
-  // (same menu item, unit price, modifiers and note) — the kitchen gets an
-  // extra of exactly what the table already ordered.
-  async function handleRepeatLine(order: OrderRow, line: OrderItemRow) {
-    setSaving(true)
-    setError(null)
-    setNotice(null)
-
-    const { error: insertError } = await supabase.from('order_items').insert({
-      order_id: order.id,
-      restaurant_id: order.restaurant_id,
-      menu_item_id: line.menu_item_id,
-      item_name: line.item_name,
-      quantity: 1,
-      unit_price: line.unit_price,
-      modifiers: line.modifiers || [],
-      notes: line.notes,
-    })
-
-    if (!insertError) {
-      try {
-        await refreshOrderTotals(order.id)
-      } catch (refreshError) {
-        setSaving(false)
-        setError(refreshError instanceof Error ? refreshError.message : t('orders.error.refreshTotals'))
-        return
-      }
-    }
-
-    setSaving(false)
-
-    if (insertError) {
-      setError(insertError.message)
-      return
-    }
-
-    setNotice(t('orders.notice.lineRepeated', { name: line.item_name }))
-    await refreshOrders()
-  }
-
   async function handleAddItemToOrder(orderId: string) {
     const draft = addItemDrafts[orderId]
     const menuItem = menuOptions.find((option) => option.id === draft?.menuItemId)
@@ -752,8 +730,7 @@ export function OrdersConsole() {
   if (loading || initialLoading) {
     return (
       <section className="panel stack">
-        <span className="eyebrow">{t('orders.eyebrow')}</span>
-        <h1 className="section-title">{t('orders.loading')}</h1>
+        <LoadingBar />
       </section>
     )
   }
@@ -854,11 +831,26 @@ export function OrdersConsole() {
                 <div>
                   <strong>{t('orders.orderId', { id: getOrderLabel(order) })}</strong>
                   <p className="muted">{t('orders.tableStatus', { table: getTableName(order), status: order.status })}</p>
-                  <p className="muted">{t('orders.submitted', { datetime: formatDateTime(order.created_at) })}</p>
-                  <p className="muted">{t('orders.trackToken', { token: order.public_tracking_token })}</p>
+                  <p className="muted">
+                    {t('orders.timeAgo', { time: formatTimeAgo(order.created_at) })} ·{' '}
+                    {t('orders.submitted', { datetime: formatDateTime(order.created_at) })}
+                  </p>
                   {order.customer_note ? <p className="muted">{t('orders.customerNoteLine', { note: order.customer_note })}</p> : null}
                 </div>
-                <div className="badge">{formatCurrency(order.total, order.currency)}</div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {!order.waiter_id && currentUserId ? (
+                    <button
+                      className="button"
+                      type="button"
+                      disabled={saving}
+                      onClick={() => void handleTakeOrder(order)}
+                    >
+                      {t('orders.takeOrder')}
+                    </button>
+                  ) : null}
+                  <span className="badge">{t(`status.${order.status}`)}</span>
+                  <span className="badge">{formatCurrency(order.total, order.currency)}</span>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
@@ -880,17 +872,8 @@ export function OrdersConsole() {
                   <span className="badge">
                     {order.waiter_id === currentUserId
                       ? t('orders.handlingYou')
-                      : t('orders.handling', { who: teamEmailMap[order.waiter_id] ?? t('orders.staffMember') })}
+                      : t('orders.handling', { who: teamNameMap[order.waiter_id] ?? t('orders.staffMember') })}
                   </span>
-                ) : currentUserId ? (
-                  <button
-                    className="button-secondary"
-                    type="button"
-                    disabled={saving}
-                    onClick={() => void handleTakeOrder(order)}
-                  >
-                    {t('orders.takeOrder')}
-                  </button>
                 ) : null}
                 {order.session_id && activeSessionIds.has(order.session_id) && role && ['OWNER', 'MANAGER', 'SUPER_ADMIN'].includes(role) ? (
                   <button
@@ -1008,24 +991,6 @@ export function OrdersConsole() {
 
               <div className="stack" style={{ marginTop: '12px' }}>
                 <span className="eyebrow">{t('orders.addItem')}</span>
-                {order.order_items && order.order_items.length > 0 ? (
-                  <div className="stack">
-                    <p className="muted">{t('orders.repeatLinesHelper')}</p>
-                    <div className="pill-row">
-                      {order.order_items.map((line) => (
-                        <button
-                          key={line.id}
-                          type="button"
-                          className="button-secondary"
-                          disabled={saving}
-                          onClick={() => void handleRepeatLine(order, line)}
-                        >
-                          {t('orders.repeatLine', { name: line.item_name })}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
                 <div className="field">
                   <label htmlFor={`order-item-search-${order.id}`}>{t('orders.menuItemSearch')}</label>
                   <input

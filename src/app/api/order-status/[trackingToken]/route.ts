@@ -29,6 +29,7 @@ type OrderRow = {
   currency: string
   customer_note: string | null
   created_at: string
+  restaurant_id: string
   restaurant_tables:
     | {
         name: string
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest, { params }: Props) {
 
   const { data, error } = await admin
     .from('orders')
-    .select('id, order_number, status, total, currency, customer_note, created_at, restaurant_tables(name, qr_token), restaurants(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes, modifiers), order_status_history(id, old_status, new_status, created_at)')
+    .select('id, order_number, status, total, currency, customer_note, created_at, restaurant_id, restaurant_tables(name, qr_token), restaurants(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes, modifiers), order_status_history(id, old_status, new_status, created_at)')
     .eq('public_tracking_token', trackingToken)
     .order('created_at', { foreignTable: 'order_status_history', ascending: true })
     .maybeSingle()
@@ -101,6 +102,19 @@ export async function GET(request: NextRequest, { params }: Props) {
   const order = data as OrderRow
   const table = Array.isArray(order.restaurant_tables) ? order.restaurant_tables[0] : order.restaurant_tables
   const restaurant = Array.isArray(order.restaurants) ? order.restaurants[0] : order.restaurants
+
+  // Owner-configurable cancellation window (default 5 minutes). Fetched
+  // separately and defensively: if the live DB hasn't been migrated yet, the
+  // column is missing and we fall back to the default.
+  let cancelWindowMinutes = 5
+  const { data: restaurantRow } = await admin
+    .from('restaurants')
+    .select('cancel_window_minutes')
+    .eq('id', order.restaurant_id)
+    .maybeSingle()
+  if (restaurantRow && typeof (restaurantRow as { cancel_window_minutes?: number }).cancel_window_minutes === 'number') {
+    cancelWindowMinutes = (restaurantRow as { cancel_window_minutes: number }).cancel_window_minutes
+  }
 
   return NextResponse.json(
     {
@@ -119,6 +133,7 @@ export async function GET(request: NextRequest, { params }: Props) {
       },
       restaurant: {
         name: restaurant?.name || 'Restaurant',
+        cancelWindowMinutes,
       },
       items: order.order_items || [],
       history: order.order_status_history || [],

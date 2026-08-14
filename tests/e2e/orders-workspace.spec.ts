@@ -184,24 +184,6 @@ test.describe('orders workspace', () => {
     await expect(page.getByText(/added to order/i)).toBeVisible()
   })
 
-  test('staff can quickly add more of the items already in an order', async ({ page }) => {
-    const uniqueNote = `E2E repeat line ${Date.now()}`
-    await page.goto('/t/X7k91Lm')
-    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
-    await page.getByLabel('Order note').fill(uniqueNote)
-    await page.getByRole('button', { name: 'Submit order' }).click()
-    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
-
-    await loginAsSuperAdmin(page)
-    await page.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
-    const orderCard = page.locator('[data-testid^="order-card-"]').filter({ hasText: uniqueNote }).first()
-    await expect(orderCard).toBeVisible()
-
-    // The "+ Burger" chip adds one more of the already-ordered item.
-    await orderCard.getByRole('button', { name: '+ Burger' }).click()
-    await expect(page.getByText(/added another burger/i)).toBeVisible()
-  })
-
   test('closing a table session makes the next visit produce a distinct order', async ({ browser }) => {
     // First customers sit at Table 1 and place an order.
     const contextA = await browser.newContext()

@@ -24,6 +24,7 @@ type OrderStatusPayload = {
   }
   restaurant: {
     name: string
+    cancelWindowMinutes?: number
   }
   items: Array<{
     id: string
@@ -83,6 +84,7 @@ export function OrderStatusView({ trackingToken, tableQrToken, initialOrder }: P
   const [splitMode, setSplitMode] = useState<'equal' | 'items' | null>(null)
   const [peopleCount, setPeopleCount] = useState('2')
   const [guestAssignments, setGuestAssignments] = useState<Record<string, number>>({})
+  const [cancelling, setCancelling] = useState(false)
 
   const refreshFromServer = useCallback(async () => {
     const response = await fetch(`/api/order-status/${trackingToken}`, { cache: 'no-store' })
@@ -139,6 +141,37 @@ export function OrderStatusView({ trackingToken, tableQrToken, initialOrder }: P
 
   const currentStatus = data.order.status
   const isTerminal = currentStatus === 'CANCELLED' || currentStatus === 'REJECTED' || currentStatus === 'SERVED'
+
+  // The customer can cancel while the order is still new/accepted and inside
+  // the restaurant's cancellation window (owner-configured, default 5 min).
+  const cancelWindowMinutes = data.restaurant.cancelWindowMinutes ?? 5
+  const createdAtMs = new Date(data.order.created_at).getTime()
+  const isWithinCancelWindow =
+    Number.isFinite(createdAtMs) && Date.now() - createdAtMs <= cancelWindowMinutes * 60_000
+  const isCancellable = (currentStatus === 'NEW' || currentStatus === 'ACCEPTED') && isWithinCancelWindow
+
+  async function handleCancelOrder() {
+    if (!window.confirm(t('track.cancelConfirm'))) return
+    setCancelling(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/orders/${data.order.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackingToken }),
+      })
+      const payload = (await response.json()) as { error?: string }
+      if (!response.ok) {
+        setError(payload.error || t('track.cancelFailed'))
+        return
+      }
+      await refreshFromServer()
+    } catch {
+      setError(t('track.cancelFailed'))
+    } finally {
+      setCancelling(false)
+    }
+  }
 
   // Build a timeline from the status history if available, otherwise derive from the current status.
   let timelineEntries = data.history
@@ -207,6 +240,16 @@ export function OrderStatusView({ trackingToken, tableQrToken, initialOrder }: P
             >
               {isRefreshing ? t('track.refreshing') : t('track.refreshNow')}
             </button>
+            {isCancellable ? (
+              <button
+                type="button"
+                className="button-danger"
+                disabled={cancelling}
+                onClick={() => void handleCancelOrder()}
+              >
+                {cancelling ? t('track.cancelling') : t('track.cancelOrder')}
+              </button>
+            ) : null}
             {currentTableQrToken ? (
               <button
                 type="button"

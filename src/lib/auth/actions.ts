@@ -140,11 +140,21 @@ export async function registerRestaurant(_: RegisterState, formData: FormData): 
     return { error: restaurantError?.message ?? 'Unable to create the restaurant profile.' }
   }
 
-  const { error: membershipError } = await admin.from('restaurant_users').insert({
+  let { error: membershipError } = await admin.from('restaurant_users').insert({
     restaurant_id: restaurant.id,
     user_id: createdUser.user.id,
     role: 'OWNER',
+    full_name: fullName,
   })
+  if (membershipError?.code === '42703') {
+    // `full_name` column not migrated yet — insert without it.
+    const retry = await admin.from('restaurant_users').insert({
+      restaurant_id: restaurant.id,
+      user_id: createdUser.user.id,
+      role: 'OWNER',
+    })
+    membershipError = retry.error
+  }
 
   if (membershipError) {
     await admin.from('restaurants').delete().eq('id', restaurant.id)
@@ -226,11 +236,21 @@ export async function addRestaurant(_: AddRestaurantState, formData: FormData): 
     return { error: restaurantError?.message ?? 'Unable to create the restaurant.' }
   }
 
-  const { error: membershipError } = await admin.from('restaurant_users').insert({
+  let { error: membershipError } = await admin.from('restaurant_users').insert({
     restaurant_id: restaurant.id,
     user_id: user.id,
     role: 'OWNER',
+    full_name: typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : null,
   })
+  if (membershipError?.code === '42703') {
+    // `full_name` column not migrated yet — insert without it.
+    const retry = await admin.from('restaurant_users').insert({
+      restaurant_id: restaurant.id,
+      user_id: user.id,
+      role: 'OWNER',
+    })
+    membershipError = retry.error
+  }
 
   if (membershipError) {
     await admin.from('restaurants').delete().eq('id', restaurant.id)

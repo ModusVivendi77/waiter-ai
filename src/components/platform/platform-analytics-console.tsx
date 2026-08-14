@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { getClientUserContext } from '@/lib/auth/client'
 import { getPlatformAnalytics, type PlatformAnalyticsMetrics } from '@/lib/analytics/platform'
 import { exportToPDF, exportToCSV } from '@/lib/export/analytics-export'
+import { LoadingBar } from '@/components/app/loading-bar'
 import { useLanguage } from '@/components/app/language-provider'
 
 function formatCurrency(value: number): string {
@@ -84,8 +85,7 @@ export function PlatformAnalyticsConsole() {
   if (loading) {
     return (
       <section className="panel stack">
-        <span className="eyebrow">{t('platformAnalytics.eyebrow')}</span>
-        <h1 className="section-title">{t('platformAnalytics.loading')}</h1>
+        <LoadingBar />
       </section>
     )
   }

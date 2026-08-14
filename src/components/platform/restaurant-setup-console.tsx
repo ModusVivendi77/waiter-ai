@@ -9,6 +9,7 @@ import { listTeamMembers } from '@/lib/auth/team-actions'
 import { parseCsvRows, type CsvPreviewRow } from '@/lib/csv/menu-import'
 import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/components/app/language-provider'
+import { LoadingBar } from '@/components/app/loading-bar'
 import { AddRestaurantForm } from '@/components/platform/add-restaurant-form'
 
 type RestaurantTable = {
@@ -132,6 +133,8 @@ export function RestaurantSetupConsole() {
   const [csvPreviewSource, setCsvPreviewSource] = useState('')
   const [qrDownloadingFor, setQrDownloadingFor] = useState<string | null>(null)
   const [qrSvgMap, setQrSvgMap] = useState<Record<string, string>>({})
+  const [cancelWindowMinutes, setCancelWindowMinutes] = useState('5')
+  const [cancelWindowSaving, setCancelWindowSaving] = useState(false)
   const [editingTableId, setEditingTableId] = useState<string | null>(null)
   const [editingTableName, setEditingTableName] = useState('')
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
@@ -221,7 +224,7 @@ export function RestaurantSetupConsole() {
     setRestaurantId(activeRestaurantId)
     setRestaurantName(activeRestaurantName)
 
-    const [{ data: tableRows, error: tableError }, { data: categoryRows, error: categoryError }, { data: itemRows, error: itemError }, staffResult] =
+    const [{ data: tableRows, error: tableError }, { data: categoryRows, error: categoryError }, { data: itemRows, error: itemError }, staffResult, restaurantResult] =
       await Promise.all([
         supabase
           .from('restaurant_tables')
@@ -240,7 +243,12 @@ export function RestaurantSetupConsole() {
           .order('created_at', { ascending: false })
           .limit(50),
         listTeamMembers(activeRestaurantId).catch(() => ({ error: undefined, members: undefined })),
+        supabase.from('restaurants').select('cancel_window_minutes').eq('id', activeRestaurantId).maybeSingle(),
       ])
+
+    setCancelWindowMinutes(
+      String((restaurantResult?.data as { cancel_window_minutes?: number | null } | null)?.cancel_window_minutes ?? 5)
+    )
 
     setStaffOptions(
       (staffResult && staffResult.members
@@ -311,6 +319,36 @@ export function RestaurantSetupConsole() {
       cancelled = true
     }
   }, [appUrl, tables])
+
+  // Owner-configurable cancellation window: how long a customer may cancel an
+  // order from the tracking page after submitting it (default 5 minutes).
+  async function handleSaveCancelWindow() {
+    if (!restaurantId) return
+    const minutes = Math.max(0, Math.floor(Number(cancelWindowMinutes) || 5))
+    if (minutes < 1 || minutes > 120) {
+      setError(t('setup.error.cancelWindow'))
+      return
+    }
+
+    setCancelWindowSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('restaurants')
+      .update({ cancel_window_minutes: minutes })
+      .eq('id', restaurantId)
+
+    setCancelWindowSaving(false)
+
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+
+    setCancelWindowMinutes(String(minutes))
+    setNotice(t('setup.notice.cancelWindowSaved'))
+  }
 
   async function handleRestaurantSelection(nextRestaurantId: string) {
     setSelectedRestaurantId(nextRestaurantId)
@@ -945,8 +983,7 @@ export function RestaurantSetupConsole() {
   if (loading) {
     return (
       <section className="panel stack">
-        <span className="eyebrow">{t('setup.eyebrow')}</span>
-        <h2 className="section-title">{t('setup.loading')}</h2>
+        <LoadingBar />
       </section>
     )
   }
@@ -978,6 +1015,27 @@ export function RestaurantSetupConsole() {
         ) : null}
         {notice ? <div className="success">{notice}</div> : null}
         {error ? <div className="error-box">{error}</div> : null}
+      </section>
+
+      <section className="panel stack">
+        <span className="eyebrow">{t('setup.cancelWindowEyebrow')}</span>
+        <p className="helper-text">{t('setup.cancelWindowHelper')}</p>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div className="field" style={{ minWidth: '160px' }}>
+            <label htmlFor="cancelWindowMinutes">{t('setup.cancelWindowLabel')}</label>
+            <input
+              id="cancelWindowMinutes"
+              type="number"
+              min={1}
+              max={120}
+              value={cancelWindowMinutes}
+              onChange={(event) => setCancelWindowMinutes(event.target.value)}
+            />
+          </div>
+          <button className="button-secondary" type="button" disabled={cancelWindowSaving} onClick={() => void handleSaveCancelWindow()}>
+            {cancelWindowSaving ? t('setup.saving') : t('setup.saveCancelWindow')}
+          </button>
+        </div>
       </section>
 
       <section className="panel stack">

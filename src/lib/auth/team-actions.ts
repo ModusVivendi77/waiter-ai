@@ -12,6 +12,7 @@ const roles: UserRole[] = ['OWNER', 'MANAGER', 'STAFF']
 export type TeamMember = {
   userId: string
   email: string
+  name: string | null
   role: UserRole
   createdAt: string
 }
@@ -47,7 +48,7 @@ export async function listTeamMembers(restaurantId: string): Promise<TeamActionR
   const admin = createAdminClient()
   const { data: members, error } = await admin
     .from('restaurant_users')
-    .select('user_id, role, created_at')
+    .select('user_id, role, created_at, full_name')
     .eq('restaurant_id', restaurantId)
     .order('created_at', { ascending: true })
 
@@ -62,6 +63,7 @@ export async function listTeamMembers(restaurantId: string): Promise<TeamActionR
     members: members.map((membership) => ({
       userId: membership.user_id,
       email: emailByUserId.get(membership.user_id) ?? 'Unknown user',
+      name: (membership.full_name as string | null) || null,
       role: membership.role,
       createdAt: membership.created_at,
     })),
@@ -71,7 +73,8 @@ export async function listTeamMembers(restaurantId: string): Promise<TeamActionR
 export async function addTeamMember(
   restaurantId: string,
   email: string,
-  role: UserRole
+  role: UserRole,
+  fullName?: string
 ): Promise<TeamActionResult> {
   const caller = await authorizeRestaurantManager(restaurantId)
   if (!caller) {
@@ -86,6 +89,8 @@ export async function addTeamMember(
   if (!trimmedEmail) {
     return { error: 'Email is required.' }
   }
+
+  const trimmedName = fullName?.trim() || null
 
   const admin = createAdminClient()
 
@@ -106,6 +111,7 @@ export async function addTeamMember(
       email: trimmedEmail,
       password: crypto.randomUUID().replace(/-/g, '').slice(0, 20),
       email_confirm: true,
+      user_metadata: trimmedName ? { full_name: trimmedName } : undefined,
     })
 
     if (createError || !created?.user) {
@@ -116,11 +122,21 @@ export async function addTeamMember(
     createdNow = true
   }
 
-  const { error: insertError } = await admin.from('restaurant_users').insert({
+  let { error: insertError } = await admin.from('restaurant_users').insert({
     restaurant_id: restaurantId,
     user_id: target.id,
     role,
+    full_name: trimmedName,
   })
+  if (insertError?.code === '42703') {
+    // `full_name` column not migrated yet — insert without it.
+    const retry = await admin.from('restaurant_users').insert({
+      restaurant_id: restaurantId,
+      user_id: target.id,
+      role,
+    })
+    insertError = retry.error
+  }
 
   if (insertError) {
     if (insertError.code === '23505') {

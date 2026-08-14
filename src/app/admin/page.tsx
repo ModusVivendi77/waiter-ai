@@ -7,6 +7,7 @@ import { deleteOrders, deleteRestaurant, deleteSessions } from '@/lib/admin/data
 import { getClientUserContext } from '@/lib/auth/client'
 import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/components/app/language-provider'
+import { LoadingBar } from '@/components/app/loading-bar'
 
 type PlatformAdminEntry = {
   user_id: string
@@ -226,8 +227,7 @@ export default function AdminPage() {
       <main className="page-shell">
         <div className="page-grid">
           <section className="panel stack">
-            <span className="eyebrow">{t('admin.eyebrow')}</span>
-            <h1 className="section-title">{t('admin.loading')}</h1>
+            <LoadingBar />
           </section>
         </div>
       </main>

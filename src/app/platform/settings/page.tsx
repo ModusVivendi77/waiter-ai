@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { getClientUserContext } from '@/lib/auth/client'
 import type { RestaurantMembership } from '@/lib/auth/types'
 import { useLanguage } from '@/components/app/language-provider'
+import { LoadingBar } from '@/components/app/loading-bar'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -53,8 +54,7 @@ export default function SettingsPage() {
       <main className="page-shell">
         <div className="page-grid">
           <section className="panel stack">
-            <span className="eyebrow">{t('settings.eyebrow')}</span>
-            <h1 className="section-title">{t('settings.loading')}</h1>
+            <LoadingBar />
           </section>
         </div>
       </main>

@@ -14,6 +14,7 @@ import { getClientUserContext } from '@/lib/auth/client'
 import { createClient } from '@/lib/supabase/client'
 import type { UserRole } from '@/lib/auth/types'
 import { useLanguage } from '@/components/app/language-provider'
+import { LoadingBar } from '@/components/app/loading-bar'
 
 type RestaurantOption = {
   id: string
@@ -35,6 +36,7 @@ export default function TeamPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [newEmail, setNewEmail] = useState('')
+  const [newName, setNewName] = useState('')
   const [newRole, setNewRole] = useState<UserRole>('STAFF')
 
   async function loadRestaurants() {
@@ -104,7 +106,7 @@ export default function TeamPage() {
     setNotice(null)
     setError(null)
 
-    const result = await addTeamMember(selectedRestaurantId, newEmail, newRole)
+    const result = await addTeamMember(selectedRestaurantId, newEmail, newRole, newName)
 
     setSaving(false)
 
@@ -114,6 +116,7 @@ export default function TeamPage() {
     }
 
     setNewEmail('')
+    setNewName('')
     setNotice(t('team.notice.addedRole', { role: newRole }))
     await loadMembers(selectedRestaurantId)
   }
@@ -162,8 +165,7 @@ export default function TeamPage() {
       <main className="page-shell">
         <div className="page-grid">
           <section className="panel stack">
-            <span className="eyebrow">{t('team.eyebrow')}</span>
-            <h1 className="section-title">{t('team.loading')}</h1>
+            <LoadingBar />
           </section>
         </div>
       </main>
@@ -207,6 +209,16 @@ export default function TeamPage() {
           <span className="eyebrow">{t('team.addEyebrow')}</span>
           <form className="stack" onSubmit={handleAddMember}>
             <div className="field">
+              <label htmlFor="teamMemberName">{t('team.fullName')}</label>
+              <input
+                id="teamMemberName"
+                type="text"
+                value={newName}
+                onChange={(event) => setNewName(event.target.value)}
+                placeholder={t('team.fullNamePlaceholder')}
+              />
+            </div>
+            <div className="field">
               <label htmlFor="teamMemberEmail">{t('team.email')}</label>
               <input
                 id="teamMemberEmail"
@@ -245,8 +257,12 @@ export default function TeamPage() {
               <li key={`${member.userId}-${member.role}`}>
                 <div className="cart-line-header">
                   <div>
-                    <strong>{member.email}</strong>
-                    <p className="muted">{t('team.added', { date: new Date(member.createdAt).toLocaleDateString() })}</p>
+                    <strong>{member.name || member.email}</strong>
+                    <p className="muted">
+                      {member.name ? member.email : ''}
+                      {member.name ? ' · ' : ''}
+                      {t('team.added', { date: new Date(member.createdAt).toLocaleDateString() })}
+                    </p>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <label className="muted" htmlFor={`role-${member.userId}`}>

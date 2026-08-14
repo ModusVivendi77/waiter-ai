@@ -11,6 +11,7 @@ import { OrderTrendChart, OrderCountChart, OrderValueChart } from '@/components/
 import { DateRangeSelector } from '@/components/charts/date-range-selector'
 import { exportToPDF, exportToCSV } from '@/lib/export/analytics-export'
 import { useLanguage } from '@/components/app/language-provider'
+import { LoadingBar } from '@/components/app/loading-bar'
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-GB', {
@@ -182,8 +183,7 @@ export function AnalyticsConsole() {
   if (loading) {
     return (
       <section className="panel stack">
-        <span className="eyebrow">{t('analytics.eyebrow')}</span>
-        <h1 className="section-title">{t('analytics.loading')}</h1>
+        <LoadingBar />
       </section>
     )
   }

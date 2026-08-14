@@ -481,19 +481,44 @@ select {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
-/* Side-by-side trio on the home dashboard (Live tables / Order history / Team). */
-.panel-trio {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  align-items: start;
-}
-
 /* Highlights an order card when deep-linked from the home dashboard. */
 .focus-flash {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
   border-radius: 18px;
+}
+
+.loading-bar {
+  display: grid;
+  place-items: center;
+  min-height: 72px;
+  padding: 12px 0;
+}
+
+.loading-bar-track {
+  width: 100%;
+  max-width: 320px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--panel-border);
+  overflow: hidden;
+}
+
+.loading-bar-fill {
+  height: 100%;
+  width: 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0d9488, #0f766e);
+  animation: loading-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes loading-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
 }
 
 .metric {
