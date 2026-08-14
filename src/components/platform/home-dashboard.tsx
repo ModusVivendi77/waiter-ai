@@ -8,7 +8,6 @@ import { listTeamMembers, type TeamMember } from '@/lib/auth/team-actions'
 import { createClient } from '@/lib/supabase/client'
 import { useSupabaseSubscription } from '@/lib/hooks/use-supabase-subscription'
 import { useLanguage } from '@/components/app/language-provider'
-import { AddRestaurantForm } from '@/components/platform/add-restaurant-form'
 
 type TableRow = {
   id: string
@@ -138,8 +137,50 @@ function formatDateTime(value: string) {
   )}:${pad(date.getMinutes())}`
 }
 
-const STATUS_ORDER = ['NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED']
 const OPEN_STATUSES = ['NEW', 'ACCEPTED', 'PREPARING', 'READY']
+const HISTORY_STATUSES = ['SERVED', 'REJECTED', 'CANCELLED']
+
+// Shared list-item rendering for the Live orders and Order history panels,
+// keeping both views identical (table, status, time, total, expandable summary).
+function OrderListItem({
+  order,
+  t,
+  expanded,
+  onToggle,
+  onDismiss,
+}: {
+  order: OrderRow
+  t: TranslateFn
+  expanded: boolean
+  onToggle: () => void
+  onDismiss?: () => void
+}) {
+  return (
+    <li>
+      <div className="cart-line-header">
+        <div>
+          <strong>
+            {t('home.table')} {getOrderTableName(order)}
+          </strong>
+          <p className="muted">
+            {t('common.status')}: {t(`status.${order.status}`)} ·{' '}
+            {t('orders.submitted', { datetime: formatDateTime(order.created_at) })}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span className="badge">{t(`status.${order.status}`)}</span>
+          <strong>{formatCurrency(order.total, order.currency)}</strong>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
+        <button className="button-secondary" type="button" onClick={onToggle}>
+          {expanded ? t('home.hideSummary') : t('home.viewSummary')}
+        </button>
+      </div>
+      {expanded ? <OrderSummary order={order} t={t} onDismiss={onDismiss} /> : null}
+    </li>
+  )
+}
 
 export function HomeDashboard() {
   const supabase = useMemo(() => createClient(), [])
@@ -161,6 +202,7 @@ export function HomeDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [todayStats, setTodayStats] = useState<{ orders: number; revenue: number }>({ orders: 0, revenue: 0 })
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
+  const [expandedHistoryOrderId, setExpandedHistoryOrderId] = useState<string | null>(null)
   const [tableOrdersExpanded, setTableOrdersExpanded] = useState<Record<string, boolean>>({})
   const [expandedTableOrderId, setExpandedTableOrderId] = useState<string | null>(null)
   const [newOrderNotice, setNewOrderNotice] = useState<{
@@ -451,7 +493,8 @@ export function HomeDashboard() {
   }
 
   const activeTables = tables.filter((table) => table.active)
-  const liveOrders = orders.filter((order) => STATUS_ORDER.includes(order.status))
+  const liveOrders = orders.filter((order) => OPEN_STATUSES.includes(order.status))
+  const historyOrders = orders.filter((order) => HISTORY_STATUSES.includes(order.status))
   const occupiedTablesCount = activeTables.filter((table) =>
     (table.dining_sessions || []).some((session) => session.status === 'ACTIVE')
   ).length
@@ -717,40 +760,34 @@ export function HomeDashboard() {
           <span className="eyebrow">{t('home.liveOrders')}</span>
           {liveOrders.length === 0 ? <p className="muted">{t('home.noLiveOrders')}</p> : null}
           <ul className="list">
-            {liveOrders.map((order) => {
-              const isExpanded = expandedOrderId === order.id
-              return (
-                <li key={order.id}>
-                  <div className="cart-line-header">
-                    <div>
-                      <strong>
-                        {t('home.table')} {getOrderTableName(order)}
-                      </strong>
-                      <p className="muted">
-                        {t('common.status')}: {t(`status.${order.status}`)} ·{' '}
-                        {t('orders.submitted', { datetime: formatDateTime(order.created_at) })}
-                      </p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <span className="badge">{t(`status.${order.status}`)}</span>
-                      <strong>{formatCurrency(order.total, order.currency)}</strong>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
-                    <button
-                      className="button-secondary"
-                      type="button"
-                      onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
-                    >
-                      {isExpanded ? t('home.hideSummary') : t('home.viewSummary')}
-                    </button>
-                  </div>
-                  {isExpanded ? (
-                    <OrderSummary order={order} t={t} onDismiss={() => void handleDismissOrder(order.id)} />
-                  ) : null}
-                </li>
-              )
-            })}
+            {liveOrders.map((order) => (
+              <OrderListItem
+                key={order.id}
+                order={order}
+                t={t}
+                expanded={expandedOrderId === order.id}
+                onToggle={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
+                onDismiss={() => void handleDismissOrder(order.id)}
+              />
+            ))}
+          </ul>
+        </section>
+
+        <section className="panel stack">
+          <span className="eyebrow">{t('home.orderHistory')}</span>
+          {historyOrders.length === 0 ? <p className="muted">{t('home.noHistoryOrders')}</p> : null}
+          <ul className="list">
+            {historyOrders.map((order) => (
+              <OrderListItem
+                key={order.id}
+                order={order}
+                t={t}
+                expanded={expandedHistoryOrderId === order.id}
+                onToggle={() =>
+                  setExpandedHistoryOrderId(expandedHistoryOrderId === order.id ? null : order.id)
+                }
+              />
+            ))}
           </ul>
         </section>
 
@@ -777,12 +814,6 @@ export function HomeDashboard() {
               {t('home.manageTeam')}
             </Link>
           ) : null}
-        </section>
-
-        <section className="panel stack">
-          <span className="eyebrow">{t('home.addAnotherEyebrow')}</span>
-          <p className="helper-text">{t('home.addAnotherHelper')}</p>
-          <AddRestaurantForm />
         </section>
       </div>
     </main>

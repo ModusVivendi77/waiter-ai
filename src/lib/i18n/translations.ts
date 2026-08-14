@@ -70,6 +70,11 @@ export const translations: Record<string, Translation> = {
     en: 'No live orders right now.',
     el: 'Δεν υπάρχουν ενεργές παραγγελίες αυτή τη στιγμή.',
   },
+  'home.orderHistory': { en: 'Order history', el: 'Ιστορικό παραγγελιών' },
+  'home.noHistoryOrders': {
+    en: 'No served or rejected orders yet.',
+    el: 'Δεν υπάρχουν ακόμη εξυπηρετημένες ή απορριφθείσες παραγγελίες.',
+  },
   'home.teamRosterHidden': {
     en: 'Team roster is only visible to owners and platform admins.',
     el: 'Η ομάδα είναι ορατή μόνο στους ιδιοκτήτες και στους διαχειριστές πλατφόρμας.',
@@ -373,11 +378,6 @@ export const translations: Record<string, Translation> = {
   'home.viewAllOrders': { en: 'View all orders', el: 'Προβολή όλων των παραγγελιών' },
   'home.adminConsole': { en: 'Platform administration', el: 'Διαχείριση πλατφόρμας' },
   'home.recentOrders': { en: 'Recent orders', el: 'Πρόσφατες παραγγελίες' },
-  'home.addAnotherEyebrow': { en: 'Add another restaurant', el: 'Προσθήκη άλλου εστιατορίου' },
-  'home.addAnotherHelper': {
-    en: 'Register an additional restaurant under this account. It is created instantly and you are linked as its owner — no email confirmation needed. Use the restaurant selector on this page and inside Orders / Setup / Analytics to switch between them.',
-    el: 'Καταχωρίστε ένα επιπλέον εστιατόριο σε αυτόν τον λογαριασμό. Δημιουργείται άμεσα και συνδέεστε ως ιδιοκτήτης — δεν χρειάζεται επιβεβαίωση email. Χρησιμοποιήστε τον επιλογέα εστιατορίου σε αυτή τη σελίδα και στις Παραγγελίες / Ρυθμίσεις / Αναλύσεις για εναλλαγή μεταξύ τους.',
-  },
   'home.error.noRestaurants': { en: 'No restaurants found.', el: 'Δεν βρέθηκαν εστιατόρια.' },
   'home.error.noAccount': {
     en: 'No restaurant is linked to this account yet.',
@@ -527,6 +527,11 @@ export const translations: Record<string, Translation> = {
   },
   'setup.restaurantContext': { en: 'Restaurant context', el: 'Εστιατόριο' },
   'setup.restaurantContextAdmin': { en: 'Restaurant context (SUPER_ADMIN)', el: 'Εστιατόριο (SUPER_ADMIN)' },
+  'setup.addAnotherEyebrow': { en: 'Add another restaurant', el: 'Προσθήκη άλλου εστιατορίου' },
+  'setup.addAnotherHelper': {
+    en: 'Register an additional restaurant under this account. It is created instantly and you are linked as its owner — no email confirmation needed. Use the restaurant selector here and inside Orders / Setup / Analytics to switch between them.',
+    el: 'Καταχωρίστε ένα επιπλέον εστιατόριο σε αυτόν τον λογαριασμό. Δημιουργείται άμεσα και συνδέεστε ως ιδιοκτήτης — δεν χρειάζεται επιβεβαίωση email. Χρησιμοποιήστε τον επιλογέα εστιατορίου εδώ και στις Παραγγελίες / Ρυθμίσεις / Αναλύσεις για εναλλαγή μεταξύ τους.',
+  },
   'setup.tablesEyebrow': { en: 'Tables & QR', el: 'Τραπέζια & QR' },
   'setup.newTableName': { en: 'New table name', el: 'Όνομα νέου τραπεζιού' },
   'setup.tablePlaceholder': { en: 'Table 8', el: 'Τραπέζι 8' },

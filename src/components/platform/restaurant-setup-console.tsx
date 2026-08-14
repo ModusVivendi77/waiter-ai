@@ -9,6 +9,7 @@ import { listTeamMembers } from '@/lib/auth/team-actions'
 import { parseCsvRows, type CsvPreviewRow } from '@/lib/csv/menu-import'
 import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/components/app/language-provider'
+import { AddRestaurantForm } from '@/components/platform/add-restaurant-form'
 
 type RestaurantTable = {
   id: string
@@ -1446,6 +1447,12 @@ export function RestaurantSetupConsole() {
           </div>
         ) : null}
         {csvReport ? <pre className="muted" style={{ whiteSpace: 'pre-wrap' }}>{csvReport}</pre> : null}
+      </section>
+
+      <section className="panel stack">
+        <span className="eyebrow">{t('setup.addAnotherEyebrow')}</span>
+        <p className="helper-text">{t('setup.addAnotherHelper')}</p>
+        <AddRestaurantForm />
       </section>
     </>
   )
