@@ -471,8 +471,11 @@
 30. **✅ Done** — Home live orders: each order shows the submission timestamp and a "View summary / Hide summary" toggle with the customer-style line-item breakdown (items, modifiers, customer note, total); fetch widened to 100 orders with line items
 31. **✅ Done** — Home live tables: each table card now lists its linked orders with per-order status, item count, total, and submission time
 32. **✅ Done** — New-order notifications on the home dashboard are realtime and targeted: the restaurant owner/platform admin and the staff member who claimed the table get the "🔔 New order received" banner (other staff only see the refresh). Fixed a Supabase Realtime quirk where the `CHAR(3)` currency arrives truncated in INSERT payloads — banner now uses the restaurant's currency resolved on load. E2E-covered
-33. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
-34. **Future work** — Resend domain verification for customer-facing confirmation emails
+33. **✅ Done** — New-order notification banner has **Accept / Dismiss**: Accept moves the order to ACCEPTED (records status history + refreshes), Dismiss just hides it. E2E-covered
+34. **✅ Done** — Customer-facing pages are minimal: the platform navigation bar is hidden on `/t/[token]` and `/orders/[trackingToken]`; the tracking page now offers a **New order** button (clears the remembered order for the table and returns to the menu — table QR token is exposed via the order-status API). E2E-covered
+35. **✅ Done** — Timestamps made complete (`14 Aug 2026, 15:57`, with year) on the home live orders and Orders workspace; verified live-order timestamps and per-table order summaries render for both SUPER_ADMIN and STAFF (a stale Vercel deploy would show them missing)
+36. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+37. **Future work** — Resend domain verification for customer-facing confirmation emails
 
 ### After Timeline Verified
 ```bash

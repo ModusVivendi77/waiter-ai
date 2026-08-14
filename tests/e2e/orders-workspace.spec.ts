@@ -127,7 +127,10 @@ test.describe('orders workspace', () => {
 
     // The owner's dashboard must show the realtime new-order banner.
     await expect(ownerPage.getByText(/New order received/)).toBeVisible({ timeout: 10000 })
-    await ownerPage.getByRole('button', { name: 'Dismiss' }).click()
+
+    // Accept moves the order to ACCEPTED and dismisses the banner.
+    await ownerPage.getByRole('button', { name: 'Accept' }).click()
+    await expect(ownerPage.getByText(/moved to ACCEPTED/i)).toBeVisible()
     await expect(ownerPage.getByText(/New order received/)).toBeHidden()
   })
 })

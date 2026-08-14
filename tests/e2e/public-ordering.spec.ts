@@ -44,4 +44,22 @@ test.describe('public ordering journey', () => {
     await expect(page.getByText(uniqueNote)).toBeVisible()
     await expect(page.getByText(/is currently NEW/i)).toBeVisible()
   })
+
+  test('customer tracking page is minimal and offers a new order', async ({ page }) => {
+    await page.goto('/t/X7k91Lm')
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByRole('button', { name: 'Submit order' }).click()
+    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
+    await page.getByRole('link', { name: 'Track order status' }).click()
+    await page.waitForURL(/\/orders\//)
+
+    // Customers do not see the platform navigation bar.
+    await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0)
+
+    // They can start a new order from the same table.
+    await page.getByRole('button', { name: 'New order' }).click()
+    await page.waitForURL(/\/t\/X7k91Lm/)
+    await expect(page.getByRole('heading', { name: 'The Green Bar' })).toBeVisible()
+    await expect(page.getByText('You are ordering for Table 1.')).toBeVisible()
+  })
 })

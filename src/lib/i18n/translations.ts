@@ -87,6 +87,7 @@ export const translations: Record<string, Translation> = {
     en: '🔔 New order received — {table} · {total}',
     el: '🔔 Νέα παραγγελία — {table} · {total}',
   },
+  'home.acceptOrder': { en: 'Accept', el: 'Αποδοχή' },
   'home.viewSummary': { en: 'View summary', el: 'Προβολή σύνοψης' },
   'home.hideSummary': { en: 'Hide summary', el: 'Απόκρυψη σύνοψης' },
   'home.itemsCount': { en: '{count} item(s)', el: '{count} προϊόν(τα)' },
@@ -131,6 +132,7 @@ export const translations: Record<string, Translation> = {
 
   // Tracking page
   'track.eyebrow': { en: 'Order Status', el: 'Κατάσταση Παραγγελίας' },
+  'track.newOrder': { en: 'New order', el: 'Νέα παραγγελία' },
   'track.currently': {
     en: 'Order {id} for {table} is currently {status}.',
     el: 'Η παραγγελία {id} για το {table} είναι τώρα {status}.',

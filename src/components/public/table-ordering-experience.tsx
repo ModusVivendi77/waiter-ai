@@ -6,6 +6,11 @@ import { useEffect, useMemo, useState } from 'react'
 
 import type { CreateOrderInput } from '@/lib/validation/orders'
 import { useLanguage } from '@/components/app/language-provider'
+import {
+  clearStoredOrder,
+  readStoredOrder,
+  writeStoredOrder,
+} from '@/lib/utils/order-storage'
 
 type Category = {
   id: string
@@ -69,47 +74,6 @@ function formatCurrency(value: number, currency: string) {
 }
 
 const TERMINAL_STATUSES = new Set(['SERVED', 'CANCELLED', 'REJECTED'])
-
-type StoredOrder = {
-  trackingToken: string
-  submittedAt: string
-}
-
-function lastOrderKey(token: string) {
-  return `waiter-ai:last-order:${token}`
-}
-
-function readStoredOrder(token: string): StoredOrder | null {
-  try {
-    const raw = window.localStorage.getItem(lastOrderKey(token))
-    if (!raw) {
-      return null
-    }
-    const parsed = JSON.parse(raw) as Partial<StoredOrder>
-    return typeof parsed.trackingToken === 'string'
-      ? { trackingToken: parsed.trackingToken, submittedAt: parsed.submittedAt || '' }
-      : null
-  } catch {
-    return null
-  }
-}
-
-function writeStoredOrder(token: string, order: StoredOrder) {
-  try {
-    window.localStorage.setItem(lastOrderKey(token), JSON.stringify(order))
-  } catch {
-    // localStorage unavailable (private browsing, storage disabled, ...) — the
-    // success box still links to the tracking page, so nothing is lost.
-  }
-}
-
-function clearStoredOrder(token: string) {
-  try {
-    window.localStorage.removeItem(lastOrderKey(token))
-  } catch {
-    // ignore
-  }
-}
 
 export function TableOrderingExperience({ token, restaurantName, tableName, currency, categories, items }: Props) {
   const { t } = useLanguage()

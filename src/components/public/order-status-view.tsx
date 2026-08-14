@@ -1,9 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 import { usePublicOrderStatus } from '@/lib/hooks/use-public-order-status'
 import { useLanguage } from '@/components/app/language-provider'
+import { clearStoredOrder } from '@/lib/utils/order-storage'
 
 type OrderStatusPayload = {
   order: {
@@ -16,6 +18,7 @@ type OrderStatusPayload = {
   }
   table: {
     name: string
+    qrToken?: string | null
   }
   restaurant: {
     name: string
@@ -38,6 +41,7 @@ type OrderStatusPayload = {
 
 type Props = {
   trackingToken: string
+  tableQrToken?: string | null
   initialOrder: OrderStatusPayload
 }
 
@@ -62,14 +66,17 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString('en-GB', {
     day: '2-digit',
     month: 'short',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   })
 }
 
-export function OrderStatusView({ trackingToken, initialOrder }: Props) {
+export function OrderStatusView({ trackingToken, tableQrToken, initialOrder }: Props) {
   const { t } = useLanguage()
+  const router = useRouter()
   const [data, setData] = useState(initialOrder)
+  const [currentTableQrToken, setCurrentTableQrToken] = useState<string | null>(tableQrToken ?? null)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -87,6 +94,9 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
     }
 
     setData(next)
+    if (next.table?.qrToken) {
+      setCurrentTableQrToken(next.table.qrToken)
+    }
     setLastUpdated(new Date())
     setError(null)
   }, [trackingToken])
@@ -196,6 +206,20 @@ export function OrderStatusView({ trackingToken, initialOrder }: Props) {
             >
               {isRefreshing ? t('track.refreshing') : t('track.refreshNow')}
             </button>
+            {currentTableQrToken ? (
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  // Clear the remembered order for this table so the menu page
+                  // does not redirect straight back to this tracking view.
+                  clearStoredOrder(currentTableQrToken)
+                  router.push(`/t/${currentTableQrToken}`)
+                }}
+              >
+                {t('track.newOrder')}
+              </button>
+            ) : null}
           </div>
         </section>
 

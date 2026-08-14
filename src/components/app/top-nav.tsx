@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 import { useLanguage } from '@/components/app/language-provider'
 
@@ -14,6 +15,13 @@ const navLinks = [
 
 export function TopNav() {
   const { lang, setLang, t } = useLanguage()
+  const pathname = usePathname()
+
+  // Customer-facing surfaces (table menu and order tracking) are intentionally
+  // minimal: no platform navigation is shown there.
+  if (pathname.startsWith('/t/') || pathname.startsWith('/orders/')) {
+    return null
+  }
 
   return (
     <header className="global-nav-shell">

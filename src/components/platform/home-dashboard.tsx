@@ -77,6 +77,7 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString('en-GB', {
     day: '2-digit',
     month: 'short',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   })
@@ -105,9 +106,12 @@ export function HomeDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [todayStats, setTodayStats] = useState<{ orders: number; revenue: number }>({ orders: 0, revenue: 0 })
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
-  const [newOrderNotice, setNewOrderNotice] = useState<{ tableName: string; total: number; currency: string } | null>(
-    null
-  )
+  const [newOrderNotice, setNewOrderNotice] = useState<{
+    orderId: string
+    tableName: string
+    total: number
+    currency: string
+  } | null>(null)
   const [currentUserRole, setCurrentUserRole] = useState<'OWNER' | 'MANAGER' | 'STAFF' | null>(null)
   const [restaurantCurrency, setRestaurantCurrency] = useState('EUR')
 
@@ -249,7 +253,7 @@ export function HomeDashboard() {
       // no banner.
       if (payload?.eventType === 'INSERT') {
         const inserted = payload.new as
-          | { restaurant_id?: string; table_id?: string; total?: number }
+          | { id?: string; restaurant_id?: string; table_id?: string; total?: number }
           | undefined
         if (
           inserted &&
@@ -265,6 +269,7 @@ export function HomeDashboard() {
             // The realtime payload truncates the CHAR(3) currency column, so use
             // the restaurant currency resolved on load instead.
             setNewOrderNotice({
+              orderId: inserted.id || '',
               tableName: table?.name ?? 'Unknown table',
               total: Number(inserted.total) || 0,
               currency: restaurantCurrency,
@@ -304,6 +309,43 @@ export function HomeDashboard() {
 
     setNotice(t('home.claimNotice'))
     await loadDashboard(activeRestaurantIdRef.current || undefined)
+  }
+
+  // "Accept" on the new-order notification: moves the order to ACCEPTED and
+  // records the status history entry, matching the Orders workspace flow.
+  async function handleAcceptNewOrder(orderId: string) {
+    const order = orders.find((entry) => entry.id === orderId)
+    if (!order) {
+      setNewOrderNotice(null)
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({ status: 'ACCEPTED' })
+      .eq('id', orderId)
+
+    if (!updateError) {
+      const { error: historyError } = await supabase.from('order_status_history').insert({
+        order_id: orderId,
+        old_status: order.status,
+        new_status: 'ACCEPTED',
+        changed_by: currentUserId,
+      })
+      if (!historyError) {
+        setNotice(t('orders.notice.statusChanged', { id: orderId.slice(0, 8), status: 'ACCEPTED' }))
+      }
+      setNewOrderNotice(null)
+      void refreshOrders()
+    } else {
+      setError(updateError.message)
+    }
+
+    setSaving(false)
   }
 
   const activeTables = tables.filter((table) => table.active)
@@ -372,9 +414,24 @@ export function HomeDashboard() {
                   total: formatCurrency(newOrderNotice.total, newOrderNotice.currency),
                 })}
               </strong>
-              <button className="button-secondary" type="button" onClick={() => setNewOrderNotice(null)}>
-                {t('orders.dismiss')}
-              </button>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  className="button"
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void handleAcceptNewOrder(newOrderNotice.orderId)}
+                >
+                  {t('home.acceptOrder')}
+                </button>
+                <button
+                  className="button-secondary"
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setNewOrderNotice(null)}
+                >
+                  {t('orders.dismiss')}
+                </button>
+              </div>
             </div>
           ) : null}
 
