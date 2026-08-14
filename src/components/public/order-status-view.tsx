@@ -63,13 +63,11 @@ function formatTime(value: string) {
 }
 
 function formatDateTime(value: string) {
-  return new Date(value).toLocaleString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const date = new Date(value)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${String(date.getFullYear()).slice(-2)} ${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`
 }
 
 export function OrderStatusView({ trackingToken, tableQrToken, initialOrder }: Props) {

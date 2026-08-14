@@ -498,7 +498,7 @@ select {
 .qr-sheet {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
 
 .qr-card {
@@ -510,11 +510,18 @@ select {
   gap: 10px;
   justify-items: center;
   text-align: center;
+  min-width: 0;
 }
 
 .qr-svg {
   width: 100%;
   max-width: 190px;
+}
+
+.qr-svg svg {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 
 .order-layout {

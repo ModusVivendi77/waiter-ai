@@ -475,8 +475,13 @@
 34. **✅ Done** — Customer-facing pages are minimal: the platform navigation bar is hidden on `/t/[token]` and `/orders/[trackingToken]`; the tracking page now offers a **New order** button (clears the remembered order for the table and returns to the menu — table QR token is exposed via the order-status API). E2E-covered
 35. **✅ Done** — Timestamps made complete (`14 Aug 2026, 15:57`, with year) on the home live orders and Orders workspace; verified live-order timestamps and per-table order summaries render for both SUPER_ADMIN and STAFF (a stale Vercel deploy would show them missing)
 36. **✅ Done** — Orders workspace note fields are collapsible: the customer-note and line-note editors only render when they contain a note (or when "Add customer note / Add line note" is clicked); empty notes no longer take up space
-37. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
-38. **Future work** — Resend domain verification for customer-facing confirmation emails
+37. **✅ Done** — QR sheet QR codes now fit their cards: SVGs scale to the box (`max-width: 100%`) and the grid packs more columns (`auto-fill` + `min-width: 0`), so 10 tables wrap into more lines
+38. **✅ Done** — Timestamps use `DD/MM/YY HH:MM` (e.g. `14/08/26 15:57`) across the home live orders, Orders workspace, and the customer tracking timeline
+39. **✅ Done** — Live tables are expandable in two steps: "Show orders / Hide orders" reveals a table's linked orders (status · items · total · time), and clicking an order expands the customer-style line-item summary
+40. **✅ Done** — "Add item" in the Orders workspace replaced the long `<select>` with a searchable picker (type to filter by name/category, click a result to select); keeps the quantity input and Add button
+41. **✅ Done** — E2E suite runs serially (`workers: 1`) because the tests share one live Supabase project and parallel workers were accepting/seeing each other's orders via the shared realtime stream
+42. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+43. **Future work** — Resend domain verification for customer-facing confirmation emails
 
 ### After Timeline Verified
 ```bash

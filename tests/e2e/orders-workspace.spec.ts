@@ -133,4 +133,52 @@ test.describe('orders workspace', () => {
     await expect(ownerPage.getByText(/moved to ACCEPTED/i)).toBeVisible()
     await expect(ownerPage.getByText(/New order received/)).toBeHidden()
   })
+
+  test('live tables expose orders and expandable order summaries', async ({ page }) => {
+    // Place an order on Table 1 so it has at least one linked order.
+    await page.goto('/t/X7k91Lm')
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByRole('button', { name: 'Submit order' }).click()
+    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
+
+    // Select The Green Bar on the home dashboard.
+    await page.addInitScript((restaurantId: string) => {
+      localStorage.setItem('staffHomeRestaurantId', restaurantId)
+    }, greenBarRestaurantId)
+
+    await loginAsSuperAdmin(page)
+    await page.goto('/platform')
+    await expect(page.getByText('Live tables')).toBeVisible()
+
+    const tableCard = page.locator('article.metric').filter({ hasText: 'Table 1' }).first()
+    await tableCard.getByRole('button', { name: 'Show orders' }).click()
+    await expect(tableCard.getByRole('button', { name: 'Hide orders' })).toBeVisible()
+
+    // Clicking an order row expands the customer-style summary (line items + total).
+    const firstOrderRow = tableCard.locator('ul.list li button').first()
+    await firstOrderRow.click()
+    await expect(tableCard.getByText('Total')).toBeVisible()
+    await expect(tableCard.getByText('Burger')).toBeVisible()
+  })
+
+  test('add item to an order uses a searchable picker', async ({ page }) => {
+    await page.goto('/t/X7k91Lm')
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByRole('button', { name: 'Submit order' }).click()
+    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
+
+    await loginAsSuperAdmin(page)
+    await page.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
+    const orderCard = page.locator('[data-testid^="order-card-"]').first()
+    await expect(orderCard).toBeVisible()
+
+    // Search narrows the menu items instead of a long dropdown.
+    await orderCard.getByLabel('Search menu items').fill('Burger')
+    await orderCard.getByRole('button', { name: /Burger/ }).first().click()
+    await expect(orderCard.getByText('Selected:')).toBeVisible()
+
+    await orderCard.getByRole('button', { name: 'Add item to order' }).click()
+    // The confirmation notice renders at the top of the workspace, not inside the card.
+    await expect(page.getByText(/added to order/i)).toBeVisible()
+  })
 })

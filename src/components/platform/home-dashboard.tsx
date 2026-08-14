@@ -73,14 +73,49 @@ function formatCurrency(value: number, currency: string) {
   }).format(value)
 }
 
+type TranslateFn = (key: string, params?: Record<string, string | number>) => string
+
+// Shared compact order summary, mirroring what the customer sees on the
+// tracking page (line items, modifiers, customer note, total).
+function OrderSummary({ order, t }: { order: OrderRow; t: TranslateFn }) {
+  const lineItems = order.order_items || []
+  return (
+    <div className="stack" style={{ marginTop: '12px' }}>
+      <ul className="list">
+        {lineItems.map((line) => (
+          <li key={line.id}>
+            <div className="cart-line-header">
+              <div>
+                <strong>{line.item_name}</strong>
+                <p className="muted">
+                  {t('home.quantity')}: {line.quantity} · {formatCurrency(line.unit_price, order.currency)}
+                </p>
+                {line.modifiers && line.modifiers.length > 0 ? (
+                  <p className="muted">{line.modifiers.join(' · ')}</p>
+                ) : null}
+              </div>
+              <span>{formatCurrency(line.unit_price * line.quantity, order.currency)}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {order.customer_note ? (
+        <p className="muted">{t('home.customerNoteLine', { note: order.customer_note })}</p>
+      ) : null}
+      <div className="cart-line-header">
+        <strong>{t('common.total')}</strong>
+        <strong>{formatCurrency(order.total, order.currency)}</strong>
+      </div>
+    </div>
+  )
+}
+
 function formatDateTime(value: string) {
-  return new Date(value).toLocaleString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const date = new Date(value)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${String(date.getFullYear()).slice(-2)} ${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`
 }
 
 const STATUS_ORDER = ['NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED']
@@ -106,6 +141,8 @@ export function HomeDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [todayStats, setTodayStats] = useState<{ orders: number; revenue: number }>({ orders: 0, revenue: 0 })
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
+  const [tableOrdersExpanded, setTableOrdersExpanded] = useState<Record<string, boolean>>({})
+  const [expandedTableOrderId, setExpandedTableOrderId] = useState<string | null>(null)
   const [newOrderNotice, setNewOrderNotice] = useState<{
     orderId: string
     tableName: string
@@ -504,6 +541,7 @@ export function HomeDashboard() {
                   : `${t('home.handledBy')} ${staffEmailMap[table.assigned_staff_id] ?? t('home.staffMember')}`
                 : t('home.unassigned')
               const tableOrders = orders.filter((order) => order.table_id === table.id)
+              const ordersOpen = Boolean(tableOrdersExpanded[table.id])
 
               return (
                 <article className="metric" key={table.id}>
@@ -516,28 +554,52 @@ export function HomeDashboard() {
                   </span>
                   <strong>{getTableName(table)}</strong>
                   <p className="muted">{assignedName}</p>
-                  <div style={{ marginTop: '10px' }}>
-                    {tableOrders.length === 0 ? (
-                      <p className="muted">{t('home.noOrdersForTable')}</p>
-                    ) : (
+                  {tableOrders.length === 0 ? (
+                    <p className="muted" style={{ marginTop: '10px' }}>
+                      {t('home.noOrdersForTable')}
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                      <button
+                        className="button-secondary"
+                        type="button"
+                        onClick={() =>
+                          setTableOrdersExpanded((current) => ({ ...current, [table.id]: !current[table.id] }))
+                        }
+                      >
+                        {ordersOpen ? t('home.hideOrders') : t('home.showOrders')}
+                      </button>
+                    </div>
+                  )}
+                  {ordersOpen && tableOrders.length > 0 ? (
+                    <div style={{ marginTop: '10px' }}>
                       <ul className="list">
-                        {tableOrders.map((order) => (
-                          <li key={order.id}>
-                            <div className="cart-line-header">
-                              <div>
-                                <strong>{t(`status.${order.status}`)}</strong>
-                                <p className="muted">
-                                  {t('home.itemsCount', { count: (order.order_items || []).length })} ·{' '}
-                                  {formatCurrency(order.total, order.currency)}
-                                </p>
-                              </div>
-                              <span className="badge">{formatDateTime(order.created_at)}</span>
-                            </div>
-                          </li>
-                        ))}
+                        {tableOrders.map((order) => {
+                          const isSummaryOpen = expandedTableOrderId === order.id
+                          return (
+                            <li key={order.id}>
+                              <button
+                                className="button-secondary"
+                                type="button"
+                                style={{ width: '100%', minHeight: '34px', justifyContent: 'space-between' }}
+                                onClick={() => setExpandedTableOrderId(isSummaryOpen ? null : order.id)}
+                              >
+                                <span>
+                                  <strong>{t(`status.${order.status}`)}</strong>
+                                  <span className="muted">
+                                    {' '}· {t('home.itemsCount', { count: (order.order_items || []).length })} ·{' '}
+                                    {formatCurrency(order.total, order.currency)}
+                                  </span>
+                                </span>
+                                <span className="badge">{formatDateTime(order.created_at)}</span>
+                              </button>
+                              {isSummaryOpen ? <OrderSummary order={order} t={t} /> : null}
+                            </li>
+                          )
+                        })}
                       </ul>
-                    )}
-                  </div>
+                    </div>
+                  ) : null}
                   <button
                     className="button-secondary"
                     type="button"
@@ -558,7 +620,6 @@ export function HomeDashboard() {
           <ul className="list">
             {liveOrders.map((order) => {
               const isExpanded = expandedOrderId === order.id
-              const lineItems = order.order_items || []
               return (
                 <li key={order.id}>
                   <div className="cart-line-header">
@@ -585,36 +646,7 @@ export function HomeDashboard() {
                       {isExpanded ? t('home.hideSummary') : t('home.viewSummary')}
                     </button>
                   </div>
-                  {isExpanded ? (
-                    <div className="stack" style={{ marginTop: '12px' }}>
-                      <ul className="list">
-                        {lineItems.map((line) => (
-                          <li key={line.id}>
-                            <div className="cart-line-header">
-                              <div>
-                                <strong>{line.item_name}</strong>
-                                <p className="muted">
-                                  {t('home.quantity')}: {line.quantity} ·{' '}
-                                  {formatCurrency(line.unit_price, order.currency)}
-                                </p>
-                                {line.modifiers && line.modifiers.length > 0 ? (
-                                  <p className="muted">{line.modifiers.join(' · ')}</p>
-                                ) : null}
-                              </div>
-                              <span>{formatCurrency(line.unit_price * line.quantity, order.currency)}</span>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                      {order.customer_note ? (
-                        <p className="muted">{t('home.customerNoteLine', { note: order.customer_note })}</p>
-                      ) : null}
-                      <div className="cart-line-header">
-                        <strong>{t('common.total')}</strong>
-                        <strong>{formatCurrency(order.total, order.currency)}</strong>
-                      </div>
-                    </div>
-                  ) : null}
+                  {isExpanded ? <OrderSummary order={order} t={t} /> : null}
                 </li>
               )
             })}

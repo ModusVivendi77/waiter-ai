@@ -322,7 +322,7 @@ export function RestaurantSetupConsole() {
     setNotice(null)
 
     try {
-      const svg = qrSvgMap[table.id] || (await QRCode.toString(`${appUrl}/t/${table.qr_token}`, { type: 'svg', margin: 1, width: 512 }))
+      const svg = qrSvgMap[table.id] || (await QRCode.toString(`${appUrl}/t/${table.qr_token}`, { type: 'svg', margin: 1, width: 256 }))
       const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
       const objectUrl = URL.createObjectURL(blob)
       const anchor = document.createElement('a')

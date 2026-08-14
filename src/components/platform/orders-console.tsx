@@ -121,13 +121,11 @@ function formatCurrency(value: number, currency: string) {
 }
 
 function formatDateTime(value: string) {
-  return new Date(value).toLocaleString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const date = new Date(value)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${String(date.getFullYear()).slice(-2)} ${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`
 }
 
 export function OrdersConsole() {
@@ -151,6 +149,7 @@ export function OrdersConsole() {
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({})
   const [lineDrafts, setLineDrafts] = useState<Record<string, LineDraft>>({})
   const [addItemDrafts, setAddItemDrafts] = useState<Record<string, AddItemDraft>>({})
+  const [addItemSearch, setAddItemSearch] = useState<Record<string, string>>({})
   const [expandedCustomerNote, setExpandedCustomerNote] = useState<Record<string, boolean>>({})
   const [expandedLineNote, setExpandedLineNote] = useState<Record<string, boolean>>({})
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -1004,24 +1003,72 @@ export function OrdersConsole() {
               <div className="stack" style={{ marginTop: '12px' }}>
                 <span className="eyebrow">{t('orders.addItem')}</span>
                 <div className="field">
-                  <label htmlFor={`order-item-${order.id}`}>{t('orders.menuItem')}</label>
-                  <select
-                    id={`order-item-${order.id}`}
-                    value={addItemDrafts[order.id]?.menuItemId ?? ''}
-                    onChange={(event) =>
+                  <label htmlFor={`order-item-search-${order.id}`}>{t('orders.menuItemSearch')}</label>
+                  <input
+                    id={`order-item-search-${order.id}`}
+                    type="text"
+                    value={addItemSearch[order.id] ?? ''}
+                    placeholder={t('orders.menuItemSearchPlaceholder')}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      setAddItemSearch((current) => ({ ...current, [order.id]: value }))
                       setAddItemDrafts((current) => ({
                         ...current,
-                        [order.id]: { menuItemId: event.target.value, quantity: current[order.id]?.quantity ?? '1' },
+                        [order.id]: { menuItemId: '', quantity: current[order.id]?.quantity ?? '1' },
                       }))
-                    }
-                  >
-                    {menuOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {getCategoryLabel(option)} - {option.name} ({formatCurrency(option.price, order.currency)})
-                      </option>
-                    ))}
-                  </select>
+                    }}
+                  />
                 </div>
+                {(() => {
+                  const searchTerm = (addItemSearch[order.id] ?? '').trim().toLowerCase()
+                  if (!searchTerm) return null
+                  const matches = menuOptions
+                    .filter(
+                      (option) =>
+                        option.name.toLowerCase().includes(searchTerm) ||
+                        (getCategoryLabel(option) || '').toLowerCase().includes(searchTerm)
+                    )
+                    .slice(0, 8)
+                  if (matches.length === 0) {
+                    return <p className="muted">{t('orders.noMatchingItems')}</p>
+                  }
+                  return (
+                    <ul className="list">
+                      {matches.map((option) => (
+                        <li key={option.id}>
+                          <button
+                            className="button-secondary"
+                            type="button"
+                            style={{ width: '100%', justifyContent: 'space-between' }}
+                            onClick={() => {
+                              setAddItemSearch((current) => ({ ...current, [order.id]: '' }))
+                              setAddItemDrafts((current) => ({
+                                ...current,
+                                [order.id]: { menuItemId: option.id, quantity: current[order.id]?.quantity ?? '1' },
+                              }))
+                            }}
+                          >
+                            <span>
+                              {getCategoryLabel(option)} - {option.name}
+                            </span>
+                            <span>{formatCurrency(option.price, order.currency)}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                })()}
+                {addItemDrafts[order.id]?.menuItemId ? (
+                  <p className="muted">
+                    {t('orders.selectedItem')}:{' '}
+                    {(() => {
+                      const selected = menuOptions.find(
+                        (option) => option.id === addItemDrafts[order.id]?.menuItemId
+                      )
+                      return selected ? `${getCategoryLabel(selected)} - ${selected.name}` : ''
+                    })()}
+                  </p>
+                ) : null}
                 <div className="field">
                   <label htmlFor={`add-qty-${order.id}`}>{t('orders.quantity')}</label>
                   <input
@@ -1033,12 +1080,20 @@ export function OrdersConsole() {
                     onChange={(event) =>
                       setAddItemDrafts((current) => ({
                         ...current,
-                        [order.id]: { menuItemId: current[order.id]?.menuItemId ?? menuOptions[0]?.id ?? '', quantity: event.target.value },
+                        [order.id]: {
+                          menuItemId: current[order.id]?.menuItemId ?? '',
+                          quantity: event.target.value,
+                        },
                       }))
                     }
                   />
                 </div>
-                <button className="button" type="button" disabled={saving || menuOptions.length === 0} onClick={() => void handleAddItemToOrder(order.id)}>
+                <button
+                  className="button"
+                  type="button"
+                  disabled={saving || !addItemDrafts[order.id]?.menuItemId}
+                  onClick={() => void handleAddItemToOrder(order.id)}
+                >
                   {t('orders.addItemToOrder')}
                 </button>
               </div>

@@ -11,6 +11,10 @@ export default defineConfig({
   testDir: './tests/e2e',
   timeout: 60_000,
   fullyParallel: false,
+  // The E2E suite exercises a single shared live Supabase project (orders,
+  // statuses, realtime notifications). Parallel workers race on the same
+  // realtime streams and can accept/see each other's orders, so run serially.
+  workers: 1,
   use: {
     baseURL,
     trace: 'on-first-retry',
