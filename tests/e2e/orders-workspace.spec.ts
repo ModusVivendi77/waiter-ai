@@ -181,4 +181,58 @@ test.describe('orders workspace', () => {
     // The confirmation notice renders at the top of the workspace, not inside the card.
     await expect(page.getByText(/added to order/i)).toBeVisible()
   })
+
+  test('closing a table session makes the next visit produce a distinct order', async ({ browser }) => {
+    // First customers sit at Table 1 and place an order.
+    const contextA = await browser.newContext()
+    const customerA = await contextA.newPage()
+    const noteA = `E2E visit 1 ${Date.now()}`
+    await customerA.goto('/t/X7k91Lm')
+    await customerA.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await customerA.getByLabel('Order note').fill(noteA)
+    await customerA.getByRole('button', { name: 'Submit order' }).click()
+    await expect(customerA.getByText(/submitted with status NEW/i)).toBeVisible()
+
+    const firstSuccess = await customerA.locator('.success').first().textContent()
+    const firstNumber = Number(firstSuccess?.match(/Order (\d+)/)?.[1])
+    expect(firstNumber).toBeGreaterThan(0)
+    const firstTrackHref = await customerA.locator('.success a').first().getAttribute('href')
+
+    // Staff: serve the order, then close the table's dining session.
+    const adminPage = await contextA.newPage()
+    await loginAsSuperAdmin(adminPage)
+    await adminPage.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
+    await expect(adminPage.getByText('Restaurant: The Green Bar')).toBeVisible()
+
+    const orderCard = adminPage.locator('[data-testid^="order-card-"]').filter({ hasText: noteA }).first()
+    await expect(orderCard).toBeVisible()
+    await orderCard.getByRole('button', { name: 'SERVED' }).click()
+    await expect(adminPage.getByText(/moved to SERVED/i)).toBeVisible()
+
+    adminPage.once('dialog', (dialog) => void dialog.accept())
+    await orderCard.getByRole('button', { name: 'Close table session' }).click()
+    await expect(adminPage.getByText(/session for Table 1 closed/i)).toBeVisible()
+
+    // New customers arrive at the same table with their own device (fresh browser
+    // context = clean localStorage) and place a new order.
+    const contextB = await browser.newContext()
+    const customerB = await contextB.newPage()
+    await customerB.goto('/t/X7k91Lm')
+    await customerB.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await customerB.getByRole('button', { name: 'Submit order' }).click()
+    await expect(customerB.getByText(/submitted with status NEW/i)).toBeVisible()
+
+    const secondSuccess = await customerB.locator('.success').first().textContent()
+    const secondNumber = Number(secondSuccess?.match(/Order (\d+)/)?.[1])
+    expect(secondNumber).toBeGreaterThan(0)
+    const secondTrackHref = await customerB.locator('.success a').first().getAttribute('href')
+
+    // The next visit must be a completely separate order: a new sequential order
+    // number and its own tracking token — never a continuation of the old visit.
+    expect(secondNumber).toBeGreaterThan(firstNumber)
+    expect(secondTrackHref).not.toBe(firstTrackHref)
+
+    await contextA.close()
+    await contextB.close()
+  })
 })
