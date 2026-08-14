@@ -5,10 +5,12 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 import { resendConfirmationEmail, type VerifyEmailState } from '@/lib/auth/actions'
+import { useLanguage } from '@/components/app/language-provider'
 
 const initialState: VerifyEmailState = {}
 
 export function VerifyEmailForm() {
+  const { t } = useLanguage()
   const searchParams = useSearchParams()
   const initialEmail = searchParams.get('email') || ''
   const invalidLink = searchParams.get('error') === 'invalid-link'
@@ -18,20 +20,15 @@ export function VerifyEmailForm() {
 
   return (
     <div className="stack">
-      {invalidLink ? <div className="error-box">That confirmation link is invalid or has expired.</div> : null}
+      {invalidLink ? <div className="error-box">{t('auth.verifyInvalidLink')}</div> : null}
 
-      <div className="message">
-        We sent a confirmation email to <strong>{email || 'your inbox'}</strong>. Open the link inside to activate
-        your owner account, then sign in.
-      </div>
+      <div className="message">{t('auth.verifyMessage', { email: email || 'your inbox' })}</div>
 
-      <p className="helper-text">
-        Didn't receive it? Enter your email below and we'll send the confirmation link again.
-      </p>
+      <p className="helper-text">{t('auth.verifyHelper')}</p>
 
       <form action={formAction} className="stack">
         <div className="field">
-          <label htmlFor="verificationEmail">Email</label>
+          <label htmlFor="verificationEmail">{t('login.email')}</label>
           <input
             id="verificationEmail"
             name="email"
@@ -47,11 +44,11 @@ export function VerifyEmailForm() {
         {state.success ? <div className="success">{state.success}</div> : null}
 
         <button className="button" type="submit" disabled={pending}>
-          {pending ? 'Sending...' : 'Resend confirmation email'}
+          {pending ? t('auth.sending') : t('register.resend')}
         </button>
       </form>
 
-      <Link href="/login">Already confirmed? Sign in.</Link>
+      <Link href="/login">{t('auth.verifyLogin')}</Link>
     </div>
   )
 }

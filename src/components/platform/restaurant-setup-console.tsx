@@ -8,6 +8,7 @@ import { getClientUserContext } from '@/lib/auth/client'
 import { listTeamMembers } from '@/lib/auth/team-actions'
 import { parseCsvRows, type CsvPreviewRow } from '@/lib/csv/menu-import'
 import { createClient } from '@/lib/supabase/client'
+import { useLanguage } from '@/components/app/language-provider'
 
 type RestaurantTable = {
   id: string
@@ -103,6 +104,7 @@ function parseAllergensText(text: string): string[] {
 export function RestaurantSetupConsole() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [restaurantId, setRestaurantId] = useState<string | null>(null)
@@ -170,7 +172,7 @@ export function RestaurantSetupConsole() {
       const { data: restaurants, error: restaurantsError } = await supabase.from('restaurants').select('id, name').order('name')
 
       if (restaurantsError || !restaurants || restaurants.length === 0) {
-        setError(restaurantsError?.message || 'No restaurants found for platform administration.')
+        setError(restaurantsError?.message || t('setup.error.noRestaurants'))
         setLoading(false)
         return
       }
@@ -191,7 +193,7 @@ export function RestaurantSetupConsole() {
     } else {
       const memberships = context.memberships.filter((entry) => entry.role === 'OWNER' || entry.role === 'MANAGER')
       if (memberships.length === 0) {
-        setError('You need OWNER or MANAGER access to edit restaurant setup.')
+        setError(t('setup.error.roleRequired'))
         setLoading(false)
         return
       }
@@ -247,7 +249,7 @@ export function RestaurantSetupConsole() {
     )
 
     if (tableError || categoryError || itemError) {
-      setError(tableError?.message || categoryError?.message || itemError?.message || 'Failed to load setup data.')
+      setError(tableError?.message || categoryError?.message || itemError?.message || t('setup.error.loadFailed'))
     } else {
       const typedCategories = (categoryRows as Category[]) || []
       const typedItems = (itemRows as MenuItem[]) || []
@@ -328,7 +330,7 @@ export function RestaurantSetupConsole() {
       anchor.download = `${table.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'table'}-qr.svg`
       anchor.click()
       URL.revokeObjectURL(objectUrl)
-      setNotice(`Downloaded QR SVG for ${table.name}.`)
+      setNotice(t('setup.notice.qrDownloadedFor', { name: table.name }))
     } catch (downloadError) {
       setError(downloadError instanceof Error ? downloadError.message : 'Failed to generate QR code.')
     } finally {
@@ -354,7 +356,7 @@ export function RestaurantSetupConsole() {
       return
     }
 
-    setNotice(`Preview ready for ${rows.length} CSV row(s).`)
+    setNotice(t('setup.notice.previewReady', { count: rows.length }))
   }
 
   async function handleAddTable(event: FormEvent<HTMLFormElement>) {
@@ -384,7 +386,7 @@ export function RestaurantSetupConsole() {
     }
 
     setTableName('')
-    setNotice('Table created with a fresh QR token.')
+    setNotice(t('setup.notice.tableCreated'))
     await loadData()
   }
 
@@ -410,7 +412,7 @@ export function RestaurantSetupConsole() {
       return
     }
 
-    setNotice(`Table ${table.name} is now ${table.active ? 'inactive' : 'active'}.`)
+    setNotice(t('setup.notice.tableToggled', { name: table.name, state: table.active ? 'inactive' : 'active' }))
     await loadData()
   }
 
@@ -436,7 +438,7 @@ export function RestaurantSetupConsole() {
       return
     }
 
-    setNotice('Table assignment updated.')
+    setNotice(t('setup.notice.tableAssignment'))
     await loadData()
   }
 
@@ -462,7 +464,7 @@ export function RestaurantSetupConsole() {
       return
     }
 
-    setNotice(`Table ${table.name} deleted.`)
+    setNotice(t('setup.notice.tableDeletedName', { name: table.name }))
     await loadData()
   }
 
@@ -490,7 +492,7 @@ export function RestaurantSetupConsole() {
 
     setEditingTableId(null)
     setEditingTableName('')
-    setNotice('Table name updated.')
+    setNotice(t('setup.notice.tableNameUpdated'))
     await loadData()
   }
 
@@ -520,7 +522,7 @@ export function RestaurantSetupConsole() {
     }
 
     setCategoryName('')
-    setNotice('Category created.')
+    setNotice(t('setup.notice.categoryCreated'))
     await loadData()
   }
 
@@ -531,7 +533,7 @@ export function RestaurantSetupConsole() {
 
     const hasLinkedItems = items.some((item) => item.category_id === category.id)
     if (hasLinkedItems) {
-      setError('Cannot delete this category while menu items still reference it.')
+      setError(t('setup.error.categoryInUse'))
       return
     }
 
@@ -552,7 +554,7 @@ export function RestaurantSetupConsole() {
       return
     }
 
-    setNotice(`Category ${category.name} deleted.`)
+    setNotice(t('setup.notice.categoryDeleted', { name: category.name }))
     await loadData()
   }
 
@@ -580,7 +582,7 @@ export function RestaurantSetupConsole() {
 
     setEditingCategoryId(null)
     setEditingCategoryName('')
-    setNotice('Category name updated.')
+    setNotice(t('setup.notice.categoryRenamed'))
     await loadData()
   }
 
@@ -592,7 +594,7 @@ export function RestaurantSetupConsole() {
 
     const numericPrice = Number(itemPrice)
     if (Number.isNaN(numericPrice) || numericPrice < 0) {
-      setError('Price must be a valid positive number.')
+      setError(t('setup.error.invalidPrice'))
       return
     }
 
@@ -641,7 +643,7 @@ export function RestaurantSetupConsole() {
     setItemPrice('')
     setItemAllergens('')
     setItemModifiersText('')
-    setNotice('Menu item created.')
+    setNotice(t('setup.notice.itemCreated'))
     await loadData()
   }
 
@@ -667,7 +669,7 @@ export function RestaurantSetupConsole() {
       return
     }
 
-    setNotice(`${item.name} is now ${item.available ? 'unavailable' : 'available'}.`)
+    setNotice(t('setup.notice.itemToggled', { name: item.name, state: item.available ? 'unavailable' : 'available' }))
     await loadData()
   }
 
@@ -693,7 +695,7 @@ export function RestaurantSetupConsole() {
       return
     }
 
-    setNotice(`Menu item ${item.name} deleted.`)
+    setNotice(t('setup.notice.itemDeletedName', { name: item.name }))
     await loadData()
   }
 
@@ -704,7 +706,7 @@ export function RestaurantSetupConsole() {
 
     const numericPrice = Number(editingItemPrice)
     if (Number.isNaN(numericPrice) || numericPrice < 0) {
-      setError('Price must be a valid positive number.')
+      setError(t('setup.error.invalidPrice'))
       return
     }
 
@@ -768,7 +770,7 @@ export function RestaurantSetupConsole() {
     setEditingItemCategoryId('')
     setEditingItemAllergens('')
     setEditingItemModifiersText('')
-    setNotice('Menu item updated.')
+    setNotice(t('setup.notice.itemUpdated'))
     await loadData()
   }
 
@@ -787,7 +789,7 @@ export function RestaurantSetupConsole() {
     const draft = quickDrafts[item.id]
     const price = Number(draft?.price)
     if (!draft?.name.trim() || Number.isNaN(price) || price < 0) {
-      setError('A name and a valid price are required.')
+      setError(t('setup.error.namePriceRequired'))
       return
     }
 
@@ -808,7 +810,7 @@ export function RestaurantSetupConsole() {
       return
     }
 
-    setNotice(`${item.name} updated.`)
+    setNotice(t('setup.notice.itemUpdatedName', { name: item.name }))
     await loadData()
   }
 
@@ -834,7 +836,7 @@ export function RestaurantSetupConsole() {
     }
 
     if (csvPreviewSource !== csvText || csvPreviewRows.length === 0) {
-      setError('Preview the CSV before importing.')
+      setError(t('setup.error.previewFirst'))
       return
     }
 
@@ -913,7 +915,7 @@ export function RestaurantSetupConsole() {
 
     if (rowsToInsert.length === 0) {
       setSaving(false)
-      setNotice('No new menu items imported. All parsed rows already exist.')
+      setNotice(t('setup.notice.nothingImported'))
       return
     }
 
@@ -930,7 +932,11 @@ export function RestaurantSetupConsole() {
     setCsvPreviewRows([])
     setCsvPreviewSource('')
     const skipped = parsedRows.length - rowsToInsert.length
-    setNotice(`Imported ${rowsToInsert.length} rows from CSV.${skipped > 0 ? ` Skipped ${skipped} duplicate row(s).` : ''}`)
+    setNotice(
+      skipped > 0
+        ? t('setup.notice.importedWithSkip', { count: rowsToInsert.length, skipped })
+        : t('setup.imported', { count: rowsToInsert.length })
+    )
     setCsvReport(null)
     await loadData()
   }
@@ -938,8 +944,8 @@ export function RestaurantSetupConsole() {
   if (loading) {
     return (
       <section className="panel stack">
-        <span className="eyebrow">Restaurant Setup</span>
-        <h2 className="section-title">Loading setup workspace...</h2>
+        <span className="eyebrow">{t('setup.eyebrow')}</span>
+        <h2 className="section-title">{t('setup.loading')}</h2>
       </section>
     )
   }
@@ -948,15 +954,12 @@ export function RestaurantSetupConsole() {
     <>
       <section className="panel stack">
         <span className="eyebrow">Phase 4</span>
-        <h1 className="section-title">Restaurant setup workspace</h1>
-        <p className="lead">
-          Configure tables, generate QR links, and manage categories and menu items for
-          {restaurantName ? ` ${restaurantName}` : ' your restaurant'}.
-        </p>
+        <h1 className="section-title">{t('setup.title')}</h1>
+        <p className="lead">{t('setup.lead', { restaurant: restaurantName ?? t('settings.yourRestaurant') })}</p>
         {restaurantOptions.length > 0 ? (
           <div className="field">
             <label htmlFor="adminRestaurantSelector">
-              {isPlatformAdmin ? 'Restaurant context (SUPER_ADMIN)' : 'Restaurant context'}
+              {isPlatformAdmin ? t('setup.restaurantContextAdmin') : t('setup.restaurantContext')}
             </label>
             <select
               id="adminRestaurantSelector"
@@ -977,20 +980,20 @@ export function RestaurantSetupConsole() {
       </section>
 
       <section className="panel stack">
-        <span className="eyebrow">Tables & QR</span>
+        <span className="eyebrow">{t('setup.tablesEyebrow')}</span>
         <form className="stack" onSubmit={handleAddTable}>
           <div className="field">
-            <label htmlFor="tableName">New table name</label>
+            <label htmlFor="tableName">{t('setup.newTableName')}</label>
             <input
               id="tableName"
               value={tableName}
               onChange={(event) => setTableName(event.target.value)}
-              placeholder="Table 8"
+              placeholder={t('setup.tablePlaceholder')}
               required
             />
           </div>
           <button className="button" type="submit" disabled={saving}>
-            {saving ? 'Saving...' : 'Add table'}
+            {saving ? t('setup.saving') : t('setup.addTable')}
           </button>
         </form>
 
@@ -999,7 +1002,7 @@ export function RestaurantSetupConsole() {
             <li key={table.id}>
               {editingTableId === table.id ? (
                 <div className="field">
-                  <label htmlFor={`edit-table-${table.id}`}>Table name</label>
+                  <label htmlFor={`edit-table-${table.id}`}>{t('setup.tableName')}</label>
                   <input
                     id={`edit-table-${table.id}`}
                     value={editingTableName}
@@ -1010,12 +1013,12 @@ export function RestaurantSetupConsole() {
               ) : (
                 <strong>{table.name}</strong>
               )}
-              <p className="muted">Status: {table.active ? 'Active' : 'Inactive'}</p>
-              <p className="muted">Token: {table.qr_token}</p>
-              <p className="muted">QR URL: {`${appUrl}/t/${table.qr_token}`}</p>
+              <p className="muted">{table.active ? t('setup.statusActive') : t('setup.statusInactive')}</p>
+              <p className="muted">{t('setup.token', { token: table.qr_token })}</p>
+              <p className="muted">{t('setup.qrUrl', { url: `${appUrl}/t/${table.qr_token}` })}</p>
               {staffOptions.length > 0 ? (
                 <div className="field">
-                  <label htmlFor={`assigned-staff-${table.id}`}>Assigned staff</label>
+                  <label htmlFor={`assigned-staff-${table.id}`}>{t('setup.assignedStaff')}</label>
                   <select
                     id={`assigned-staff-${table.id}`}
                     value={table.assigned_staff_id ?? ''}
@@ -1035,7 +1038,7 @@ export function RestaurantSetupConsole() {
                 {editingTableId === table.id ? (
                   <>
                     <button className="button" type="button" disabled={saving} onClick={() => void handleSaveTableName(table.id)}>
-                      Save name
+                      {t('setup.saveName')}
                     </button>
                     <button
                       className="button"
@@ -1046,7 +1049,7 @@ export function RestaurantSetupConsole() {
                         setEditingTableName('')
                       }}
                     >
-                      Cancel
+                      {t('setup.cancel')}
                     </button>
                   </>
                 ) : (
@@ -1059,14 +1062,14 @@ export function RestaurantSetupConsole() {
                       setEditingTableName(table.name)
                     }}
                   >
-                    Rename
+                    {t('setup.rename')}
                   </button>
                 )}
                 <button className="button" type="button" disabled={saving} onClick={() => void handleToggleTableActive(table)}>
-                  {table.active ? 'Deactivate' : 'Activate'}
+                  {table.active ? t('setup.deactivate') : t('setup.activate')}
                 </button>
                 <button className="button" type="button" disabled={saving} onClick={() => void handleDeleteTable(table)}>
-                  Delete table
+                  {t('setup.deleteTable')}
                 </button>
                 <button
                   className="button"
@@ -1074,7 +1077,7 @@ export function RestaurantSetupConsole() {
                   disabled={saving || qrDownloadingFor === table.id}
                   onClick={() => void handleDownloadQr(table)}
                 >
-                  {qrDownloadingFor === table.id ? 'Preparing QR...' : 'Download QR (SVG)'}
+                  {qrDownloadingFor === table.id ? t('setup.preparingQr') : t('setup.downloadQr')}
                 </button>
               </div>
             </li>
@@ -1085,11 +1088,11 @@ export function RestaurantSetupConsole() {
       <section className="panel stack">
         <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
           <div>
-            <span className="eyebrow">QR Sheet</span>
-            <h2 className="section-title">Printable multi-table QR layout</h2>
+            <span className="eyebrow">{t('setup.qrSheetEyebrow')}</span>
+            <h2 className="section-title">{t('setup.qrSheetTitle')}</h2>
           </div>
           <button className="button" type="button" onClick={handlePrintQrSheet} disabled={tables.length === 0}>
-            Print QR sheet
+            {t('setup.printQrSheet')}
           </button>
         </div>
         <div className="qr-sheet">
@@ -1104,16 +1107,13 @@ export function RestaurantSetupConsole() {
       </section>
 
       <section className="panel stack">
-        <span className="eyebrow">Menu</span>
-        <p className="helper-text">
-          Add items, then manage them per category. Use the table to quickly change names and prices, or expand an item
-          to edit details like description, allergens, and options.
-        </p>
+        <span className="eyebrow">{t('setup.menuEyebrow')}</span>
+        <p className="helper-text">{t('setup.menuHelper')}</p>
 
-        <span className="eyebrow" style={{ marginTop: '12px' }}>Add menu item</span>
+        <span className="eyebrow" style={{ marginTop: '12px' }}>{t('setup.newItemEyebrow')}</span>
         <form className="stack" onSubmit={handleAddMenuItem}>
           <div className="field">
-            <label htmlFor="itemName">Item name</label>
+            <label htmlFor="itemName">{t('setup.itemName')}</label>
             <input
               id="itemName"
               value={itemName}
@@ -1124,7 +1124,7 @@ export function RestaurantSetupConsole() {
           </div>
 
           <div className="field">
-            <label htmlFor="itemDescription">Description</label>
+            <label htmlFor="itemDescription">{t('setup.itemDescription')}</label>
             <textarea
               id="itemDescription"
               value={itemDescription}
@@ -1134,7 +1134,7 @@ export function RestaurantSetupConsole() {
           </div>
 
           <div className="field">
-            <label htmlFor="itemPrice">Price</label>
+            <label htmlFor="itemPrice">{t('setup.itemPrice')}</label>
             <input
               id="itemPrice"
               type="number"
@@ -1167,7 +1167,7 @@ export function RestaurantSetupConsole() {
           </div>
 
           <div className="field">
-            <label htmlFor="itemAllergens">Allergens</label>
+            <label htmlFor="itemAllergens">{t('setup.itemAllergens')}</label>
             <input
               id="itemAllergens"
               value={itemAllergens}
@@ -1177,7 +1177,7 @@ export function RestaurantSetupConsole() {
           </div>
 
           <div className="field">
-            <label htmlFor="itemModifiersText">Options / modifiers</label>
+            <label htmlFor="itemModifiersText">{t('setup.itemModifiers')}</label>
             <textarea
               id="itemModifiersText"
               value={itemModifiersText}
@@ -1188,14 +1188,14 @@ export function RestaurantSetupConsole() {
           </div>
 
           <button className="button" type="submit" disabled={saving || categories.length === 0}>
-            {saving ? 'Saving...' : 'Add menu item'}
+            {saving ? t('setup.saving') : t('setup.addMenuItem')}
           </button>
         </form>
 
-        <span className="eyebrow" style={{ marginTop: '16px' }}>Categories</span>
+        <span className="eyebrow" style={{ marginTop: '16px' }}>{t('setup.categoriesEyebrow')}</span>
         <form className="stack" onSubmit={handleAddCategory}>
           <div className="field">
-            <label htmlFor="categoryName">New category</label>
+            <label htmlFor="categoryName">{t('setup.newCategory')}</label>
             <input
               id="categoryName"
               value={categoryName}
@@ -1205,7 +1205,7 @@ export function RestaurantSetupConsole() {
             />
           </div>
           <button className="button-secondary" type="submit" disabled={saving}>
-            {saving ? 'Saving...' : 'Add category'}
+            {saving ? t('setup.saving') : t('setup.addCategory')}
           </button>
         </form>
 
@@ -1219,11 +1219,11 @@ export function RestaurantSetupConsole() {
               <div className="cart-line-header">
                 <div>
                   <strong>{category.name}</strong>
-                  <p className="muted">{categoryItems.length} item(s)</p>
+                  <p className="muted">{t('setup.itemsCount', { count: categoryItems.length })}</p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <button className="button-secondary" type="button" disabled={saving} onClick={() => toggleCategory(category.id)}>
-                    {isOpen ? 'Collapse' : 'Expand'}
+                    {isOpen ? t('setup.collapse') : t('setup.expand')}
                   </button>
                   {editingCategoryId === category.id ? (
                     <>
@@ -1262,7 +1262,7 @@ export function RestaurantSetupConsole() {
                     </button>
                   )}
                   <button className="button-danger" type="button" disabled={saving} onClick={() => void handleDeleteCategory(category)}>
-                    Delete category
+                    {t('setup.deleteCategory')}
                   </button>
                 </div>
               </div>
@@ -1328,7 +1328,7 @@ export function RestaurantSetupConsole() {
                                 <td colSpan={4}>
                                   <div className="stack">
                                     <div className="field">
-                                      <label htmlFor={`details-desc-${item.id}`}>Description</label>
+                                      <label htmlFor={`details-desc-${item.id}`}>{t('setup.itemDescription')}</label>
                                       <textarea
                                         id={`details-desc-${item.id}`}
                                         value={editingItemDescription}
@@ -1350,7 +1350,7 @@ export function RestaurantSetupConsole() {
                                       </select>
                                     </div>
                                     <div className="field">
-                                      <label htmlFor={`details-allergens-${item.id}`}>Allergens</label>
+                                      <label htmlFor={`details-allergens-${item.id}`}>{t('setup.itemAllergens')}</label>
                                       <input
                                         id={`details-allergens-${item.id}`}
                                         value={editingItemAllergens}
@@ -1359,7 +1359,7 @@ export function RestaurantSetupConsole() {
                                       />
                                     </div>
                                     <div className="field">
-                                      <label htmlFor={`details-modifiers-${item.id}`}>Options / modifiers</label>
+                                      <label htmlFor={`details-modifiers-${item.id}`}>{t('setup.itemModifiers')}</label>
                                       <textarea
                                         id={`details-modifiers-${item.id}`}
                                         value={editingItemModifiersText}
@@ -1397,7 +1397,7 @@ export function RestaurantSetupConsole() {
         <p className="helper-text">Paste CSV lines in this format: category,name,description,price. Quoted fields are supported.</p>
         <form className="stack" onSubmit={handleCsvImport}>
           <div className="field">
-            <label htmlFor="csvText">CSV rows</label>
+            <label htmlFor="csvText">{t('setup.csvRows')}</label>
             <textarea
               id="csvText"
               value={csvText}
@@ -1413,10 +1413,10 @@ export function RestaurantSetupConsole() {
           </div>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             <button className="button-secondary" type="button" disabled={saving || !csvText.trim()} onClick={handlePreviewCsv}>
-              Preview CSV
+              {t('setup.previewCsv')}
             </button>
             <button className="button" type="submit" disabled={saving || csvPreviewSource !== csvText || csvPreviewRows.length === 0}>
-              {saving ? 'Importing...' : 'Import preview'}
+              {saving ? t('setup.importing') : t('setup.importPreview')}
             </button>
           </div>
         </form>

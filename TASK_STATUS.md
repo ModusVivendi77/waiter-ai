@@ -461,8 +461,15 @@
 20. **✅ Done** — Final touch: simplified nav, QR URLs use site origin, new-order notifications, home dashboard (tables/orders/team), staff table claiming, realtime publication + multi-event hook fixes
 21. **✅ Done** — Greek translation (EN/EL toggle, persisted), Login separated in nav, green/red table status pills
 22. **✅ Done** — "Add another restaurant" restored on home; Setup menu editor redesigned (category accordion, item table quick-edit, item details expansion)
-23. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
-24. **Future work** — Resend domain verification for customer-facing confirmation emails
+23. **✅ Done** — Order survives refresh: after a customer submits, the tracking token is stored in `localStorage` (keyed by table token); revisiting/refreshing the table QR page validates the order and redirects to `/orders/{token}` while active, or clears it once SERVED/CANCELLED/REJECTED so they can order again (E2E-covered)
+24. **✅ Done** — Submitted timestamp (`created_at`) now shown on every order card in the Orders workspace ("Submitted: …"), matching the customer tracking page
+25. **✅ Done** — Green Bar test data seeded live + `supabase/seed.sql` updated: 10 tables (Table 1–3 keep original QR tokens), 5 categories, 14 menu items, 3 STAFF accounts (`staff1..3@greenbar.test` / `GreenBar2026!`)
+26. **✅ Done** — SUPER_ADMIN data deletion: `/admin` "Data management" panel (delete orders — all/by restaurant/older than N days — delete sessions, delete restaurant) + per-order "Delete order" button in Orders workspace; all gated server-side on `platform_admin_users`
+27. **✅ Done** — Orders workspace filters & sorting: status tabs (All / New / Accepted / Preparing / Ready / Served / Closed) with live counts, plus sort by submission time (newest/oldest) or workflow status; order fetch limit raised to 200; E2E-covered
+28. **✅ Done** — Greek translation extended across the platform: Orders, Home (finished), Admin, Team, Settings, Setup, Analytics, auth forms (register/forgot/reset/verify), sign-out and add-restaurant form — all wired through the i18n provider (`en` strings kept identical so E2E stays green)
+29. **✅ Done** — Home page revisited: live metrics (today's orders, open orders, revenue today, occupied tables), quick-actions panel (Orders / Analytics / Setup / Team / Admin for SUPER_ADMIN), recent-live-orders timestamps, and localized "Add another restaurant" block
+30. **Next** — Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings
+31. **Future work** — Resend domain verification for customer-facing confirmation emails
 
 ### After Timeline Verified
 ```bash

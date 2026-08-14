@@ -5,9 +5,11 @@ import { useEffect, useState } from 'react'
 
 import { getClientUserContext } from '@/lib/auth/client'
 import type { RestaurantMembership } from '@/lib/auth/types'
+import { useLanguage } from '@/components/app/language-provider'
 
 export default function SettingsPage() {
   const router = useRouter()
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
   const [membership, setMembership] = useState<RestaurantMembership | null>(null)
@@ -51,8 +53,8 @@ export default function SettingsPage() {
       <main className="page-shell">
         <div className="page-grid">
           <section className="panel stack">
-            <span className="eyebrow">Settings</span>
-            <h1 className="section-title">Loading configuration access...</h1>
+            <span className="eyebrow">{t('settings.eyebrow')}</span>
+            <h1 className="section-title">{t('settings.loading')}</h1>
           </section>
         </div>
       </main>
@@ -63,13 +65,13 @@ export default function SettingsPage() {
     <main className="page-shell">
       <div className="page-grid">
         <section className="panel stack">
-          <span className="eyebrow">Settings</span>
+          <span className="eyebrow">{t('settings.eyebrow')}</span>
           <h1 className="section-title">
-            Configuration access for {membership?.restaurantName ?? (isPlatformAdmin ? 'platform administration context' : 'your restaurant')}.
+            {t('settings.title', {
+              restaurant: membership?.restaurantName ?? (isPlatformAdmin ? t('settings.platformContext') : t('settings.yourRestaurant')),
+            })}
           </h1>
-          <p className="lead">
-            Managers and owners can access restaurant configuration surfaces. SUPER_ADMIN accounts can access this route for operational support.
-          </p>
+          <p className="lead">{t('settings.lead')}</p>
         </section>
       </div>
     </main>

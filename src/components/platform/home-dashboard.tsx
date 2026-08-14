@@ -61,7 +61,17 @@ function formatCurrency(value: number, currency: string) {
   }).format(value)
 }
 
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 const STATUS_ORDER = ['NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED']
+const OPEN_STATUSES = ['NEW', 'ACCEPTED', 'PREPARING', 'READY']
 
 export function HomeDashboard() {
   const supabase = useMemo(() => createClient(), [])
@@ -81,6 +91,7 @@ export function HomeDashboard() {
   const [staffEmailMap, setStaffEmailMap] = useState<Record<string, string>>({})
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [todayStats, setTodayStats] = useState<{ orders: number; revenue: number }>({ orders: 0, revenue: 0 })
 
   async function loadDashboard(restaurantOverrideId?: string) {
     const context = await getClientUserContext()
@@ -101,7 +112,7 @@ export function HomeDashboard() {
         .order('name')
 
       if (restaurantsError || !restaurants || restaurants.length === 0) {
-        setError(restaurantsError?.message || 'No restaurants found.')
+        setError(restaurantsError?.message || t('home.error.noRestaurants'))
         setLoading(false)
         return
       }
@@ -114,7 +125,7 @@ export function HomeDashboard() {
     }
 
     if (options.length === 0) {
-      setError('No restaurant is linked to this account yet.')
+      setError(t('home.error.noAccount'))
       setLoading(false)
       return
     }
@@ -136,7 +147,10 @@ export function HomeDashboard() {
     activeRestaurantIdRef.current = selected.id
     setRestaurantName(selected.name)
 
-    const [tableResult, orderResult, teamResult] = await Promise.all([
+    const startOfToday = new Date()
+    startOfToday.setHours(0, 0, 0, 0)
+
+    const [tableResult, orderResult, teamResult, todayResult] = await Promise.all([
       supabase
         .from('restaurant_tables')
         .select('id, name, active, assigned_staff_id, dining_sessions(id, status)')
@@ -149,14 +163,25 @@ export function HomeDashboard() {
         .order('created_at', { ascending: false })
         .limit(10),
       listTeamMembers(selected.id).catch(() => ({ error: undefined, members: undefined })),
+      supabase
+        .from('orders')
+        .select('total')
+        .eq('restaurant_id', selected.id)
+        .gte('created_at', startOfToday.toISOString()),
     ])
 
     if (tableResult.error || orderResult.error) {
-      setError(tableResult.error?.message || orderResult.error?.message || 'Failed to load dashboard.')
+      setError(tableResult.error?.message || orderResult.error?.message || t('home.error.load'))
     } else {
       setTables((tableResult.data as TableRow[]) || [])
       setOrders((orderResult.data as OrderRow[]) || [])
     }
+
+    const todayRows = (todayResult.data as Array<{ total: number }> | null) || []
+    setTodayStats({
+      orders: todayRows.length,
+      revenue: todayRows.reduce((sum, row) => sum + Number(row.total), 0),
+    })
 
     const members = (teamResult && teamResult.members) || []
     setStaff(members)
@@ -221,6 +246,10 @@ export function HomeDashboard() {
 
   const activeTables = tables.filter((table) => table.active)
   const liveOrders = orders.filter((order) => STATUS_ORDER.includes(order.status))
+  const occupiedTablesCount = activeTables.filter((table) =>
+    (table.dining_sessions || []).some((session) => session.status === 'ACTIVE')
+  ).length
+  const openOrdersCount = orders.filter((order) => OPEN_STATUSES.includes(order.status)).length
 
   if (loading) {
     return (
@@ -269,12 +298,54 @@ export function HomeDashboard() {
             <Link className="button-secondary" href="/platform/orders">
               {t('home.openOrders')}
             </Link>
+          </div>
+        </section>
+
+        <section className="panel stack">
+          <span className="eyebrow">{t('home.metrics')}</span>
+          <div className="panel-grid">
+            <article className="metric">
+              <span className="eyebrow">{t('home.todaysOrders')}</span>
+              <strong>{todayStats.orders}</strong>
+              {todayStats.orders === 0 ? <p className="muted">{t('home.todayEmpty')}</p> : null}
+            </article>
+            <article className="metric">
+              <span className="eyebrow">{t('home.openOrdersCount')}</span>
+              <strong>{openOrdersCount}</strong>
+            </article>
+            <article className="metric">
+              <span className="eyebrow">{t('home.revenueToday')}</span>
+              <strong>{formatCurrency(todayStats.revenue, orders[0]?.currency || 'EUR')}</strong>
+            </article>
+            <article className="metric">
+              <span className="eyebrow">{t('home.occupiedTables')}</span>
+              <strong>
+                {occupiedTablesCount}/{activeTables.length}
+              </strong>
+            </article>
+          </div>
+        </section>
+
+        <section className="panel stack">
+          <span className="eyebrow">{t('home.quickActions')}</span>
+          <div className="pill-row">
+            <Link className="button-secondary" href="/platform/orders">
+              {t('home.viewAllOrders')}
+            </Link>
             <Link className="button-secondary" href="/platform/analytics">
               {t('nav.analytics')}
             </Link>
             <Link className="button-secondary" href="/platform/setup">
-              {t('home.restaurantSetup')}
+              {t('home.manageMenu')}
             </Link>
+            <Link className="button-secondary" href="/platform/team">
+              {t('home.manageTeam')}
+            </Link>
+            {isPlatformAdmin ? (
+              <Link className="button-secondary" href="/admin">
+                {t('home.adminConsole')}
+              </Link>
+            ) : null}
           </div>
         </section>
 
@@ -328,7 +399,7 @@ export function HomeDashboard() {
                       {t('home.table')} {getOrderTableName(order)}
                     </strong>
                     <p className="muted">
-                      {t('common.status')}: {t(`status.${order.status}`)}
+                      {t('common.status')}: {t(`status.${order.status}`)} · {formatDateTime(order.created_at)}
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -367,12 +438,8 @@ export function HomeDashboard() {
         </section>
 
         <section className="panel stack">
-          <span className="eyebrow">Add another restaurant</span>
-          <p className="helper-text">
-            Register an additional restaurant under this account. It is created instantly and you are linked as its
-            owner — no email confirmation needed. Use the restaurant selector on this page and inside Orders / Setup /
-            Analytics to switch between them.
-          </p>
+          <span className="eyebrow">{t('home.addAnotherEyebrow')}</span>
+          <p className="helper-text">{t('home.addAnotherHelper')}</p>
           <AddRestaurantForm />
         </section>
       </div>

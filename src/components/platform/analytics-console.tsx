@@ -10,6 +10,7 @@ import { listTeamMembers } from '@/lib/auth/team-actions'
 import { OrderTrendChart, OrderCountChart, OrderValueChart } from '@/components/charts/trend-charts'
 import { DateRangeSelector } from '@/components/charts/date-range-selector'
 import { exportToPDF, exportToCSV } from '@/lib/export/analytics-export'
+import { useLanguage } from '@/components/app/language-provider'
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-GB', {
@@ -32,6 +33,7 @@ function formatChangePct(value: number): { label: string; className: string } {
 
 export function AnalyticsConsole() {
   const supabase = useMemo(() => createClient(), [])
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [restaurantName, setRestaurantName] = useState<string | null>(null)
@@ -180,8 +182,8 @@ export function AnalyticsConsole() {
   if (loading) {
     return (
       <section className="panel stack">
-        <span className="eyebrow">Analytics</span>
-        <h1 className="section-title">Loading restaurant analytics...</h1>
+        <span className="eyebrow">{t('analytics.eyebrow')}</span>
+        <h1 className="section-title">{t('analytics.loading')}</h1>
       </section>
     )
   }
@@ -189,8 +191,8 @@ export function AnalyticsConsole() {
   if (error || !metrics) {
     return (
       <section className="panel stack">
-        <span className="eyebrow">Analytics</span>
-        <h1 className="section-title">Analytics for {restaurantName || 'your restaurant'}</h1>
+        <span className="eyebrow">{t('analytics.eyebrow')}</span>
+        <h1 className="section-title">{t('analytics.title', { restaurant: restaurantName || t('settings.yourRestaurant') })}</h1>
         {error ? <div className="error-box">{error}</div> : null}
       </section>
     )
@@ -199,12 +201,12 @@ export function AnalyticsConsole() {
   return (
     <>
       <section className="panel stack">
-        <span className="eyebrow">Analytics</span>
-        <h1 className="section-title">Analytics for {restaurantName}</h1>
-        <p className="lead">View order trends, revenue insights, and popular items for your restaurant.</p>
+        <span className="eyebrow">{t('analytics.eyebrow')}</span>
+        <h1 className="section-title">{t('analytics.title', { restaurant: restaurantName ?? '' })}</h1>
+        <p className="lead">{t('analytics.lead')}</p>
         {restaurantOptions.length > 0 ? (
           <div className="field">
-            <label htmlFor="analyticsRestaurantSelector">Restaurant context</label>
+            <label htmlFor="analyticsRestaurantSelector">{t('analytics.restaurantContext')}</label>
             <select
               id="analyticsRestaurantSelector"
               value={selectedRestaurantId}
@@ -221,10 +223,10 @@ export function AnalyticsConsole() {
         ) : null}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
           <button type="button" className="button-secondary" onClick={handleExportPDF} disabled={exporting}>
-            {exporting ? 'Exporting...' : 'Export as PDF'}
+            {exporting ? t('analytics.exporting') : t('analytics.exportPdf')}
           </button>
           <button type="button" className="button-secondary" onClick={handleExportCSV} disabled={exporting}>
-            {exporting ? 'Exporting...' : 'Export as CSV'}
+            {exporting ? t('analytics.exporting') : t('analytics.exportCsv')}
           </button>
         </div>
       </section>
@@ -239,39 +241,39 @@ export function AnalyticsConsole() {
 
       {dateRange === 'custom' && customRange ? (
         <section className="panel stack">
-          <span className="eyebrow">Custom Range</span>
+          <span className="eyebrow">{t('analytics.customRange')}</span>
           <p className="helper-text">
             {customRange.from} → {customRange.to}
           </p>
           <ul className="list">
             <li>
               <div className="cart-line-header">
-                <strong>Orders</strong>
+                <strong>{t('analytics.orders')}</strong>
                 <span className="badge">{metrics.rangeOrders}</span>
               </div>
             </li>
             <li>
               <div className="cart-line-header">
-                <strong>Order value</strong>
+                <strong>{t('analytics.orderValue')}</strong>
                 <span className="badge">{formatCurrency(metrics.rangeValue)}</span>
               </div>
             </li>
             <li>
               <div className="cart-line-header">
-                <strong>Average order value</strong>
+                <strong>{t('analytics.averageOrderValue')}</strong>
                 <span className="badge">{formatCurrency(metrics.rangeAverageOrderValue)}</span>
               </div>
             </li>
           </ul>
 
-          <span className="eyebrow" style={{ marginTop: '12px' }}>Daily Trend (Custom Range)</span>
+          <span className="eyebrow" style={{ marginTop: '12px' }}>{t('analytics.dailyTrendCustom')}</span>
           <ul className="list">
             {metrics.rangeDaily.map((day) => (
               <li key={day.date}>
                 <div className="cart-line-header">
                   <div>
                     <strong>{formatDate(day.date)}</strong>
-                    <p className="muted">{day.orderCount} orders</p>
+                    <p className="muted">{t('analytics.ordersCount', { count: day.orderCount })}</p>
                   </div>
                   <span>{formatCurrency(day.orderValue)}</span>
                 </div>
@@ -282,17 +284,17 @@ export function AnalyticsConsole() {
       ) : null}
 
       <section className="panel stack">
-        <span className="eyebrow">Today</span>
+        <span className="eyebrow">{t('analytics.today')}</span>
         <ul className="list">
           <li>
             <div className="cart-line-header">
-              <strong>Orders</strong>
+              <strong>{t('analytics.orders')}</strong>
               <span className="badge">{metrics.todayOrders}</span>
             </div>
           </li>
           <li>
             <div className="cart-line-header">
-              <strong>Order value</strong>
+              <strong>{t('analytics.orderValue')}</strong>
               <span className="badge">{formatCurrency(metrics.todayValue)}</span>
             </div>
           </li>
@@ -300,27 +302,27 @@ export function AnalyticsConsole() {
       </section>
 
       <section className="panel stack">
-        <span className="eyebrow">This Week</span>
+        <span className="eyebrow">{t('analytics.thisWeek')}</span>
         <ul className="list">
           <li>
             <div className="cart-line-header">
-              <strong>Orders</strong>
+              <strong>{t('analytics.orders')}</strong>
               <span className="badge">{metrics.weekOrders}</span>
             </div>
           </li>
           <li>
             <div className="cart-line-header">
-              <strong>Order value</strong>
+              <strong>{t('analytics.orderValue')}</strong>
               <span className="badge">{formatCurrency(metrics.weekValue)}</span>
             </div>
           </li>
         </ul>
 
-        <span className="eyebrow" style={{ marginTop: '12px' }}>Week-over-Week Comparison</span>
+        <span className="eyebrow" style={{ marginTop: '12px' }}>{t('analytics.weekComparison')}</span>
         <ul className="list">
           <li>
             <div className="cart-line-header">
-              <strong>Orders vs previous week</strong>
+              <strong>{t('analytics.ordersVsPrevWeek')}</strong>
               <span className={formatChangePct(metrics.weekOrdersChangePct).className}>
                 {formatChangePct(metrics.weekOrdersChangePct).label}
                 <span className="muted"> ({metrics.weekOrders} vs {metrics.previousWeekOrders})</span>
@@ -329,7 +331,7 @@ export function AnalyticsConsole() {
           </li>
           <li>
             <div className="cart-line-header">
-              <strong>Order value vs previous week</strong>
+              <strong>{t('analytics.valueVsPrevWeek')}</strong>
               <span className={formatChangePct(metrics.weekValueChangePct).className}>
                 {formatChangePct(metrics.weekValueChangePct).label}
                 <span className="muted"> ({formatCurrency(metrics.weekValue)} vs {formatCurrency(metrics.previousWeekValue)})</span>
@@ -340,23 +342,23 @@ export function AnalyticsConsole() {
       </section>
 
       <section className="panel stack">
-        <span className="eyebrow">Last 30 Days</span>
+        <span className="eyebrow">{t('analytics.last30Days')}</span>
         <ul className="list">
           <li>
             <div className="cart-line-header">
-              <strong>Orders</strong>
+              <strong>{t('analytics.orders')}</strong>
               <span className="badge">{metrics.monthOrders}</span>
             </div>
           </li>
           <li>
             <div className="cart-line-header">
-              <strong>Order value</strong>
+              <strong>{t('analytics.orderValue')}</strong>
               <span className="badge">{formatCurrency(metrics.monthValue)}</span>
             </div>
           </li>
           <li>
             <div className="cart-line-header">
-              <strong>Average order value</strong>
+              <strong>{t('analytics.averageOrderValue')}</strong>
               <span className="badge">{formatCurrency(metrics.averageOrderValue)}</span>
             </div>
           </li>
@@ -364,22 +366,22 @@ export function AnalyticsConsole() {
       </section>
 
       <section className="panel stack">
-        <OrderTrendChart data={metrics.lastSevenDays} title="Orders & Revenue Trend (7 Days)" height={350} />
+        <OrderTrendChart data={metrics.lastSevenDays} title={t('analytics.trendChartTitle')} height={350} />
       </section>
 
       <section className="panel stack">
-        <OrderCountChart data={metrics.lastSevenDays} title="Daily Order Volume (7 Days)" height={300} />
+        <OrderCountChart data={metrics.lastSevenDays} title={t('analytics.countChartTitle')} height={300} />
       </section>
 
       <section className="panel stack">
-        <OrderValueChart data={metrics.lastSevenDays} title="Daily Revenue (7 Days)" height={300} />
+        <OrderValueChart data={metrics.lastSevenDays} title={t('analytics.valueChartTitle')} height={300} />
       </section>
 
       <section className="panel stack">
-        <span className="eyebrow">Order Status Funnel</span>
-        <p className="helper-text">Order lifecycle stages over the last 30 days.</p>
+        <span className="eyebrow">{t('analytics.statusFunnel')}</span>
+        <p className="helper-text">{t('analytics.statusFunnelHelper')}</p>
         {metrics.statusFunnel.every((entry) => entry.count === 0) ? (
-          <p className="muted">No orders in the last 30 days.</p>
+          <p className="muted">{t('analytics.noOrders30d')}</p>
         ) : (
           <ul className="list">
             {metrics.statusFunnel.map((entry, index) => (
@@ -387,7 +389,9 @@ export function AnalyticsConsole() {
                 <div className="cart-line-header">
                   <div>
                     <strong>{entry.status}</strong>
-                    <p className="muted">Step {index + 1} of {metrics.statusFunnel.length}</p>
+                    <p className="muted">
+                      {t('analytics.stepOf', { step: index + 1, total: metrics.statusFunnel.length })}
+                    </p>
                   </div>
                   <span className="badge">{entry.count}</span>
                 </div>
@@ -398,9 +402,9 @@ export function AnalyticsConsole() {
       </section>
 
       <section className="panel stack">
-        <span className="eyebrow">Top Products</span>
+        <span className="eyebrow">{t('analytics.topProducts')}</span>
         {metrics.topProducts.length === 0 ? (
-          <p className="muted">No products sold yet in the last 30 days.</p>
+          <p className="muted">{t('analytics.noProducts30d')}</p>
         ) : (
           <ol className="list">
             {metrics.topProducts.map((product, index) => (
@@ -410,7 +414,7 @@ export function AnalyticsConsole() {
                     <strong>
                       {index + 1}. {product.itemName}
                     </strong>
-                    <p className="muted">Sold {product.quantity} times</p>
+                    <p className="muted">{t('analytics.soldTimes', { count: product.quantity })}</p>
                   </div>
                   <span>{formatCurrency(product.value)}</span>
                 </div>
@@ -421,14 +425,14 @@ export function AnalyticsConsole() {
       </section>
 
       <section className="panel stack">
-        <span className="eyebrow">Daily Trend (Last 7 Days)</span>
+        <span className="eyebrow">{t('analytics.dailyTrend7')}</span>
         <ul className="list">
           {metrics.lastSevenDays.map((day) => (
             <li key={day.date}>
               <div className="cart-line-header">
                 <div>
                   <strong>{formatDate(day.date)}</strong>
-                  <p className="muted">{day.orderCount} orders</p>
+                  <p className="muted">{t('analytics.ordersCount', { count: day.orderCount })}</p>
                 </div>
                 <span>{formatCurrency(day.orderValue)}</span>
               </div>
@@ -438,45 +442,45 @@ export function AnalyticsConsole() {
       </section>
 
       <section className="panel stack">
-        <span className="eyebrow">Staff Performance</span>
-        <p className="helper-text">
-          Based on orders where a staff member took ownership (set as the handling waiter). Assign staff to tables in
-          Setup and have them take orders in the Orders workspace to build these metrics.
-        </p>
+        <span className="eyebrow">{t('analytics.staffPerformance')}</span>
+        <p className="helper-text">{t('analytics.staffHelper')}</p>
 
         {staffMetrics && staffMetrics.staff.length > 0 ? (
           <>
             <ul className="list">
               <li>
                 <div className="cart-line-header">
-                  <strong>Active staff</strong>
+                  <strong>{t('analytics.activeStaff')}</strong>
                   <span className="badge">{staffMetrics.activeStaffCount}</span>
                 </div>
               </li>
               <li>
                 <div className="cart-line-header">
-                  <strong>Orders handled</strong>
+                  <strong>{t('analytics.ordersHandled')}</strong>
                   <span className="badge">{staffMetrics.totalOrdersHandled}</span>
                 </div>
               </li>
               <li>
                 <div className="cart-line-header">
-                  <strong>Revenue served</strong>
+                  <strong>{t('analytics.revenueServed')}</strong>
                   <span>{formatCurrency(staffMetrics.totalRevenueHandled)}</span>
                 </div>
               </li>
             </ul>
 
-            <span className="eyebrow" style={{ marginTop: '12px' }}>By staff member</span>
+            <span className="eyebrow" style={{ marginTop: '12px' }}>{t('analytics.byStaffMember')}</span>
             <ul className="list">
               {staffMetrics.staff.map((entry) => (
                 <li key={entry.staffId}>
                   <div className="cart-line-header">
                     <div>
-                      <strong>{staffEmailMap[entry.staffId] ?? 'Staff member'}</strong>
+                      <strong>{staffEmailMap[entry.staffId] ?? t('orders.staffMember')}</strong>
                       <p className="muted">
-                        {entry.ordersHandled} orders · {entry.tablesServed} tables ·{' '}
-                        {formatCurrency(entry.averageOrderValue)} avg order
+                        {t('analytics.staffLine', {
+                          orders: entry.ordersHandled,
+                          tables: entry.tablesServed,
+                          avg: formatCurrency(entry.averageOrderValue),
+                        })}
                       </p>
                     </div>
                     <span>{formatCurrency(entry.revenueHandled)}</span>
@@ -486,9 +490,7 @@ export function AnalyticsConsole() {
             </ul>
           </>
         ) : (
-          <p className="muted">
-            No staff performance data yet in this period. Once staff take orders, their metrics appear here.
-          </p>
+          <p className="muted">{t('analytics.noStaffData')}</p>
         )}
       </section>
     </>

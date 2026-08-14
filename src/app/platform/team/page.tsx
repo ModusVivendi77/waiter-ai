@@ -13,6 +13,7 @@ import {
 import { getClientUserContext } from '@/lib/auth/client'
 import { createClient } from '@/lib/supabase/client'
 import type { UserRole } from '@/lib/auth/types'
+import { useLanguage } from '@/components/app/language-provider'
 
 type RestaurantOption = {
   id: string
@@ -22,6 +23,7 @@ type RestaurantOption = {
 export default function TeamPage() {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
+  const { t } = useLanguage()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -63,7 +65,7 @@ export default function TeamPage() {
     }
 
     if (options.length === 0) {
-      setError('You need OWNER access to at least one restaurant to manage a team.')
+      setError(t('team.error.noOwner'))
       setLoading(false)
       return
     }
@@ -112,7 +114,7 @@ export default function TeamPage() {
     }
 
     setNewEmail('')
-    setNotice(`Added ${newRole} member to the team.`)
+    setNotice(t('team.notice.addedRole', { role: newRole }))
     await loadMembers(selectedRestaurantId)
   }
 
@@ -131,13 +133,13 @@ export default function TeamPage() {
       return
     }
 
-    setNotice('Team member role updated.')
+    setNotice(t('team.notice.roleUpdated'))
     await loadMembers(selectedRestaurantId)
   }
 
   async function handleRemove(userId: string, email: string) {
     if (!selectedRestaurantId) return
-    if (!window.confirm(`Remove ${email} from this restaurant?`)) return
+    if (!window.confirm(t('team.confirm.remove', { email }))) return
 
     setSaving(true)
     setError(null)
@@ -151,7 +153,7 @@ export default function TeamPage() {
       return
     }
 
-    setNotice(`Removed ${email} from the restaurant.`)
+    setNotice(t('team.notice.removed', { email }))
     await loadMembers(selectedRestaurantId)
   }
 
@@ -160,8 +162,8 @@ export default function TeamPage() {
       <main className="page-shell">
         <div className="page-grid">
           <section className="panel stack">
-            <span className="eyebrow">Team Access</span>
-            <h1 className="section-title">Loading team access...</h1>
+            <span className="eyebrow">{t('team.eyebrow')}</span>
+            <h1 className="section-title">{t('team.loading')}</h1>
           </section>
         </div>
       </main>
@@ -175,16 +177,13 @@ export default function TeamPage() {
     <main className="page-shell">
       <div className="page-grid">
         <section className="panel stack">
-          <span className="eyebrow">Team Access</span>
-          <h1 className="section-title">Manage team for {selectedRestaurantName}</h1>
-          <p className="lead">
-            Add staff and managers to the restaurant. Owners have full management; managers manage operations; staff
-            only see the restaurant they work in.
-          </p>
+          <span className="eyebrow">{t('team.eyebrow')}</span>
+          <h1 className="section-title">{t('team.title', { restaurant: selectedRestaurantName })}</h1>
+          <p className="lead">{t('team.lead')}</p>
 
           {restaurantOptions.length > 1 ? (
             <div className="field">
-              <label htmlFor="teamRestaurantSelector">Restaurant context</label>
+              <label htmlFor="teamRestaurantSelector">{t('team.restaurantContext')}</label>
               <select
                 id="teamRestaurantSelector"
                 value={selectedRestaurantId}
@@ -205,10 +204,10 @@ export default function TeamPage() {
         </section>
 
         <section className="panel stack">
-          <span className="eyebrow">Add member</span>
+          <span className="eyebrow">{t('team.addEyebrow')}</span>
           <form className="stack" onSubmit={handleAddMember}>
             <div className="field">
-              <label htmlFor="teamMemberEmail">Email</label>
+              <label htmlFor="teamMemberEmail">{t('team.email')}</label>
               <input
                 id="teamMemberEmail"
                 type="email"
@@ -220,7 +219,7 @@ export default function TeamPage() {
             </div>
 
             <div className="field">
-              <label htmlFor="teamMemberRole">Role</label>
+              <label htmlFor="teamMemberRole">{t('team.roleLabel')}</label>
               <select
                 id="teamMemberRole"
                 value={newRole}
@@ -232,29 +231,26 @@ export default function TeamPage() {
             </div>
 
             <button className="button" type="submit" disabled={saving || !selectedRestaurantId}>
-              {saving ? 'Saving...' : 'Add team member'}
+              {saving ? t('team.saving') : t('team.addMember')}
             </button>
           </form>
-          <p className="helper-text">
-            The invited user must already have an account (register once, then reuse the same account for any
-            restaurant).
-          </p>
+          <p className="helper-text">{t('team.helper')}</p>
         </section>
 
         <section className="panel stack">
-          <span className="eyebrow">Current team</span>
-          {members.length === 0 ? <p className="muted">No team members yet for this restaurant.</p> : null}
+          <span className="eyebrow">{t('team.currentEyebrow')}</span>
+          {members.length === 0 ? <p className="muted">{t('team.noMembers')}</p> : null}
           <ul className="list">
             {members.map((member) => (
               <li key={`${member.userId}-${member.role}`}>
                 <div className="cart-line-header">
                   <div>
                     <strong>{member.email}</strong>
-                    <p className="muted">Added: {new Date(member.createdAt).toLocaleDateString()}</p>
+                    <p className="muted">{t('team.added', { date: new Date(member.createdAt).toLocaleDateString() })}</p>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <label className="muted" htmlFor={`role-${member.userId}`}>
-                      Role
+                      {t('team.roleLabel')}
                     </label>
                     <select
                       id={`role-${member.userId}`}
@@ -272,7 +268,7 @@ export default function TeamPage() {
                       disabled={saving}
                       onClick={() => void handleRemove(member.userId, member.email)}
                     >
-                      Remove
+                      {t('team.remove')}
                     </button>
                   </div>
                 </div>

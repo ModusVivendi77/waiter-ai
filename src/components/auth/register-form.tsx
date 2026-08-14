@@ -4,10 +4,12 @@ import { useActionState } from 'react'
 import Link from 'next/link'
 
 import { registerRestaurant, type RegisterState } from '@/lib/auth/actions'
+import { useLanguage } from '@/components/app/language-provider'
 
 const initialState: RegisterState = {}
 
 export function RegisterForm() {
+  const { t } = useLanguage()
   const [state, formAction, pending] = useActionState(registerRestaurant, initialState)
 
   return (
@@ -16,50 +18,49 @@ export function RegisterForm() {
         <div className="stack">
           {state.emailPending ? (
             <div className="message">
-              Account created for <strong>{state.success}</strong>, but {state.emailNotice?.toLowerCase().replace(/\.$/, '')}.
-              Use the button below to resend the confirmation email in a few minutes.
+              {t('register.successPending', {
+                email: state.success,
+                reason: state.emailNotice?.toLowerCase().replace(/\.$/, '') ?? t('register.emailNoticeUnknown'),
+              })}
             </div>
           ) : (
-            <div className="success">
-              Account created. A confirmation email was sent to <strong>{state.success}</strong>. Open the link inside
-              to activate your owner access.
-            </div>
+            <div className="success">{t('register.successEmail', { email: state.success })}</div>
           )}
           <Link className="button" href={`/verify-email?email=${encodeURIComponent(state.success)}`}>
-            {state.emailPending ? 'Resend confirmation email' : 'I did not receive the email'}
+            {state.emailPending ? t('register.resend') : t('register.notReceived')}
           </Link>
         </div>
       ) : (
         <form action={formAction}>
           <div className="field">
-            <label htmlFor="fullName">Owner full name</label>
-            <input id="fullName" name="fullName" type="text" placeholder="Alex Morgan" required />
+            <label htmlFor="fullName">{t('register.fullName')}</label>
+            <input id="fullName" name="fullName" type="text" placeholder={t('register.fullNamePlaceholder')} required />
           </div>
 
           <div className="field">
-            <label htmlFor="restaurantName">Restaurant name</label>
+            <label htmlFor="restaurantName">{t('register.restaurantName')}</label>
             <input id="restaurantName" name="restaurantName" type="text" placeholder="The Green Bar" required />
           </div>
 
           <div className="field">
-            <label htmlFor="email">Email</label>
-            <input id="email" name="email" type="email" placeholder="owner@example.com" required />
+            <label htmlFor="email">{t('login.email')}</label>
+            <input id="email" name="email" type="email" placeholder={t('register.emailPlaceholder')} required />
           </div>
 
           <div className="field">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('login.password')}</label>
             <input id="password" name="password" type="password" required />
           </div>
 
           <div className="field">
-            <label htmlFor="confirmPassword">Confirm password</label>
+            <label htmlFor="confirmPassword">{t('register.confirmPassword')}</label>
             <input id="confirmPassword" name="confirmPassword" type="password" required />
           </div>
 
           {state.error ? <div className="error-box">{state.error}</div> : null}
 
           <button className="button" type="submit" disabled={pending}>
-            {pending ? 'Creating account...' : 'Create owner account'}
+            {pending ? t('register.creating') : t('register.createButton')}
           </button>
         </form>
       )}

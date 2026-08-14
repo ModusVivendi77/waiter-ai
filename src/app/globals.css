@@ -232,6 +232,53 @@ select {
   gap: 12px;
 }
 
+.tabs-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.filter-tab:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.filter-tab-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.filter-tab-active:hover {
+  color: #ffffff;
+}
+
+.filter-tab .badge {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.filter-tab-active .badge {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
 .button,
 .button-secondary,
 .button-danger {

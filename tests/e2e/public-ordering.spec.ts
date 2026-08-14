@@ -25,4 +25,23 @@ test.describe('public ordering journey', () => {
     await expect(page.getByRole('heading', { name: 'The Green Bar' })).toBeVisible()
     await expect(page.getByText(uniqueNote)).toBeVisible()
   })
+
+  test('restores an active order after the customer refreshes the table page', async ({ page }) => {
+    const uniqueNote = `E2E refresh order ${Date.now()}`
+
+    await page.goto('/t/X7k91Lm')
+
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByLabel('Order note').fill(uniqueNote)
+    await page.getByRole('button', { name: 'Submit order' }).click()
+    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
+
+    // Simulate the customer closing/reopening the QR page (or hitting refresh):
+    // the stored tracking token must take them straight back to their order.
+    await page.reload()
+    await page.waitForURL(/\/orders\//)
+    await expect(page.getByRole('heading', { name: 'The Green Bar' })).toBeVisible()
+    await expect(page.getByText(uniqueNote)).toBeVisible()
+    await expect(page.getByText(/is currently NEW/i)).toBeVisible()
+  })
 })

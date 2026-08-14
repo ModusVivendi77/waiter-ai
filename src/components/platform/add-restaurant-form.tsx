@@ -3,10 +3,12 @@
 import { useActionState, useEffect } from 'react'
 
 import { addRestaurant, type AddRestaurantState } from '@/lib/auth/actions'
+import { useLanguage } from '@/components/app/language-provider'
 
 const initialState: AddRestaurantState = {}
 
 export function AddRestaurantForm() {
+  const { t } = useLanguage()
   const [state, formAction, pending] = useActionState(addRestaurant, initialState)
 
   // After a successful creation, reload so the new membership shows up in the
@@ -22,13 +24,11 @@ export function AddRestaurantForm() {
     <form action={formAction} className="stack">
       {state.error ? <div className="error-box">{state.error}</div> : null}
       {state.success ? (
-        <div className="success">
-          Restaurant <strong>{state.success}</strong> created and linked to your account.
-        </div>
+        <div className="success">{t('addRestaurant.success', { name: state.success })}</div>
       ) : null}
 
       <div className="field">
-        <label htmlFor="addRestaurantName">New restaurant name</label>
+        <label htmlFor="addRestaurantName">{t('addRestaurant.newName')}</label>
         <input
           id="addRestaurantName"
           name="restaurantName"
@@ -40,7 +40,7 @@ export function AddRestaurantForm() {
       </div>
 
       <button className="button-secondary" type="submit" disabled={pending}>
-        {pending ? 'Creating...' : 'Add restaurant'}
+        {pending ? t('addRestaurant.creating') : t('addRestaurant.addButton')}
       </button>
     </form>
   )

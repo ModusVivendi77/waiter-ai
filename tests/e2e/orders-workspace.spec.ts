@@ -74,7 +74,35 @@ test.describe('orders workspace', () => {
     // The tracking page must show the accepted state (and its history entry) quickly.
     // Broadcast delivers instantly; the 5-second poll is only the fallback, so a
     // short timeout proves the real-time path is working.
-    await expect(customerPage.getByText('Restaurant accepted')).toBeVisible({ timeout: 3500 })
+    await expect(customerPage.getByText('Restaurant accepted', { exact: true })).toBeVisible({ timeout: 3500 })
     await expect(customerPage.getByText(/is currently ACCEPTED/i)).toBeVisible({ timeout: 3500 })
+  })
+
+  test('orders can be filtered by status and sorted', async ({ page }) => {
+    await loginAsSuperAdmin(page)
+    await page.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
+    await expect(page.getByText('Restaurant: The Green Bar')).toBeVisible()
+
+    // Status "categories" render as tabs, each with a count.
+    for (const tabName of ['All', 'New', 'Accepted', 'Preparing', 'Ready', 'Served', 'Closed']) {
+      await expect(page.getByRole('tab', { name: new RegExp(tabName) })).toBeVisible()
+    }
+
+    // Sort orders by workflow status.
+    await page.getByLabel('Sort orders').selectOption('status')
+
+    // Filter to NEW orders only: every visible card must be NEW (or the list is empty).
+    await page.getByRole('tab', { name: /New/ }).click()
+    await expect(page.getByRole('tab', { name: /New/ })).toHaveAttribute('aria-selected', 'true')
+
+    const orderCards = page.locator('[data-testid^="order-card-"]')
+    const cardCount = await orderCards.count()
+    if (cardCount > 0) {
+      for (let i = 0; i < cardCount; i++) {
+        await expect(orderCards.nth(i).getByText(/Status: NEW/)).toBeVisible()
+      }
+    } else {
+      await expect(page.getByText('No orders match this filter.')).toBeVisible()
+    }
   })
 })

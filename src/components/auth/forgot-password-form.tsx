@@ -3,8 +3,10 @@
 import { FormEvent, useState } from 'react'
 
 import { createClient } from '@/lib/supabase/client'
+import { useLanguage } from '@/components/app/language-provider'
 
 export function ForgotPasswordForm() {
+  const { t } = useLanguage()
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -28,9 +30,9 @@ export function ForgotPasswordForm() {
         return
       }
 
-      setSuccess('Password reset instructions have been sent to your email.')
+      setSuccess(t('auth.resetSent'))
     } catch (clientError) {
-      setError(clientError instanceof Error ? clientError.message : 'Unable to send reset email.')
+      setError(clientError instanceof Error ? clientError.message : t('auth.sendFailed'))
     } finally {
       setPending(false)
     }
@@ -39,7 +41,7 @@ export function ForgotPasswordForm() {
   return (
     <form onSubmit={handleSubmit}>
       <div className="field">
-        <label htmlFor="email">Email</label>
+        <label htmlFor="email">{t('login.email')}</label>
         <input
           id="email"
           name="email"
@@ -55,7 +57,7 @@ export function ForgotPasswordForm() {
       {success ? <div className="success">{success}</div> : null}
 
       <button className="button" type="submit" disabled={pending}>
-        {pending ? 'Sending...' : 'Send reset link'}
+        {pending ? t('auth.sending') : t('auth.sendResetLink')}
       </button>
     </form>
   )

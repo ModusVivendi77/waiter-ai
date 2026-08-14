@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
 
 import type { CreateOrderInput } from '@/lib/validation/orders'
 import { useLanguage } from '@/components/app/language-provider'
@@ -67,8 +68,52 @@ function formatCurrency(value: number, currency: string) {
   }).format(value)
 }
 
+const TERMINAL_STATUSES = new Set(['SERVED', 'CANCELLED', 'REJECTED'])
+
+type StoredOrder = {
+  trackingToken: string
+  submittedAt: string
+}
+
+function lastOrderKey(token: string) {
+  return `waiter-ai:last-order:${token}`
+}
+
+function readStoredOrder(token: string): StoredOrder | null {
+  try {
+    const raw = window.localStorage.getItem(lastOrderKey(token))
+    if (!raw) {
+      return null
+    }
+    const parsed = JSON.parse(raw) as Partial<StoredOrder>
+    return typeof parsed.trackingToken === 'string'
+      ? { trackingToken: parsed.trackingToken, submittedAt: parsed.submittedAt || '' }
+      : null
+  } catch {
+    return null
+  }
+}
+
+function writeStoredOrder(token: string, order: StoredOrder) {
+  try {
+    window.localStorage.setItem(lastOrderKey(token), JSON.stringify(order))
+  } catch {
+    // localStorage unavailable (private browsing, storage disabled, ...) — the
+    // success box still links to the tracking page, so nothing is lost.
+  }
+}
+
+function clearStoredOrder(token: string) {
+  try {
+    window.localStorage.removeItem(lastOrderKey(token))
+  } catch {
+    // ignore
+  }
+}
+
 export function TableOrderingExperience({ token, restaurantName, tableName, currency, categories, items }: Props) {
   const { t } = useLanguage()
+  const router = useRouter()
   const [cart, setCart] = useState<Record<string, CartLine>>({})
   const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string[]>>({})
   const [customerNote, setCustomerNote] = useState('')
@@ -76,6 +121,49 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<OrderResponse['order'] | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
+  const [restoring, setRestoring] = useState(true)
+
+  // If the customer already submitted an order from this table on this device,
+  // remember its tracking token so a refresh (or a return visit to the QR page)
+  // restores the live order and its status instead of starting from scratch.
+  // Once the stored order reaches a terminal state it is cleared, so the table
+  // menu is shown again and the customer can order a new round.
+  useEffect(() => {
+    let cancelled = false
+
+    const stored = readStoredOrder(token)
+    if (!stored) {
+      setRestoring(false)
+      return
+    }
+
+    void (async () => {
+      try {
+        const response = await fetch(`/api/order-status/${stored.trackingToken}`, { cache: 'no-store' })
+        if (response.ok) {
+          const payload = (await response.json()) as { order?: { status?: string } }
+          const status = payload?.order?.status
+          if (status && !TERMINAL_STATUSES.has(status)) {
+            if (!cancelled) {
+              router.replace(`/orders/${stored.trackingToken}`)
+            }
+            return
+          }
+        }
+      } catch {
+        // Network failure or invalid payload — fall through and start a new order.
+      }
+
+      if (!cancelled) {
+        clearStoredOrder(token)
+        setRestoring(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [router, token])
 
   const itemsByCategory = useMemo(() => {
     return categories.map((category) => ({
@@ -193,8 +281,28 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
     setCart({})
     setSelectedModifiers({})
     setCustomerNote('')
+    if (data.order) {
+      writeStoredOrder(token, {
+        trackingToken: data.order.public_tracking_token,
+        submittedAt: data.order.created_at,
+      })
+    }
     setSuccess(data.order || null)
     setWarning(data.warning || null)
+  }
+
+  if (restoring) {
+    return (
+      <main className="page-shell">
+        <div className="page-grid">
+          <section className="panel stack">
+            <span className="eyebrow">{restaurantName}</span>
+            <h1 className="section-title">{t('customer.checkingOrder')}</h1>
+            <p className="lead">{t('customer.checkingOrderHint')}</p>
+          </section>
+        </div>
+      </main>
+    )
   }
 
   return (

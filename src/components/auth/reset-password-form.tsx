@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation'
 
 import { passwordResetSchema } from '@/lib/auth/schemas'
 import { createClient } from '@/lib/supabase/client'
+import { useLanguage } from '@/components/app/language-provider'
 
 export function ResetPasswordForm() {
   const router = useRouter()
+  const { t } = useLanguage()
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -42,11 +44,11 @@ export function ResetPasswordForm() {
         return
       }
 
-      setSuccess('Password updated. Redirecting to login...')
+      setSuccess(t('auth.passwordUpdated'))
       router.replace('/login')
       router.refresh()
     } catch (clientError) {
-      setError(clientError instanceof Error ? clientError.message : 'Unable to update the password.')
+      setError(clientError instanceof Error ? clientError.message : t('auth.updateFailed'))
     } finally {
       setPending(false)
     }
@@ -55,7 +57,7 @@ export function ResetPasswordForm() {
   return (
     <form onSubmit={handleSubmit}>
       <div className="field">
-        <label htmlFor="password">New password</label>
+        <label htmlFor="password">{t('auth.newPassword')}</label>
         <input
           id="password"
           name="password"
@@ -68,7 +70,7 @@ export function ResetPasswordForm() {
       </div>
 
       <div className="field">
-        <label htmlFor="confirmPassword">Confirm new password</label>
+        <label htmlFor="confirmPassword">{t('auth.confirmNewPassword')}</label>
         <input
           id="confirmPassword"
           name="confirmPassword"
@@ -84,7 +86,7 @@ export function ResetPasswordForm() {
       {success ? <div className="success">{success}</div> : null}
 
       <button className="button" type="submit" disabled={pending}>
-        {pending ? 'Updating...' : 'Update password'}
+        {pending ? t('auth.updating') : t('auth.updatePassword')}
       </button>
     </form>
   )

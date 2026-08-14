@@ -5,8 +5,10 @@ import { useSearchParams } from 'next/navigation'
 
 import { getClientUserContext } from '@/lib/auth/client'
 import { listTeamMembers } from '@/lib/auth/team-actions'
+import { deleteOrder } from '@/lib/admin/data-actions'
 import { createClient } from '@/lib/supabase/client'
 import { useSupabaseSubscription } from '@/lib/hooks/use-supabase-subscription'
+import { useLanguage } from '@/components/app/language-provider'
 
 type RestaurantMembership = {
   restaurantId: string
@@ -69,6 +71,27 @@ type OrderRow = {
 
 const statusOptions = ['NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'REJECTED', 'CANCELLED'] as const
 
+const STATUS_TABS = ['ALL', 'NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'CLOSED'] as const
+
+const CLOSED_STATUSES = new Set(['REJECTED', 'CANCELLED'])
+
+// Workflow order used for "sort by status".
+const STATUS_PRIORITY: Record<string, number> = {
+  NEW: 0,
+  ACCEPTED: 1,
+  PREPARING: 2,
+  READY: 3,
+  SERVED: 4,
+  REJECTED: 5,
+  CANCELLED: 5,
+}
+
+function orderMatchesTab(order: OrderRow, tab: string) {
+  if (tab === 'ALL') return true
+  if (tab === 'CLOSED') return CLOSED_STATUSES.has(order.status)
+  return order.status === tab
+}
+
 type LineDraft = {
   quantity: string
   notes: string
@@ -97,9 +120,19 @@ function formatCurrency(value: number, currency: string) {
   }).format(value)
 }
 
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export function OrdersConsole() {
   const supabase = useMemo(() => createClient(), [])
   const searchParams = useSearchParams()
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -111,6 +144,8 @@ export function OrdersConsole() {
   const [restaurantOptions, setRestaurantOptions] = useState<RestaurantOption[]>([])
   const [selectedRestaurantId, setSelectedRestaurantId] = useState('')
   const [orders, setOrders] = useState<OrderRow[]>([])
+  const [statusTab, setStatusTab] = useState<string>('ALL')
+  const [sortMode, setSortMode] = useState<'created_desc' | 'created_asc' | 'status'>('created_desc')
   const [menuOptions, setMenuOptions] = useState<MenuOption[]>([])
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({})
   const [lineDrafts, setLineDrafts] = useState<Record<string, LineDraft>>({})
@@ -131,7 +166,7 @@ export function OrdersConsole() {
 
     if (!context.user) {
       setLoading(false)
-      setError('Auth session missing!')
+      setError(t('orders.error.auth'))
       return
     }
 
@@ -145,7 +180,7 @@ export function OrdersConsole() {
       const { data: restaurants, error: restaurantsError } = await supabase.from('restaurants').select('id, name').order('name')
 
       if (restaurantsError || !restaurants || restaurants.length === 0) {
-        setError(restaurantsError?.message || 'No restaurants found for platform administration.')
+        setError(restaurantsError?.message || t('orders.error.noRestaurants'))
         setLoading(false)
         return
       }
@@ -168,7 +203,7 @@ export function OrdersConsole() {
     } else {
       const memberships = context.memberships.filter((item) => ['OWNER', 'MANAGER', 'STAFF'].includes(item.role)) as RestaurantMembership[]
       if (memberships.length === 0) {
-        setError('You need restaurant access to manage orders.')
+        setError(t('orders.error.noAccess'))
         setLoading(false)
         return
       }
@@ -205,7 +240,7 @@ export function OrdersConsole() {
         .select('id, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, waiter_id, session_id, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes, modifiers)')
         .eq('restaurant_id', activeRestaurantId)
         .order('created_at', { ascending: false })
-        .limit(30),
+        .limit(200),
       supabase
         .from('menu_items')
         .select('id, name, price, menu_categories(name)')
@@ -223,7 +258,7 @@ export function OrdersConsole() {
     )
 
     if (orderError || menuError) {
-      setError(orderError?.message || menuError?.message || 'Failed to load orders workspace.')
+      setError(orderError?.message || menuError?.message || t('orders.error.loadFailed'))
       setLoading(false)
       return
     }
@@ -248,6 +283,33 @@ export function OrdersConsole() {
     activeRestaurantIdRef.current = activeRestaurantId
     setLoading(false)
   }
+
+  const tabCounts = useMemo(() => {
+    const counts: Record<string, number> = { ALL: orders.length }
+    for (const tab of STATUS_TABS) {
+      if (tab === 'ALL') continue
+      counts[tab] = orders.filter((order) => orderMatchesTab(order, tab)).length
+    }
+    return counts
+  }, [orders])
+
+  const visibleOrders = useMemo(() => {
+    const filtered = orders.filter((order) => orderMatchesTab(order, statusTab))
+    const sorted = [...filtered]
+
+    if (sortMode === 'created_asc') {
+      sorted.sort((a, b) => a.created_at.localeCompare(b.created_at))
+    } else if (sortMode === 'created_desc') {
+      sorted.sort((a, b) => b.created_at.localeCompare(a.created_at))
+    } else if (sortMode === 'status') {
+      sorted.sort(
+        (a, b) =>
+          STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status] || b.created_at.localeCompare(a.created_at)
+      )
+    }
+
+    return sorted
+  }, [orders, statusTab, sortMode])
 
   // Handle real-time order updates (status, customer_note changes)
   const handleOrderUpdate = async (payload: any) => {
@@ -462,13 +524,13 @@ export function OrdersConsole() {
       return
     }
 
-    setNotice(`Order ${order.id.slice(0, 8)} moved to ${nextStatus}.`)
+    setNotice(t('orders.notice.statusChanged', { id: order.id.slice(0, 8), status: nextStatus }))
     await loadData(selectedRestaurantId || restaurantId || undefined)
   }
 
   async function handleTakeOrder(order: OrderRow) {
     if (!currentUserId) {
-      setError('Your session is not available. Refresh the page and try again.')
+      setError(t('orders.error.noUser'))
       return
     }
 
@@ -489,12 +551,12 @@ export function OrdersConsole() {
       return
     }
 
-    setNotice(`You are now handling order ${order.id.slice(0, 8)}.`)
+    setNotice(t('orders.notice.taken', { id: order.id.slice(0, 8) }))
     await loadData(selectedRestaurantId || restaurantId || undefined)
   }
 
   async function handleCloseSession(sessionId: string, tableName: string) {
-    if (!window.confirm(`Close the active session for ${tableName}? The next order will start a new visit.`)) return
+    if (!window.confirm(t('orders.confirm.closeSession', { table: tableName }))) return
 
     setSaving(true)
     setError(null)
@@ -512,7 +574,7 @@ export function OrdersConsole() {
       return
     }
 
-    setNotice(`Session for ${tableName} closed.`)
+    setNotice(t('orders.notice.sessionClosed', { table: tableName }))
     await loadData(selectedRestaurantId || restaurantId || undefined)
   }
 
@@ -533,7 +595,7 @@ export function OrdersConsole() {
       return
     }
 
-    setNotice('Order note updated.')
+    setNotice(t('orders.notice.noteUpdated'))
     await loadData(selectedRestaurantId || restaurantId || undefined)
   }
 
@@ -542,7 +604,7 @@ export function OrdersConsole() {
     const quantity = Number(draft?.quantity || line.quantity)
 
     if (!Number.isInteger(quantity) || quantity <= 0) {
-      setError('Quantity must be a positive whole number.')
+      setError(t('orders.error.quantity'))
       return
     }
 
@@ -560,7 +622,7 @@ export function OrdersConsole() {
         await refreshOrderTotals(orderId)
       } catch (refreshError) {
         setSaving(false)
-        setError(refreshError instanceof Error ? refreshError.message : 'Failed to refresh totals.')
+        setError(refreshError instanceof Error ? refreshError.message : t('orders.error.refreshTotals'))
         return
       }
     }
@@ -572,7 +634,7 @@ export function OrdersConsole() {
       return
     }
 
-    setNotice('Order line updated.')
+    setNotice(t('orders.notice.lineUpdated'))
     await loadData(selectedRestaurantId || restaurantId || undefined)
   }
 
@@ -588,7 +650,7 @@ export function OrdersConsole() {
         await refreshOrderTotals(orderId)
       } catch (refreshError) {
         setSaving(false)
-        setError(refreshError instanceof Error ? refreshError.message : 'Failed to refresh totals.')
+        setError(refreshError instanceof Error ? refreshError.message : t('orders.error.refreshTotals'))
         return
       }
     }
@@ -600,7 +662,7 @@ export function OrdersConsole() {
       return
     }
 
-    setNotice('Order line removed.')
+    setNotice(t('orders.notice.lineRemoved'))
     await loadData(selectedRestaurantId || restaurantId || undefined)
   }
 
@@ -610,17 +672,17 @@ export function OrdersConsole() {
     const quantity = Number(draft?.quantity || 1)
 
     if (!menuItem) {
-      setError('Select a menu item to add.')
+      setError(t('orders.error.menuItem'))
       return
     }
 
     if (!Number.isInteger(quantity) || quantity <= 0) {
-      setError('Add-item quantity must be a positive whole number.')
+      setError(t('orders.error.addQuantity'))
       return
     }
 
     if (!restaurantId) {
-      setError('Restaurant context is missing.')
+      setError(t('orders.error.restaurantContext'))
       return
     }
 
@@ -643,7 +705,7 @@ export function OrdersConsole() {
         await refreshOrderTotals(orderId)
       } catch (refreshError) {
         setSaving(false)
-        setError(refreshError instanceof Error ? refreshError.message : 'Failed to refresh totals.')
+        setError(refreshError instanceof Error ? refreshError.message : t('orders.error.refreshTotals'))
         return
       }
     }
@@ -655,15 +717,35 @@ export function OrdersConsole() {
       return
     }
 
-    setNotice(`${menuItem.name} added to order.`)
+    setNotice(t('orders.notice.itemAdded', { name: menuItem.name }))
+    await loadData(selectedRestaurantId || restaurantId || undefined)
+  }
+
+  async function handleDeleteOrder(order: OrderRow) {
+    if (!window.confirm(t('orders.confirm.deleteOrder', { id: order.id.slice(0, 8), table: getTableName(order) }))) return
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const result = await deleteOrder(order.id)
+
+    setSaving(false)
+
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+
+    setNotice(result.notice || t('orders.notice.orderDeleted'))
     await loadData(selectedRestaurantId || restaurantId || undefined)
   }
 
   if (loading) {
     return (
       <section className="panel stack">
-        <span className="eyebrow">Orders Dashboard</span>
-        <h1 className="section-title">Loading operational access...</h1>
+        <span className="eyebrow">{t('orders.eyebrow')}</span>
+        <h1 className="section-title">{t('orders.loading')}</h1>
       </section>
     )
   }
@@ -671,13 +753,13 @@ export function OrdersConsole() {
   return (
     <>
       <section className="panel stack">
-        <span className="eyebrow">Orders Dashboard</span>
-        <h1 className="section-title">Order operations for {restaurantName ?? 'your restaurant'}</h1>
-        <p className="lead">Staff can review, update, and modify live orders, including line items and order status.</p>
+        <span className="eyebrow">{t('orders.eyebrow')}</span>
+        <h1 className="section-title">{t('orders.title', { restaurant: restaurantName ?? t('orders.restaurantLine', { name: '...' }) })}</h1>
+        <p className="lead">{t('orders.lead')}</p>
         {restaurantOptions.length > 0 ? (
           <div className="field">
             <label htmlFor="ordersRestaurantSelector">
-              {isPlatformAdmin ? 'Restaurant context (SUPER_ADMIN)' : 'Restaurant context'}
+              {isPlatformAdmin ? t('orders.restaurantContextAdmin') : t('orders.restaurantContext')}
             </label>
             <select
               id="ordersRestaurantSelector"
@@ -698,37 +780,75 @@ export function OrdersConsole() {
         {newOrderNotice ? (
           <div className="message" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
             <strong>
-              🔔 New order received — {newOrderNotice.tableName} ·{' '}
-              {formatCurrency(newOrderNotice.total, newOrderNotice.currency)}
+              {t('orders.newOrderBanner', {
+                table: newOrderNotice.tableName,
+                total: formatCurrency(newOrderNotice.total, newOrderNotice.currency),
+              })}
             </strong>
             <button className="button-secondary" type="button" onClick={() => setNewOrderNotice(null)}>
-              Dismiss
+              {t('orders.dismiss')}
             </button>
           </div>
         ) : null}
       </section>
 
       <section className="panel stack">
-        <span className="eyebrow">Access</span>
+        <span className="eyebrow">{t('orders.accessEyebrow')}</span>
         <ul className="list">
-          <li>Role granted: {role ?? 'UNKNOWN'}</li>
-          <li>Restaurant: {restaurantName ?? 'Not selected'}</li>
-          <li>Orders loaded: {orders.length}</li>
+          <li>{t('orders.roleGranted', { role: role ?? 'UNKNOWN' })}</li>
+          <li>{t('orders.restaurantLine', { name: restaurantName ?? 'Not selected' })}</li>
+          <li>{t('orders.loaded', { count: orders.length })}</li>
         </ul>
       </section>
 
       <section className="panel stack">
-        <span className="eyebrow">Live Orders</span>
-        {orders.length === 0 ? <p className="muted">No orders yet for this restaurant.</p> : null}
+        <span className="eyebrow">{t('orders.liveEyebrow')}</span>
+
+        <div className="stack">
+          <div className="tabs-row" role="tablist" aria-label={t('orders.tabsLabel')}>
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={statusTab === tab}
+                className={statusTab === tab ? 'filter-tab filter-tab-active' : 'filter-tab'}
+                onClick={() => setStatusTab(tab)}
+                disabled={saving}
+              >
+                {t(`orders.tab.${tab}`)}
+                <span className="badge">{tabCounts[tab] ?? 0}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="field" style={{ maxWidth: '320px' }}>
+            <label htmlFor="ordersSortMode">{t('orders.sortLabel')}</label>
+            <select
+              id="ordersSortMode"
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as 'created_desc' | 'created_asc' | 'status')}
+              disabled={saving}
+            >
+              <option value="created_desc">{t('orders.sort.createdDesc')}</option>
+              <option value="created_asc">{t('orders.sort.createdAsc')}</option>
+              <option value="status">{t('orders.sort.status')}</option>
+            </select>
+          </div>
+        </div>
+
+        {orders.length === 0 ? <p className="muted">{t('orders.noOrders')}</p> : null}
+        {orders.length > 0 && visibleOrders.length === 0 ? <p className="muted">{t('orders.noMatchingOrders')}</p> : null}
         <ul className="list">
-          {orders.map((order) => (
+          {visibleOrders.map((order) => (
             <li key={order.id} data-testid={`order-card-${order.public_tracking_token}`}>
               <div className="cart-line-header">
                 <div>
-                  <strong>Order {order.id.slice(0, 8)}</strong>
-                  <p className="muted">Table: {getTableName(order)} | Status: {order.status}</p>
-                  <p className="muted">Track token: {order.public_tracking_token}</p>
-                  {order.customer_note ? <p className="muted">Customer note: {order.customer_note}</p> : null}
+                  <strong>{t('orders.orderId', { id: order.id.slice(0, 8) })}</strong>
+                  <p className="muted">{t('orders.tableStatus', { table: getTableName(order), status: order.status })}</p>
+                  <p className="muted">{t('orders.submitted', { datetime: formatDateTime(order.created_at) })}</p>
+                  <p className="muted">{t('orders.trackToken', { token: order.public_tracking_token })}</p>
+                  {order.customer_note ? <p className="muted">{t('orders.customerNoteLine', { note: order.customer_note })}</p> : null}
                 </div>
                 <div className="badge">{formatCurrency(order.total, order.currency)}</div>
               </div>
@@ -742,7 +862,7 @@ export function OrdersConsole() {
                     disabled={saving || status === order.status}
                     onClick={() => void handleStatusChange(order, status)}
                   >
-                    {status}
+                    {t(`status.${status}`)}
                   </button>
                 ))}
               </div>
@@ -750,7 +870,9 @@ export function OrdersConsole() {
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap' }}>
                 {order.waiter_id ? (
                   <span className="badge">
-                    Handling: {order.waiter_id === currentUserId ? 'you' : (teamEmailMap[order.waiter_id] ?? 'Staff member')}
+                    {order.waiter_id === currentUserId
+                      ? t('orders.handlingYou')
+                      : t('orders.handling', { who: teamEmailMap[order.waiter_id] ?? t('orders.staffMember') })}
                   </span>
                 ) : currentUserId ? (
                   <button
@@ -759,7 +881,7 @@ export function OrdersConsole() {
                     disabled={saving}
                     onClick={() => void handleTakeOrder(order)}
                   >
-                    Take order
+                    {t('orders.takeOrder')}
                   </button>
                 ) : null}
                 {order.session_id && activeSessionIds.has(order.session_id) && role && ['OWNER', 'MANAGER', 'SUPER_ADMIN'].includes(role) ? (
@@ -769,25 +891,35 @@ export function OrdersConsole() {
                     disabled={saving}
                     onClick={() => void handleCloseSession(order.session_id!, getTableName(order))}
                   >
-                    Close table session
+                    {t('orders.closeSession')}
+                  </button>
+                ) : null}
+                {isPlatformAdmin ? (
+                  <button
+                    className="button-danger"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void handleDeleteOrder(order)}
+                  >
+                    {t('orders.deleteOrder')}
                   </button>
                 ) : null}
               </div>
 
               <div className="field" style={{ marginTop: '12px' }}>
-                <label htmlFor={`order-note-${order.id}`}>Customer note</label>
+                <label htmlFor={`order-note-${order.id}`}>{t('orders.customerNoteLabel')}</label>
                 <textarea
                   id={`order-note-${order.id}`}
                   value={noteDrafts[order.id] ?? ''}
                   onChange={(event) => setNoteDrafts((current) => ({ ...current, [order.id]: event.target.value }))}
                 />
                 <button className="button-secondary" type="button" disabled={saving} onClick={() => void handleSaveOrderNote(order.id)}>
-                  Save order note
+                  {t('orders.saveOrderNote')}
                 </button>
               </div>
 
               <div className="stack" style={{ marginTop: '12px' }}>
-                <span className="eyebrow">Items</span>
+                <span className="eyebrow">{t('orders.itemsEyebrow')}</span>
                 <ul className="list">
                   {(order.order_items || []).map((line) => (
                     <li key={line.id}>
@@ -799,7 +931,7 @@ export function OrdersConsole() {
                         <p className="muted">{line.modifiers.join(' · ')}</p>
                       ) : null}
                       <div className="field">
-                        <label htmlFor={`line-qty-${line.id}`}>Quantity</label>
+                        <label htmlFor={`line-qty-${line.id}`}>{t('orders.quantity')}</label>
                         <input
                           id={`line-qty-${line.id}`}
                           type="number"
@@ -815,7 +947,7 @@ export function OrdersConsole() {
                         />
                       </div>
                       <div className="field">
-                        <label htmlFor={`line-notes-${line.id}`}>Line note</label>
+                        <label htmlFor={`line-notes-${line.id}`}>{t('orders.lineNote')}</label>
                         <textarea
                           id={`line-notes-${line.id}`}
                           value={lineDrafts[line.id]?.notes ?? line.notes ?? ''}
@@ -829,10 +961,10 @@ export function OrdersConsole() {
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         <button className="button-secondary" type="button" disabled={saving} onClick={() => void handleSaveOrderLine(order.id, line)}>
-                          Save line
+                          {t('orders.saveLine')}
                         </button>
                         <button className="button-danger" type="button" disabled={saving} onClick={() => void handleDeleteOrderLine(order.id, line.id)}>
-                          Remove line
+                          {t('orders.removeLine')}
                         </button>
                       </div>
                     </li>
@@ -841,9 +973,9 @@ export function OrdersConsole() {
               </div>
 
               <div className="stack" style={{ marginTop: '12px' }}>
-                <span className="eyebrow">Add item</span>
+                <span className="eyebrow">{t('orders.addItem')}</span>
                 <div className="field">
-                  <label htmlFor={`order-item-${order.id}`}>Menu item</label>
+                  <label htmlFor={`order-item-${order.id}`}>{t('orders.menuItem')}</label>
                   <select
                     id={`order-item-${order.id}`}
                     value={addItemDrafts[order.id]?.menuItemId ?? ''}
@@ -862,7 +994,7 @@ export function OrdersConsole() {
                   </select>
                 </div>
                 <div className="field">
-                  <label htmlFor={`add-qty-${order.id}`}>Quantity</label>
+                  <label htmlFor={`add-qty-${order.id}`}>{t('orders.quantity')}</label>
                   <input
                     id={`add-qty-${order.id}`}
                     type="number"
@@ -878,7 +1010,7 @@ export function OrdersConsole() {
                   />
                 </div>
                 <button className="button" type="button" disabled={saving || menuOptions.length === 0} onClick={() => void handleAddItemToOrder(order.id)}>
-                  Add item to order
+                  {t('orders.addItemToOrder')}
                 </button>
               </div>
             </li>
