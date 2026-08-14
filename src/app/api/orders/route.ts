@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 
   const { data: existingOrder } = await admin
     .from('orders')
-    .select('id, status, total, currency, created_at, public_tracking_token')
+    .select('id, order_number, status, total, currency, created_at, public_tracking_token')
     .eq('idempotency_key', idempotencyKey)
     .maybeSingle()
 
@@ -214,7 +214,7 @@ export async function POST(request: NextRequest) {
       customer_note: customerNote || null,
       idempotency_key: idempotencyKey,
     })
-    .select('id, status, total, currency, created_at, public_tracking_token')
+    .select('id, order_number, status, total, currency, created_at, public_tracking_token')
     .single()
 
   if (orderError || !order) {

@@ -34,6 +34,7 @@ type OrderItemRow = {
 
 type OrderRow = {
   id: string
+  order_number: number | null
   table_id: string
   status: string
   total: number
@@ -60,6 +61,10 @@ function getTableName(table: TableRow) {
   return table.name || 'Unknown table'
 }
 
+function getOrderLabel(order: OrderRow) {
+  return order.order_number != null ? String(order.order_number) : order.id.slice(0, 8)
+}
+
 function getOrderTableName(order: OrderRow) {
   const table = Array.isArray(order.restaurant_tables) ? order.restaurant_tables[0] : order.restaurant_tables
   return table?.name || 'Unknown table'
@@ -77,7 +82,15 @@ type TranslateFn = (key: string, params?: Record<string, string | number>) => st
 
 // Shared compact order summary, mirroring what the customer sees on the
 // tracking page (line items, modifiers, customer note, total).
-function OrderSummary({ order, t }: { order: OrderRow; t: TranslateFn }) {
+function OrderSummary({
+  order,
+  t,
+  onDismiss,
+}: {
+  order: OrderRow
+  t: TranslateFn
+  onDismiss?: (orderId: string) => void
+}) {
   const lineItems = order.order_items || []
   return (
     <div className="stack" style={{ marginTop: '12px' }}>
@@ -106,6 +119,13 @@ function OrderSummary({ order, t }: { order: OrderRow; t: TranslateFn }) {
         <strong>{t('common.total')}</strong>
         <strong>{formatCurrency(order.total, order.currency)}</strong>
       </div>
+      {onDismiss ? (
+        <div>
+          <button className="button-danger" type="button" onClick={() => onDismiss(order.id)}>
+            {t('home.dismissOrder')}
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -145,10 +165,13 @@ export function HomeDashboard() {
   const [expandedTableOrderId, setExpandedTableOrderId] = useState<string | null>(null)
   const [newOrderNotice, setNewOrderNotice] = useState<{
     orderId: string
+    orderNumber: number | null
     tableName: string
     total: number
     currency: string
+    items: OrderItemRow[]
   } | null>(null)
+  const [noticeSummaryOpen, setNoticeSummaryOpen] = useState(false)
   const [currentUserRole, setCurrentUserRole] = useState<'OWNER' | 'MANAGER' | 'STAFF' | null>(null)
   const [restaurantCurrency, setRestaurantCurrency] = useState('EUR')
 
@@ -228,7 +251,7 @@ export function HomeDashboard() {
       supabase
         .from('orders')
         .select(
-          'id, table_id, status, total, currency, customer_note, created_at, restaurant_tables(name), order_items(id, item_name, quantity, unit_price, notes, modifiers)'
+          'id, order_number, table_id, status, total, currency, customer_note, created_at, restaurant_tables(name), order_items(id, item_name, quantity, unit_price, notes, modifiers)'
         )
         .eq('restaurant_id', selected.id)
         .order('created_at', { ascending: false })
@@ -270,7 +293,7 @@ export function HomeDashboard() {
     const { data } = await supabase
       .from('orders')
       .select(
-        'id, table_id, status, total, currency, customer_note, created_at, restaurant_tables(name), order_items(id, item_name, quantity, unit_price, notes, modifiers)'
+        'id, order_number, table_id, status, total, currency, customer_note, created_at, restaurant_tables(name), order_items(id, item_name, quantity, unit_price, notes, modifiers)'
       )
       .eq('restaurant_id', activeRestaurantIdRef.current)
       .order('created_at', { ascending: false })
@@ -284,13 +307,13 @@ export function HomeDashboard() {
     `home_orders_${activeRestaurantIdRef.current || 'init'}`,
     'orders',
     ['INSERT', 'UPDATE'],
-    (payload) => {
+    async (payload) => {
       // New-order notification for the restaurant owner and the staff member
       // who claimed the table. Other staff still see the order refresh but get
       // no banner.
       if (payload?.eventType === 'INSERT') {
         const inserted = payload.new as
-          | { id?: string; restaurant_id?: string; table_id?: string; total?: number }
+          | { id?: string; order_number?: number | null; restaurant_id?: string; table_id?: string; total?: number }
           | undefined
         if (
           inserted &&
@@ -305,12 +328,19 @@ export function HomeDashboard() {
           if (claimedByCurrentUser || isOwnerOrPlatformAdmin) {
             // The realtime payload truncates the CHAR(3) currency column, so use
             // the restaurant currency resolved on load instead.
+            const { data: orderItems } = await supabase
+              .from('order_items')
+              .select('id, item_name, quantity, unit_price, notes, modifiers')
+              .eq('order_id', inserted.id || '')
             setNewOrderNotice({
               orderId: inserted.id || '',
+              orderNumber: inserted.order_number ?? null,
               tableName: table?.name ?? 'Unknown table',
               total: Number(inserted.total) || 0,
               currency: restaurantCurrency,
+              items: (orderItems as OrderItemRow[]) || [],
             })
+            setNoticeSummaryOpen(false)
           }
         }
       }
@@ -385,6 +415,39 @@ export function HomeDashboard() {
     setSaving(false)
   }
 
+  // Reject an order directly from the home dashboard live views.
+  async function handleDismissOrder(orderId: string) {
+    const order = orders.find((entry) => entry.id === orderId)
+    if (!order) return
+    if (!window.confirm(t('home.confirmDismissOrder', { id: getOrderLabel(order) }))) return
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({ status: 'REJECTED' })
+      .eq('id', orderId)
+
+    if (!updateError) {
+      const { error: historyError } = await supabase.from('order_status_history').insert({
+        order_id: orderId,
+        old_status: order.status,
+        new_status: 'REJECTED',
+        changed_by: currentUserId,
+      })
+      if (!historyError) {
+        setNotice(t('orders.notice.statusChanged', { id: getOrderLabel(order), status: 'REJECTED' }))
+      }
+      void refreshOrders()
+    } else {
+      setError(updateError.message)
+    }
+
+    setSaving(false)
+  }
+
   const activeTables = tables.filter((table) => table.active)
   const liveOrders = orders.filter((order) => STATUS_ORDER.includes(order.status))
   const occupiedTablesCount = activeTables.filter((table) =>
@@ -447,11 +510,19 @@ export function HomeDashboard() {
             >
               <strong>
                 {t('home.newOrderBanner', {
+                  number: newOrderNotice.orderNumber != null ? String(newOrderNotice.orderNumber) : newOrderNotice.orderId.slice(0, 8),
                   table: newOrderNotice.tableName,
                   total: formatCurrency(newOrderNotice.total, newOrderNotice.currency),
                 })}
               </strong>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  className="button-secondary"
+                  type="button"
+                  onClick={() => setNoticeSummaryOpen((current) => !current)}
+                >
+                  {noticeSummaryOpen ? t('home.hideSummary') : t('home.viewSummary')}
+                </button>
                 <button
                   className="button"
                   type="button"
@@ -469,6 +540,25 @@ export function HomeDashboard() {
                   {t('orders.dismiss')}
                 </button>
               </div>
+            </div>
+          ) : null}
+          {newOrderNotice && noticeSummaryOpen ? (
+            <div className="panel stack" style={{ marginTop: '12px' }}>
+              <OrderSummary
+                t={t}
+                order={{
+                  id: newOrderNotice.orderId,
+                  order_number: newOrderNotice.orderNumber,
+                  table_id: '',
+                  status: 'NEW',
+                  total: newOrderNotice.total,
+                  currency: newOrderNotice.currency,
+                  customer_note: null,
+                  created_at: '',
+                  restaurant_tables: null,
+                  order_items: newOrderNotice.items,
+                }}
+              />
             </div>
           ) : null}
 
@@ -581,7 +671,12 @@ export function HomeDashboard() {
                               <button
                                 className="button-secondary"
                                 type="button"
-                                style={{ width: '100%', minHeight: '34px', justifyContent: 'space-between' }}
+                                style={{
+                                  width: '100%',
+                                  minHeight: '34px',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                }}
                                 onClick={() => setExpandedTableOrderId(isSummaryOpen ? null : order.id)}
                               >
                                 <span>
@@ -593,7 +688,9 @@ export function HomeDashboard() {
                                 </span>
                                 <span className="badge">{formatDateTime(order.created_at)}</span>
                               </button>
-                              {isSummaryOpen ? <OrderSummary order={order} t={t} /> : null}
+                              {isSummaryOpen ? (
+                                <OrderSummary order={order} t={t} onDismiss={() => void handleDismissOrder(order.id)} />
+                              ) : null}
                             </li>
                           )
                         })}
@@ -646,7 +743,9 @@ export function HomeDashboard() {
                       {isExpanded ? t('home.hideSummary') : t('home.viewSummary')}
                     </button>
                   </div>
-                  {isExpanded ? <OrderSummary order={order} t={t} /> : null}
+                  {isExpanded ? (
+                    <OrderSummary order={order} t={t} onDismiss={() => void handleDismissOrder(order.id)} />
+                  ) : null}
                 </li>
               )
             })}

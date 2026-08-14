@@ -62,4 +62,19 @@ test.describe('public ordering journey', () => {
     await expect(page.getByRole('heading', { name: 'The Green Bar' })).toBeVisible()
     await expect(page.getByText('You are ordering for Table 1.')).toBeVisible()
   })
+
+  test('ordering page offers language toggle, category nav and cart confirmation', async ({ page }) => {
+    await page.goto('/t/X7k91Lm')
+
+    // Customers have a language toggle even though the platform nav is hidden.
+    await expect(page.getByRole('button', { name: 'Ελληνικά' })).toBeVisible()
+
+    // A horizontal category bar lets customers jump to a category.
+    await expect(page.getByRole('navigation', { name: 'Categories' })).toBeVisible()
+    await expect(page.getByRole('navigation', { name: 'Categories' }).getByRole('button', { name: 'Starters' })).toBeVisible()
+
+    // Adding an item shows a confirmation toast.
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: /Add to cart/ }).click()
+    await expect(page.getByText('Added to cart')).toBeVisible()
+  })
 })

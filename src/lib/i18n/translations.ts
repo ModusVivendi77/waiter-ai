@@ -84,10 +84,15 @@ export const translations: Record<string, Translation> = {
   'home.loadingWorkspace': { en: 'Loading your workspace...', el: 'Φόρτωση του χώρου εργασίας...' },
   'home.claimNotice': { en: 'Table assignment updated.', el: 'Η ανάθεση τραπεζιού ενημερώθηκε.' },
   'home.newOrderBanner': {
-    en: '🔔 New order received — {table} · {total}',
-    el: '🔔 Νέα παραγγελία — {table} · {total}',
+    en: '🔔 Order {number} — {table} · {total}',
+    el: '🔔 Παραγγελία {number} — {table} · {total}',
   },
   'home.acceptOrder': { en: 'Accept', el: 'Αποδοχή' },
+  'home.dismissOrder': { en: 'Dismiss order', el: 'Απόρριψη παραγγελίας' },
+  'home.confirmDismissOrder': {
+    en: 'Dismiss order {id}? It will be marked as rejected.',
+    el: 'Απόρριψη της παραγγελίας {id}; Θα επισημανθεί ως απορριφθείσα.',
+  },
   'home.viewSummary': { en: 'View summary', el: 'Προβολή σύνοψης' },
   'home.hideSummary': { en: 'Hide summary', el: 'Απόκρυψη σύνοψης' },
   'home.showOrders': { en: 'Show orders', el: 'Προβολή παραγγελιών' },
@@ -131,6 +136,8 @@ export const translations: Record<string, Translation> = {
     en: 'If you have an active order from this table we will take you straight back to it.',
     el: 'Αν έχετε ενεργή παραγγελία από αυτό το τραπέζι, θα επιστρέψετε κατευθείαν σε αυτήν.',
   },
+  'customer.itemAddedToast': { en: 'Added to cart', el: 'Προστέθηκε στο καλάθι' },
+  'customer.categories': { en: 'Categories', el: 'Κατηγορίες' },
 
   // Tracking page
   'track.eyebrow': { en: 'Order Status', el: 'Κατάσταση Παραγγελίας' },

@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 
 import { usePublicOrderStatus } from '@/lib/hooks/use-public-order-status'
 import { useLanguage } from '@/components/app/language-provider'
+import { LanguageToggle } from '@/components/app/language-toggle'
 import { clearStoredOrder } from '@/lib/utils/order-storage'
 
 type OrderStatusPayload = {
   order: {
     id: string
+    orderNumber?: number | null
     status: string
     total: number
     currency: string
@@ -178,13 +180,14 @@ export function OrderStatusView({ trackingToken, tableQrToken, initialOrder }: P
 
   return (
     <main className="page-shell">
+      <LanguageToggle style={{ position: 'fixed', top: 14, right: 18, zIndex: 30 }} />
       <div className="page-grid">
         <section className="hero-card">
           <span className="eyebrow">{t('track.eyebrow')}</span>
           <h1 className="hero-title">{data.restaurant.name}</h1>
           <p className="lead">
             {t('track.currently', {
-              id: data.order.id.slice(0, 8),
+              id: data.order.orderNumber != null ? String(data.order.orderNumber) : data.order.id.slice(0, 8),
               table: data.table.name,
               status: t(`status.${data.order.status}`),
             })}

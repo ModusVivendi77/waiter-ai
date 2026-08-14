@@ -48,6 +48,7 @@ type OrderItemRow = {
 
 type OrderRow = {
   id: string
+  order_number: number | null
   status: string
   subtotal: number
   total: number
@@ -67,6 +68,10 @@ type OrderRow = {
       }>
     | null
   order_items: OrderItemRow[] | null
+}
+
+function getOrderLabel(order: OrderRow) {
+  return order.order_number != null ? String(order.order_number) : order.id.slice(0, 8)
 }
 
 const statusOptions = ['NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'REJECTED', 'CANCELLED'] as const
@@ -239,7 +244,7 @@ export function OrdersConsole() {
     const [{ data: orderRows, error: orderError }, { data: menuRows, error: menuError }, teamResult, sessionResult] = await Promise.all([
       supabase
         .from('orders')
-        .select('id, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, waiter_id, session_id, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes, modifiers)')
+        .select('id, order_number, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, waiter_id, session_id, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes, modifiers)')
         .eq('restaurant_id', activeRestaurantId)
         .order('created_at', { ascending: false })
         .limit(200),
@@ -345,7 +350,7 @@ export function OrdersConsole() {
 
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
-      .select('id, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, waiter_id, session_id, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes, modifiers)')
+      .select('id, order_number, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, waiter_id, session_id, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes, modifiers)')
       .eq('id', inserted.id)
       .maybeSingle()
 
@@ -404,7 +409,7 @@ export function OrdersConsole() {
     if (affectedOrderId) {
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
-        .select('id, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes)')
+        .select('id, order_number, status, subtotal, total, currency, customer_note, public_tracking_token, restaurant_id, created_at, restaurant_tables(name), order_items(id, menu_item_id, item_name, quantity, unit_price, notes)')
         .eq('id', affectedOrderId)
         .maybeSingle()
 
@@ -526,7 +531,7 @@ export function OrdersConsole() {
       return
     }
 
-    setNotice(t('orders.notice.statusChanged', { id: order.id.slice(0, 8), status: nextStatus }))
+    setNotice(t('orders.notice.statusChanged', { id: getOrderLabel(order), status: nextStatus }))
     await loadData(selectedRestaurantId || restaurantId || undefined)
   }
 
@@ -553,7 +558,7 @@ export function OrdersConsole() {
       return
     }
 
-    setNotice(t('orders.notice.taken', { id: order.id.slice(0, 8) }))
+    setNotice(t('orders.notice.taken', { id: getOrderLabel(order) }))
     await loadData(selectedRestaurantId || restaurantId || undefined)
   }
 
@@ -724,7 +729,7 @@ export function OrdersConsole() {
   }
 
   async function handleDeleteOrder(order: OrderRow) {
-    if (!window.confirm(t('orders.confirm.deleteOrder', { id: order.id.slice(0, 8), table: getTableName(order) }))) return
+    if (!window.confirm(t('orders.confirm.deleteOrder', { id: getOrderLabel(order), table: getTableName(order) }))) return
 
     setSaving(true)
     setError(null)
@@ -846,7 +851,7 @@ export function OrdersConsole() {
             <li key={order.id} data-testid={`order-card-${order.public_tracking_token}`}>
               <div className="cart-line-header">
                 <div>
-                  <strong>{t('orders.orderId', { id: order.id.slice(0, 8) })}</strong>
+                  <strong>{t('orders.orderId', { id: getOrderLabel(order) })}</strong>
                   <p className="muted">{t('orders.tableStatus', { table: getTableName(order), status: order.status })}</p>
                   <p className="muted">{t('orders.submitted', { datetime: formatDateTime(order.created_at) })}</p>
                   <p className="muted">{t('orders.trackToken', { token: order.public_tracking_token })}</p>

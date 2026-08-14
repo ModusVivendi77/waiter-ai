@@ -126,12 +126,12 @@ test.describe('orders workspace', () => {
     await expect(customerPage.getByText(/submitted with status NEW/i)).toBeVisible()
 
     // The owner's dashboard must show the realtime new-order banner.
-    await expect(ownerPage.getByText(/New order received/)).toBeVisible({ timeout: 10000 })
+    await expect(ownerPage.getByText(/🔔 Order \d+ — Table 1/)).toBeVisible({ timeout: 10000 })
 
     // Accept moves the order to ACCEPTED and dismisses the banner.
     await ownerPage.getByRole('button', { name: 'Accept' }).click()
     await expect(ownerPage.getByText(/moved to ACCEPTED/i)).toBeVisible()
-    await expect(ownerPage.getByText(/New order received/)).toBeHidden()
+    await expect(ownerPage.getByText(/🔔 Order \d+ — Table 1/)).toBeHidden()
   })
 
   test('live tables expose orders and expandable order summaries', async ({ page }) => {

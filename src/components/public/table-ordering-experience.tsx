@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { CreateOrderInput } from '@/lib/validation/orders'
 import { useLanguage } from '@/components/app/language-provider'
+import { LanguageToggle } from '@/components/app/language-toggle'
 import {
   clearStoredOrder,
   readStoredOrder,
@@ -55,6 +56,7 @@ type Props = {
 type OrderResponse = {
   order?: {
     id: string
+    order_number?: number | null
     status: string
     total: number
     currency: string
@@ -86,6 +88,8 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
   const [success, setSuccess] = useState<OrderResponse['order'] | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
   const [restoring, setRestoring] = useState(true)
+  const [cartToast, setCartToast] = useState<string | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // If the customer already submitted an order from this table on this device,
   // remember its tracking token so a refresh (or a return visit to the QR page)
@@ -184,6 +188,13 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
         },
       }
     })
+
+    // Confirmation toast that the item was added to the cart.
+    setCartToast(t('customer.itemAddedToast', { name: item.name }))
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current)
+    }
+    toastTimerRef.current = setTimeout(() => setCartToast(null), 2200)
   }
 
   function updateLine(item: MenuItem, updater: (line: CartLine) => CartLine | null) {
@@ -271,6 +282,8 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
 
   return (
     <main className="page-shell">
+      {cartToast ? <div className="toast">{cartToast}</div> : null}
+      <LanguageToggle style={{ position: 'fixed', top: 14, right: 18, zIndex: 30 }} />
       <div className="page-grid">
         <section className="hero-card">
           <span className="eyebrow">{t('customer.eyebrow')}</span>
@@ -285,8 +298,23 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
         <div className="order-layout">
           <section className="panel stack">
             <span className="eyebrow">{t('customer.menu')}</span>
+            <nav className="category-nav" aria-label={t('customer.categories')}>
+              {itemsByCategory.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() =>
+                    document
+                      .getElementById(`category-${category.id}`)
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
+                >
+                  {category.name}
+                </button>
+              ))}
+            </nav>
             {itemsByCategory.map((category) => (
-              <div className="stack" key={category.id}>
+              <div className="stack category-section" id={`category-${category.id}`} key={category.id}>
                 <div>
                   <h2 className="section-title">{category.name}</h2>
                   {category.description ? <p className="muted">{category.description}</p> : null}
@@ -360,7 +388,7 @@ export function TableOrderingExperience({ token, restaurantName, tableName, curr
             {success ? (
               <div className="success">
                 {t('customer.orderSubmitted', {
-                  id: success.id.slice(0, 8),
+                  id: success.order_number != null ? String(success.order_number) : success.id.slice(0, 8),
                   status: t(`status.${success.status}`),
                   total: formatCurrency(success.total, success.currency),
                 })}
