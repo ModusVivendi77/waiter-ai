@@ -8,6 +8,7 @@ import { listTeamMembers, type TeamMember } from '@/lib/auth/team-actions'
 import { createClient } from '@/lib/supabase/client'
 import { useSupabaseSubscription } from '@/lib/hooks/use-supabase-subscription'
 import { useLanguage } from '@/components/app/language-provider'
+import { HISTORY_STATUSES, OPEN_STATUSES } from '@/lib/orders/status'
 
 type TableRow = {
   id: string
@@ -40,6 +41,7 @@ type OrderRow = {
   currency: string
   customer_note: string | null
   created_at: string
+  public_tracking_token: string | null
   restaurant_tables:
     | {
         name: string
@@ -56,17 +58,17 @@ type RestaurantOption = {
   name: string
 }
 
-function getTableName(table: TableRow) {
-  return table.name || 'Unknown table'
+function getTableName(table: TableRow, fallback = 'Unknown table') {
+  return table.name || fallback
 }
 
 function getOrderLabel(order: OrderRow) {
   return order.order_number != null ? String(order.order_number) : order.id.slice(0, 8)
 }
 
-function getOrderTableName(order: OrderRow) {
+function getOrderTableName(order: OrderRow, fallback = 'Unknown table') {
   const table = Array.isArray(order.restaurant_tables) ? order.restaurant_tables[0] : order.restaurant_tables
-  return table?.name || 'Unknown table'
+  return table?.name || fallback
 }
 
 function formatCurrency(value: number, currency: string) {
@@ -137,9 +139,6 @@ function formatDateTime(value: string) {
   )}:${pad(date.getMinutes())}`
 }
 
-const OPEN_STATUSES = ['NEW', 'ACCEPTED', 'PREPARING', 'READY']
-const HISTORY_STATUSES = ['SERVED', 'REJECTED', 'CANCELLED']
-
 // Shared list-item rendering for the Live orders and Order history panels,
 // keeping both views identical (table, status, time, total, expandable summary).
 function OrderListItem({
@@ -148,19 +147,22 @@ function OrderListItem({
   expanded,
   onToggle,
   onDismiss,
+  manageHref,
 }: {
   order: OrderRow
   t: TranslateFn
   expanded: boolean
   onToggle: () => void
   onDismiss?: () => void
+  manageHref?: string
 }) {
+  const unknownTable = t('home.unknownTable')
   return (
     <li>
       <div className="cart-line-header">
         <div>
           <strong>
-            {t('home.table')} {getOrderTableName(order)}
+            {t('home.table')} {getOrderTableName(order, unknownTable)}
           </strong>
           <p className="muted">
             {t('common.status')}: {t(`status.${order.status}`)} ·{' '}
@@ -176,6 +178,11 @@ function OrderListItem({
         <button className="button-secondary" type="button" onClick={onToggle}>
           {expanded ? t('home.hideSummary') : t('home.viewSummary')}
         </button>
+        {manageHref ? (
+          <Link className="button-secondary" href={manageHref}>
+            {t('home.manageInOrders')}
+          </Link>
+        ) : null}
       </div>
       {expanded ? <OrderSummary order={order} t={t} onDismiss={onDismiss} /> : null}
     </li>
@@ -203,6 +210,10 @@ export function HomeDashboard() {
   const [todayStats, setTodayStats] = useState<{ orders: number; revenue: number }>({ orders: 0, revenue: 0 })
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
   const [expandedHistoryOrderId, setExpandedHistoryOrderId] = useState<string | null>(null)
+  const [liveGroup, setLiveGroup] = useState<'list' | 'status' | 'table'>(() => {
+    if (typeof window === 'undefined') return 'list'
+    return (localStorage.getItem('staffHomeLiveGroup') as 'list' | 'status' | 'table' | null) || 'list'
+  })
   const [tableOrdersExpanded, setTableOrdersExpanded] = useState<Record<string, boolean>>({})
   const [expandedTableOrderId, setExpandedTableOrderId] = useState<string | null>(null)
   const [newOrderNotice, setNewOrderNotice] = useState<{
@@ -293,11 +304,11 @@ export function HomeDashboard() {
       supabase
         .from('orders')
         .select(
-          'id, order_number, table_id, status, total, currency, customer_note, created_at, restaurant_tables(name), order_items(id, item_name, quantity, unit_price, notes, modifiers)'
+          'id, order_number, table_id, status, total, currency, customer_note, created_at, public_tracking_token, restaurant_tables(name), order_items(id, item_name, quantity, unit_price, notes, modifiers)'
         )
         .eq('restaurant_id', selected.id)
         .order('created_at', { ascending: false })
-        .limit(100),
+        .limit(200),
       listTeamMembers(selected.id).catch(() => ({ error: undefined, members: undefined })),
       supabase
         .from('orders')
@@ -335,11 +346,11 @@ export function HomeDashboard() {
     const { data } = await supabase
       .from('orders')
       .select(
-        'id, order_number, table_id, status, total, currency, customer_note, created_at, restaurant_tables(name), order_items(id, item_name, quantity, unit_price, notes, modifiers)'
+        'id, order_number, table_id, status, total, currency, customer_note, created_at, public_tracking_token, restaurant_tables(name), order_items(id, item_name, quantity, unit_price, notes, modifiers)'
       )
       .eq('restaurant_id', activeRestaurantIdRef.current)
       .order('created_at', { ascending: false })
-      .limit(100)
+      .limit(200)
     if (data) {
       setOrders(data as OrderRow[])
     }
@@ -495,6 +506,22 @@ export function HomeDashboard() {
   const activeTables = tables.filter((table) => table.active)
   const liveOrders = orders.filter((order) => OPEN_STATUSES.includes(order.status))
   const historyOrders = orders.filter((order) => HISTORY_STATUSES.includes(order.status))
+
+  // Groupings for the Live orders view: by workflow status or by table.
+  const liveStatusGroups = OPEN_STATUSES.map((status) => ({
+    status,
+    orders: liveOrders.filter((order) => order.status === status),
+  })).filter((group) => group.orders.length > 0)
+
+  const liveTableGroups = Array.from(
+    liveOrders.reduce((map, order) => {
+      const name = getOrderTableName(order, t('home.unknownTable'))
+      const list = map.get(name) || []
+      list.push(order)
+      map.set(name, list)
+      return map
+    }, new Map<string, OrderRow[]>())
+  ).map(([name, orders]) => ({ name, orders }))
   const occupiedTablesCount = activeTables.filter((table) =>
     (table.dining_sessions || []).some((session) => session.status === 'ACTIVE')
   ).length
@@ -600,6 +627,7 @@ export function HomeDashboard() {
                   currency: newOrderNotice.currency,
                   customer_note: null,
                   created_at: '',
+                  public_tracking_token: null,
                   restaurant_tables: null,
                   order_items: newOrderNotice.items,
                 }}
@@ -664,117 +692,209 @@ export function HomeDashboard() {
         </section>
 
         <section className="panel stack">
-          <span className="eyebrow">{t('home.liveTables')}</span>
-          <p className="helper-text">{t('home.tableAssignmentHelper')}</p>
-          {activeTables.length === 0 ? <p className="muted">{t('home.noActiveTables')}</p> : null}
-          <div className="panel-grid">
-            {activeTables.map((table) => {
-              const hasActiveSession = (table.dining_sessions || []).some((session) => session.status === 'ACTIVE')
-              const assignedName = table.assigned_staff_id
-                ? table.assigned_staff_id === currentUserId
-                  ? t('home.handledByYou')
-                  : `${t('home.handledBy')} ${staffEmailMap[table.assigned_staff_id] ?? t('home.staffMember')}`
-                : t('home.unassigned')
-              const tableOrders = orders.filter((order) => order.table_id === table.id)
-              const ordersOpen = Boolean(tableOrdersExpanded[table.id])
-
-              return (
-                <article className="metric" key={table.id}>
-                  <span
-                    className={
-                      hasActiveSession ? 'status-pill status-pill-occupied' : 'status-pill status-pill-free'
-                    }
-                  >
-                    {hasActiveSession ? t('home.occupied') : t('home.free')}
-                  </span>
-                  <strong>{getTableName(table)}</strong>
-                  <p className="muted">{assignedName}</p>
-                  {tableOrders.length === 0 ? (
-                    <p className="muted" style={{ marginTop: '10px' }}>
-                      {t('home.noOrdersForTable')}
-                    </p>
-                  ) : (
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
-                      <button
-                        className="button-secondary"
-                        type="button"
-                        onClick={() =>
-                          setTableOrdersExpanded((current) => ({ ...current, [table.id]: !current[table.id] }))
-                        }
-                      >
-                        {ordersOpen ? t('home.hideOrders') : t('home.showOrders')}
-                      </button>
-                    </div>
-                  )}
-                  {ordersOpen && tableOrders.length > 0 ? (
-                    <div style={{ marginTop: '10px' }}>
-                      <ul className="list">
-                        {tableOrders.map((order) => {
-                          const isSummaryOpen = expandedTableOrderId === order.id
-                          return (
-                            <li key={order.id}>
-                              <button
-                                className="button-secondary"
-                                type="button"
-                                style={{
-                                  width: '100%',
-                                  minHeight: '34px',
-                                  justifyContent: 'space-between',
-                                  flexWrap: 'wrap',
-                                }}
-                                onClick={() => setExpandedTableOrderId(isSummaryOpen ? null : order.id)}
-                              >
-                                <span>
-                                  <strong>{t(`status.${order.status}`)}</strong>
-                                  <span className="muted">
-                                    {' '}· {t('home.itemsCount', { count: (order.order_items || []).length })} ·{' '}
-                                    {formatCurrency(order.total, order.currency)}
-                                  </span>
-                                </span>
-                                <span className="badge">{formatDateTime(order.created_at)}</span>
-                              </button>
-                              {isSummaryOpen ? (
-                                <OrderSummary order={order} t={t} onDismiss={() => void handleDismissOrder(order.id)} />
-                              ) : null}
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    </div>
-                  ) : null}
-                  <button
-                    className="button-secondary"
-                    type="button"
-                    disabled={saving}
-                    onClick={() => void handleClaimTable(table.id)}
-                  >
-                    {table.assigned_staff_id === currentUserId ? `${t('home.claimed')} ✓` : t('home.claimTable')}
-                  </button>
-                </article>
-              )
-            })}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <span className="eyebrow" style={{ marginBottom: 0 }}>{t('home.liveOrders')}</span>
+            <div className="pill-row" role="group" aria-label={t('home.groupOrders')}>
+              <button
+                type="button"
+                className={liveGroup === 'list' ? 'button-secondary' : 'button-tertiary'}
+                onClick={() => {
+                  setLiveGroup('list')
+                  localStorage.setItem('staffHomeLiveGroup', 'list')
+                }}
+              >
+                {t('home.groupList')}
+              </button>
+              <button
+                type="button"
+                className={liveGroup === 'status' ? 'button-secondary' : 'button-tertiary'}
+                onClick={() => {
+                  setLiveGroup('status')
+                  localStorage.setItem('staffHomeLiveGroup', 'status')
+                }}
+              >
+                {t('home.groupByStatus')}
+              </button>
+              <button
+                type="button"
+                className={liveGroup === 'table' ? 'button-secondary' : 'button-tertiary'}
+                onClick={() => {
+                  setLiveGroup('table')
+                  localStorage.setItem('staffHomeLiveGroup', 'table')
+                }}
+              >
+                {t('home.groupByTable')}
+              </button>
+            </div>
           </div>
-        </section>
 
-        <section className="panel stack">
-          <span className="eyebrow">{t('home.liveOrders')}</span>
           {liveOrders.length === 0 ? <p className="muted">{t('home.noLiveOrders')}</p> : null}
-          <ul className="list">
-            {liveOrders.map((order) => (
-              <OrderListItem
-                key={order.id}
-                order={order}
-                t={t}
-                expanded={expandedOrderId === order.id}
-                onToggle={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
-                onDismiss={() => void handleDismissOrder(order.id)}
-              />
-            ))}
-          </ul>
+
+          {liveGroup === 'list'
+            ? (
+                <ul className="list">
+                  {liveOrders.map((order) => (
+                    <OrderListItem
+                      key={order.id}
+                      order={order}
+                      t={t}
+                      expanded={expandedOrderId === order.id}
+                      onToggle={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
+                      onDismiss={() => void handleDismissOrder(order.id)}
+                      manageHref={`/platform/orders?restaurantId=${activeRestaurantIdRef.current || ''}&focus=${order.public_tracking_token || order.id}`}
+                    />
+                  ))}
+                </ul>
+              )
+            : null}
+
+          {liveGroup === 'status'
+            ? liveStatusGroups.map((group) => (
+                <div className="stack" key={group.status}>
+                  <div className="cart-line-header">
+                    <strong>{t(`statusLabel.${group.status}`)}</strong>
+                    <span className="badge">{t('home.itemsCount', { count: group.orders.length })}</span>
+                  </div>
+                  <ul className="list">
+                    {group.orders.map((order) => (
+                      <OrderListItem
+                        key={order.id}
+                        order={order}
+                        t={t}
+                        expanded={expandedOrderId === order.id}
+                        onToggle={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
+                        onDismiss={() => void handleDismissOrder(order.id)}
+                        manageHref={`/platform/orders?restaurantId=${activeRestaurantIdRef.current || ''}&focus=${order.public_tracking_token || order.id}`}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              ))
+            : null}
+
+          {liveGroup === 'table'
+            ? liveTableGroups.map((group) => (
+                <div className="stack" key={group.name}>
+                  <div className="cart-line-header">
+                    <strong>
+                      {t('home.table')} {group.name}
+                    </strong>
+                    <span className="badge">{t('home.itemsCount', { count: group.orders.length })}</span>
+                  </div>
+                  <ul className="list">
+                    {group.orders.map((order) => (
+                      <OrderListItem
+                        key={order.id}
+                        order={order}
+                        t={t}
+                        expanded={expandedOrderId === order.id}
+                        onToggle={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
+                        onDismiss={() => void handleDismissOrder(order.id)}
+                        manageHref={`/platform/orders?restaurantId=${activeRestaurantIdRef.current || ''}&focus=${order.public_tracking_token || order.id}`}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              ))
+            : null}
         </section>
 
-        <section className="panel stack">
-          <span className="eyebrow">{t('home.orderHistory')}</span>
+        <div className="panel-trio">
+          <section className="panel stack">
+            <span className="eyebrow">{t('home.liveTables')}</span>
+            <p className="helper-text">{t('home.tableAssignmentHelper')}</p>
+            {activeTables.length === 0 ? <p className="muted">{t('home.noActiveTables')}</p> : null}
+            <div className="panel-grid">
+              {activeTables.map((table) => {
+                const hasActiveSession = (table.dining_sessions || []).some((session) => session.status === 'ACTIVE')
+                const assignedName = table.assigned_staff_id
+                  ? table.assigned_staff_id === currentUserId
+                    ? t('home.handledByYou')
+                    : `${t('home.handledBy')} ${staffEmailMap[table.assigned_staff_id] ?? t('home.staffMember')}`
+                  : t('home.unassigned')
+                const tableOrders = orders.filter((order) => order.table_id === table.id)
+                const ordersOpen = Boolean(tableOrdersExpanded[table.id])
+
+                return (
+                  <article className="metric" key={table.id}>
+                    <span
+                      className={
+                        hasActiveSession ? 'status-pill status-pill-occupied' : 'status-pill status-pill-free'
+                      }
+                    >
+                      {hasActiveSession ? t('home.occupied') : t('home.free')}
+                    </span>
+                    <strong>{getTableName(table, t('home.unknownTable'))}</strong>
+                    <p className="muted">{assignedName}</p>
+                    {tableOrders.length === 0 ? (
+                      <p className="muted" style={{ marginTop: '10px' }}>
+                        {t('home.noOrdersForTable')}
+                      </p>
+                    ) : (
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                        <button
+                          className="button-secondary"
+                          type="button"
+                          onClick={() =>
+                            setTableOrdersExpanded((current) => ({ ...current, [table.id]: !current[table.id] }))
+                          }
+                        >
+                          {ordersOpen ? t('home.hideOrders') : t('home.showOrders')}
+                        </button>
+                      </div>
+                    )}
+                    {ordersOpen && tableOrders.length > 0 ? (
+                      <div style={{ marginTop: '10px' }}>
+                        <ul className="list">
+                          {tableOrders.map((order) => {
+                            const isSummaryOpen = expandedTableOrderId === order.id
+                            return (
+                              <li key={order.id}>
+                                <button
+                                  className="button-secondary"
+                                  type="button"
+                                  style={{
+                                    width: '100%',
+                                    minHeight: '34px',
+                                    justifyContent: 'space-between',
+                                    flexWrap: 'wrap',
+                                  }}
+                                  onClick={() => setExpandedTableOrderId(isSummaryOpen ? null : order.id)}
+                                >
+                                  <span>
+                                    <strong>{t(`status.${order.status}`)}</strong>
+                                    <span className="muted">
+                                      {' '}· {t('home.itemsCount', { count: (order.order_items || []).length })} ·{' '}
+                                      {formatCurrency(order.total, order.currency)}
+                                    </span>
+                                  </span>
+                                  <span className="badge">{formatDateTime(order.created_at)}</span>
+                                </button>
+                                {isSummaryOpen ? (
+                                  <OrderSummary order={order} t={t} onDismiss={() => void handleDismissOrder(order.id)} />
+                                ) : null}
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </div>
+                    ) : null}
+                    <button
+                      className="button-secondary"
+                      type="button"
+                      disabled={saving}
+                      onClick={() => void handleClaimTable(table.id)}
+                    >
+                      {table.assigned_staff_id === currentUserId ? `${t('home.claimed')} ✓` : t('home.claimTable')}
+                    </button>
+                  </article>
+                )
+              })}
+            </div>
+          </section>
+
+          <section className="panel stack">
+            <span className="eyebrow">{t('home.orderHistory')}</span>
           {historyOrders.length === 0 ? <p className="muted">{t('home.noHistoryOrders')}</p> : null}
           <ul className="list">
             {historyOrders.map((order) => (
@@ -814,7 +934,8 @@ export function HomeDashboard() {
               {t('home.manageTeam')}
             </Link>
           ) : null}
-        </section>
+          </section>
+        </div>
       </div>
     </main>
   )

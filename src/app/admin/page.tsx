@@ -139,7 +139,7 @@ export default function AdminPage() {
 
   function getDataScopeLabel() {
     const restaurant = restaurants.find((entry) => entry.id === selectedDataRestaurantId)
-    return restaurant ? `"${restaurant.name}"` : 'ALL restaurants'
+    return restaurant ? `"${restaurant.name}"` : t('admin.dataAllRestaurants')
   }
 
   async function handleDeleteOrders() {
@@ -244,7 +244,7 @@ export default function AdminPage() {
           {notice ? <div className="success">{notice}</div> : null}
           {error ? <div className="error-box">{error}</div> : null}
           <ul className="list">
-            <li>{t('admin.authenticatedUser', { email: currentEmail ?? 'Unknown user' })}</li>
+            <li>{t('admin.authenticatedUser', { email: currentEmail ?? t('admin.unknownUser') })}</li>
             <li>{t('admin.role')}</li>
             <li>{t('admin.totalAdmins', { count: admins.length })}</li>
           </ul>

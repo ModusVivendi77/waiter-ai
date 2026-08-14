@@ -954,7 +954,7 @@ export function RestaurantSetupConsole() {
   return (
     <>
       <section className="panel stack">
-        <span className="eyebrow">Phase 4</span>
+        <span className="eyebrow">{t('setup.phaseEyebrow')}</span>
         <h1 className="section-title">{t('setup.title')}</h1>
         <p className="lead">{t('setup.lead', { restaurant: restaurantName ?? t('settings.yourRestaurant') })}</p>
         {restaurantOptions.length > 0 ? (
@@ -1026,7 +1026,7 @@ export function RestaurantSetupConsole() {
                     disabled={saving}
                     onChange={(event) => void handleAssignTableStaff(table.id, event.target.value)}
                   >
-                    <option value="">— Unassigned —</option>
+                    <option value="">{t('setup.unassignedOption')}</option>
                     {staffOptions.map((staff) => (
                       <option key={staff.id} value={staff.id}>
                         {staff.name}
@@ -1119,7 +1119,7 @@ export function RestaurantSetupConsole() {
               id="itemName"
               value={itemName}
               onChange={(event) => setItemName(event.target.value)}
-              placeholder="Classic Burger"
+              placeholder={t('setup.itemNamePlaceholder')}
               required
             />
           </div>
@@ -1130,7 +1130,7 @@ export function RestaurantSetupConsole() {
               id="itemDescription"
               value={itemDescription}
               onChange={(event) => setItemDescription(event.target.value)}
-              placeholder="200g patty, brioche bun, fries"
+              placeholder={t('setup.itemDescriptionPlaceholder')}
             />
           </div>
 
@@ -1143,13 +1143,13 @@ export function RestaurantSetupConsole() {
               min="0"
               value={itemPrice}
               onChange={(event) => setItemPrice(event.target.value)}
-              placeholder="12.50"
+              placeholder={t('setup.itemPricePlaceholder')}
               required
             />
           </div>
 
           <div className="field">
-            <label htmlFor="itemCategoryId">Category</label>
+            <label htmlFor="itemCategoryId">{t('setup.itemCategory')}</label>
             <select
               id="itemCategoryId"
               value={itemCategoryId}
@@ -1157,7 +1157,7 @@ export function RestaurantSetupConsole() {
               required
             >
               <option value="" disabled>
-                Select category
+                {t('setup.selectCategory')}
               </option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
@@ -1173,7 +1173,7 @@ export function RestaurantSetupConsole() {
               id="itemAllergens"
               value={itemAllergens}
               onChange={(event) => setItemAllergens(event.target.value)}
-              placeholder="Gluten, Dairy, Nuts (comma separated)"
+              placeholder={t('setup.allergensPlaceholder')}
             />
           </div>
 
@@ -1183,9 +1183,9 @@ export function RestaurantSetupConsole() {
               id="itemModifiersText"
               value={itemModifiersText}
               onChange={(event) => setItemModifiersText(event.target.value)}
-              placeholder={'Extra cheese +1.50\nBacon +2.00\nGluten-free bun +1.00'}
+              placeholder={t('setup.modifiersPlaceholder')}
             />
-            <p className="helper-text">One option per line: "Name +price" (price optional).</p>
+            <p className="helper-text">{t('setup.modifierFormatHelper')}</p>
           </div>
 
           <button className="button" type="submit" disabled={saving || categories.length === 0}>
@@ -1201,7 +1201,7 @@ export function RestaurantSetupConsole() {
               id="categoryName"
               value={categoryName}
               onChange={(event) => setCategoryName(event.target.value)}
-              placeholder="Cocktails"
+              placeholder={t('setup.categoryPlaceholder')}
               required
             />
           </div>
@@ -1270,16 +1270,16 @@ export function RestaurantSetupConsole() {
 
               {isOpen ? (
                 categoryItems.length === 0 ? (
-                  <p className="muted">No items in this category yet.</p>
+                  <p className="muted">{t('setup.noItemsInCategory')}</p>
                 ) : (
                   <div style={{ overflowX: 'auto' }}>
                     <table className="preview-table">
                       <thead>
                         <tr>
-                          <th>Item</th>
-                          <th style={{ width: 120 }}>Price</th>
-                          <th style={{ width: 120 }}>Status</th>
-                          <th>Actions</th>
+                          <th>{t('setup.itemCol')}</th>
+                          <th style={{ width: 120 }}>{t('setup.itemPrice')}</th>
+                          <th style={{ width: 120 }}>{t('setup.statusCol')}</th>
+                          <th>{t('setup.actionsCol')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1337,7 +1337,7 @@ export function RestaurantSetupConsole() {
                                       />
                                     </div>
                                     <div className="field">
-                                      <label htmlFor={`details-category-${item.id}`}>Category</label>
+                                      <label htmlFor={`details-category-${item.id}`}>{t('setup.itemCategory')}</label>
                                       <select
                                         id={`details-category-${item.id}`}
                                         value={editingItemCategoryId}
@@ -1356,7 +1356,7 @@ export function RestaurantSetupConsole() {
                                         id={`details-allergens-${item.id}`}
                                         value={editingItemAllergens}
                                         onChange={(event) => setEditingItemAllergens(event.target.value)}
-                                        placeholder="Gluten, Dairy, Nuts (comma separated)"
+                                        placeholder={t('setup.allergensPlaceholder')}
                                       />
                                     </div>
                                     <div className="field">
@@ -1365,16 +1365,16 @@ export function RestaurantSetupConsole() {
                                         id={`details-modifiers-${item.id}`}
                                         value={editingItemModifiersText}
                                         onChange={(event) => setEditingItemModifiersText(event.target.value)}
-                                        placeholder={'Extra cheese +1.50\nBacon +2.00'}
+                                        placeholder={t('setup.modifiersPlaceholder')}
                                       />
-                                      <p className="helper-text">One option per line: "Name +price" (price optional).</p>
+                                      <p className="helper-text">{t('setup.modifierFormatHelper')}</p>
                                     </div>
                                     <div className="pill-row">
                                       <button className="button" type="button" disabled={saving} onClick={() => void handleSaveMenuItem(item.id)}>
-                                        Save changes
+                                        {t('setup.saveChanges')}
                                       </button>
                                       <button className="button-secondary" type="button" onClick={() => setExpandedItemId(null)}>
-                                        Close
+                                        {t('setup.cancel')}
                                       </button>
                                     </div>
                                   </div>
@@ -1394,8 +1394,8 @@ export function RestaurantSetupConsole() {
       </section>
 
       <section className="panel stack">
-        <span className="eyebrow">CSV Import</span>
-        <p className="helper-text">Paste CSV lines in this format: category,name,description,price. Quoted fields are supported.</p>
+        <span className="eyebrow">{t('setup.csvEyebrow')}</span>
+        <p className="helper-text">{t('setup.csvHelper')}</p>
         <form className="stack" onSubmit={handleCsvImport}>
           <div className="field">
             <label htmlFor="csvText">{t('setup.csvRows')}</label>
@@ -1423,14 +1423,14 @@ export function RestaurantSetupConsole() {
         </form>
         {csvPreviewRows.length > 0 ? (
           <div className="stack">
-            <span className="eyebrow">Preview</span>
+            <span className="eyebrow">{t('setup.previewEyebrow')}</span>
             <table className="preview-table">
               <thead>
                 <tr>
-                  <th>Category</th>
-                  <th>Name</th>
-                  <th>Description</th>
-                  <th>Price</th>
+                  <th>{t('setup.csvCategoryCol')}</th>
+                  <th>{t('setup.csvNameCol')}</th>
+                  <th>{t('setup.csvDescriptionCol')}</th>
+                  <th>{t('setup.csvPriceCol')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1438,8 +1438,8 @@ export function RestaurantSetupConsole() {
                   <tr key={`${row.category}-${row.name}-${index}`}>
                     <td>{row.category}</td>
                     <td>{row.name}</td>
-                    <td>{row.description || 'No description'}</td>
-                    <td>EUR {row.price.toFixed(2)}</td>
+                    <td>{row.description || t('setup.noDescription')}</td>
+                    <td>{t('setup.priceEur', { price: row.price.toFixed(2) })}</td>
                   </tr>
                 ))}
               </tbody>

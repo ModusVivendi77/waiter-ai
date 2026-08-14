@@ -9,6 +9,7 @@ import { deleteOrder } from '@/lib/admin/data-actions'
 import { createClient } from '@/lib/supabase/client'
 import { useSupabaseSubscription } from '@/lib/hooks/use-supabase-subscription'
 import { useLanguage } from '@/components/app/language-provider'
+import { CLOSED_STATUSES, STATUS_OPTIONS, STATUS_PRIORITY, STATUS_TABS } from '@/lib/orders/status'
 
 type RestaurantMembership = {
   restaurantId: string
@@ -72,23 +73,6 @@ type OrderRow = {
 
 function getOrderLabel(order: OrderRow) {
   return order.order_number != null ? String(order.order_number) : order.id.slice(0, 8)
-}
-
-const statusOptions = ['NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'REJECTED', 'CANCELLED'] as const
-
-const STATUS_TABS = ['ALL', 'NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'CLOSED'] as const
-
-const CLOSED_STATUSES = new Set(['REJECTED', 'CANCELLED'])
-
-// Workflow order used for "sort by status".
-const STATUS_PRIORITY: Record<string, number> = {
-  NEW: 0,
-  ACCEPTED: 1,
-  PREPARING: 2,
-  READY: 3,
-  SERVED: 4,
-  REJECTED: 5,
-  CANCELLED: 5,
 }
 
 function orderMatchesTab(order: OrderRow, tab: string) {
@@ -444,6 +428,23 @@ export function OrdersConsole() {
     void loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
+
+  // Deep-link support: when the home dashboard sends ?focus=<trackingToken>,
+  // scroll to that order card and flash it once (home "Manage in Orders").
+  const focusToken = searchParams.get('focus')
+  const focusedOnceRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!focusToken || orders.length === 0 || focusedOnceRef.current === focusToken) return
+    const card = document.querySelector(`[data-testid="order-card-${focusToken}"]`)
+    if (card) {
+      focusedOnceRef.current = focusToken
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      card.classList.add('focus-flash')
+      const timer = window.setTimeout(() => card.classList.remove('focus-flash'), 2200)
+      return () => window.clearTimeout(timer)
+    }
+  }, [focusToken, orders])
 
   // Set up real-time subscriptions for orders and items
   useSupabaseSubscription(
@@ -861,7 +862,7 @@ export function OrdersConsole() {
               </div>
 
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
-                {statusOptions.map((status) => (
+                {STATUS_OPTIONS.map((status) => (
                   <button
                     key={`${order.id}-${status}`}
                     className={status === order.status ? 'button' : 'button-secondary'}
