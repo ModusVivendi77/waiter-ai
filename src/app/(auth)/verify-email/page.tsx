@@ -1,21 +1,23 @@
+'use client'
+
 import { Suspense } from 'react'
 import Link from 'next/link'
 
 import { VerifyEmailForm } from '@/components/auth/verify-email-form'
+import { useLanguage } from '@/components/app/language-provider'
 
 export default function VerifyEmailPage() {
+  const { t } = useLanguage()
   return (
     <main className="auth-layout">
       <section className="auth-card stack">
-        <span className="eyebrow">Email Verification</span>
-        <h1 className="section-title">Check your inbox to confirm your email.</h1>
-        <p className="helper-text">
-          Open the confirmation link we emailed you to activate your account. Your account stays locked until you confirm.
-        </p>
-        <Suspense fallback={<p className="muted">Loading verification form...</p>}>
+        <span className="eyebrow">{t('verify.eyebrow')}</span>
+        <h1 className="section-title">{t('verify.title')}</h1>
+        <p className="helper-text">{t('verify.helper')}</p>
+        <Suspense fallback={<p className="muted">{t('common.loading')}</p>}>
           <VerifyEmailForm />
         </Suspense>
-        <Link href="/platform/signup">Need to register? Create an account.</Link>
+        <Link href="/platform/signup">{t('verify.createAccount')}</Link>
       </section>
     </main>
   )

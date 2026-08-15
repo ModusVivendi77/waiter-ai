@@ -238,6 +238,14 @@ export const translations: Record<string, Translation> = {
   'register.emailNoticeUnknown': { en: 'the confirmation email could not be sent', el: 'το email επιβεβαίωσης δεν στάλθηκε' },
   'register.loginPrompt': { en: 'Already have an account? Sign in.', el: 'Έχετε ήδη λογαριασμό; Συνδεθείτε.' },
 
+  // Auth — signup page shell
+  'signup.eyebrow': { en: 'Owner Registration', el: 'Εγγραφή Ιδιοκτήτη' },
+  'signup.title': { en: 'Create the first restaurant account.', el: 'Δημιουργήστε τον πρώτο λογαριασμό εστιατορίου.' },
+  'signup.helper': {
+    en: 'This flow provisions the auth user, the restaurant record, and the OWNER membership in one step.',
+    el: 'Αυτή η διαδικασία δημιουργεί τον χρήστη, την εγγραφή του εστιατορίου και τη συμμετοχή ως ΙΔΙΟΚΤΗΤΗΣ σε ένα βήμα.',
+  },
+
   // Auth — forgot / reset / verify
   'auth.forgotTitle': { en: 'Reset your password', el: 'Επαναφορά κωδικού' },
   'auth.forgotHelper': {
@@ -273,6 +281,42 @@ export const translations: Record<string, Translation> = {
     el: 'Δεν το λάβατε; Πληκτρολογήστε το email σας παρακάτω και θα στείλουμε ξανά τον σύνδεσμο επιβεβαίωσης.',
   },
   'auth.verifyLogin': { en: 'Already confirmed? Sign in.', el: 'Έχετε ήδη επιβεβαιωθεί; Συνδεθείτε.' },
+
+  // Auth — forgot / reset / verify page shells
+  'forgot.eyebrow': { en: 'Password Recovery', el: 'Ανάκτηση Κωδικού' },
+  'forgot.title': { en: 'Send a reset link.', el: 'Αποστολή συνδέσμου επαναφοράς.' },
+  'forgot.helper': {
+    en: 'The email will take the user back into the authenticated reset flow handled by Supabase.',
+    el: 'Το email θα οδηγήσει τον χρήστη πίσω στη διαδικασία επαναφοράς με ταυτοποίηση που διαχειρίζεται το Supabase.',
+  },
+  'forgot.backToLogin': { en: 'Back to login', el: 'Επιστροφή στη σύνδεση' },
+  'reset.eyebrow': { en: 'Password Reset', el: 'Επαναφορά Κωδικού' },
+  'reset.title': { en: 'Choose a new password.', el: 'Επιλέξτε νέο κωδικό.' },
+  'reset.helper': {
+    en: 'Open this page from the Supabase reset email so the temporary recovery session is present.',
+    el: 'Ανοίξτε αυτή τη σελίδα από το email επαναφοράς του Supabase ώστε να υπάρχει η προσωρινή συνεδρία ανάκτησης.',
+  },
+  'verify.eyebrow': { en: 'Email Verification', el: 'Επιβεβαίωση Email' },
+  'verify.title': { en: 'Check your inbox to confirm your email.', el: 'Ελέγξτε τα εισερχόμενά σας για να επιβεβαιώσετε το email σας.' },
+  'verify.helper': {
+    en: 'Open the confirmation link we emailed you to activate your account. Your account stays locked until you confirm.',
+    el: 'Ανοίξτε τον σύνδεσμο επιβεβαίωσης που σας στείλαμε για να ενεργοποιήσετε τον λογαριασμό σας. Ο λογαριασμός παραμένει κλειδωμένος μέχρι να επιβεβαιώσετε.',
+  },
+  'verify.createAccount': { en: 'Need to register? Create an account.', el: 'Χρειάζεστε εγγραφή; Δημιουργήστε λογαριασμό.' },
+
+  // Auth — server-side validation / provider errors (localized client-side)
+  'auth.errFullName': { en: 'Full name is required.', el: 'Το ονοματεπώνυμο είναι υποχρεωτικό.' },
+  'auth.errRestaurantName': { en: 'Restaurant name is required.', el: 'Το όνομα εστιατορίου είναι υποχρεωτικό.' },
+  'auth.errEmail': { en: 'Enter a valid email address.', el: 'Εισάγετε έγκυρη διεύθυνση email.' },
+  'auth.errPasswordMin': { en: 'Password must be at least 8 characters long.', el: 'Ο κωδικός πρέπει να έχει τουλάχιστον 8 χαρακτήρες.' },
+  'auth.errPasswordsMatch': { en: 'Passwords do not match.', el: 'Οι κωδικοί δεν ταιριάζουν.' },
+  'auth.errEmailTaken': { en: 'This email is already registered.', el: 'Αυτό το email είναι ήδη καταχωρημένο.' },
+  'auth.errCreateAccount': { en: 'Unable to create the user account.', el: 'Δεν ήταν δυνατή η δημιουργία του λογαριασμού.' },
+  'auth.errEmailRequired': { en: 'Email is required.', el: 'Το email είναι υποχρεωτικό.' },
+  'auth.errTooManyEmails': {
+    en: 'Too many confirmation emails. Please wait a few minutes and try again.',
+    el: 'Πάρα πολλά email επιβεβαίωσης. Περιμένετε λίγα λεπτά και δοκιμάστε ξανά.',
+  },
 
   // Sign out
   'auth.signOut': { en: 'Sign out', el: 'Αποσύνδεση' },

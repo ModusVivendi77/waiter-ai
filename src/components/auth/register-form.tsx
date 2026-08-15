@@ -4,6 +4,7 @@ import { useActionState } from 'react'
 import Link from 'next/link'
 
 import { registerRestaurant, type RegisterState } from '@/lib/auth/actions'
+import { localizeAuthError } from '@/lib/i18n/auth-errors'
 import { useLanguage } from '@/components/app/language-provider'
 
 const initialState: RegisterState = {}
@@ -57,7 +58,7 @@ export function RegisterForm() {
             <input id="confirmPassword" name="confirmPassword" type="password" required />
           </div>
 
-          {state.error ? <div className="error-box">{state.error}</div> : null}
+          {state.error ? <div className="error-box">{localizeAuthError(state.error, t)}</div> : null}
 
           <button className="button" type="submit" disabled={pending}>
             {pending ? t('register.creating') : t('register.createButton')}

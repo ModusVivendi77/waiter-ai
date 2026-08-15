@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 import { resendConfirmationEmail, type VerifyEmailState } from '@/lib/auth/actions'
+import { localizeAuthError } from '@/lib/i18n/auth-errors'
 import { useLanguage } from '@/components/app/language-provider'
 
 const initialState: VerifyEmailState = {}
@@ -40,7 +41,7 @@ export function VerifyEmailForm() {
           />
         </div>
 
-        {state.error ? <div className="error-box">{state.error}</div> : null}
+        {state.error ? <div className="error-box">{localizeAuthError(state.error, t)}</div> : null}
         {state.success ? <div className="success">{state.success}</div> : null}
 
         <button className="button" type="submit" disabled={pending}>
