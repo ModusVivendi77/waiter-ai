@@ -256,6 +256,66 @@ test.describe('orders workspace', () => {
     await expect(page.locator('.global-nav-login')).toBeVisible()
   })
 
+  test('tab title badge appears when a new order drops and clears on focus', async ({ browser }) => {
+    const context = await browser.newContext()
+    const adminPage = await context.newPage()
+
+    // Staff: open the Orders workspace and stay there while a customer orders.
+    await loginAsSuperAdmin(adminPage)
+    await adminPage.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
+    await expect(adminPage.getByText('Restaurant: The Green Bar')).toBeVisible()
+    await expect(adminPage.locator('.global-nav-lang')).toBeVisible()
+
+    const titleBefore = await adminPage.title()
+
+    // Customer: place a fresh order in a sibling tab.
+    const customerPage = await context.newPage()
+    await customerPage.goto('/t/X7k91Lm')
+    await customerPage.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await customerPage.getByRole('button', { name: 'Submit order' }).click()
+    await expect(customerPage.getByText(/submitted with status NEW/i)).toBeVisible()
+
+    // The staff tab (even in the background) must flag it in the document title.
+    await expect
+      .poll(() => adminPage.title())
+      .toMatch(/\(1\) 🔔 New order/)
+    expect(await adminPage.title()).toContain(titleBefore)
+
+    // Refocusing the staff tab (or any interaction in it) clears the badge and
+    // restores the original title.
+    await adminPage.bringToFront()
+    await adminPage.keyboard.press('Shift')
+    await expect.poll(() => adminPage.title()).toBe(titleBefore)
+
+    await context.close()
+  })
+
+  test('compact order lines keep their edit controls and render inline', async ({ page }) => {
+    const uniqueNote = `E2E compact lines ${Date.now()}`
+
+    await page.goto('/t/X7k91Lm')
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByLabel('Order note').fill(uniqueNote)
+    await page.getByRole('button', { name: 'Submit order' }).click()
+    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
+
+    await loginAsSuperAdmin(page)
+    await page.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
+    await expect(page.getByText('Restaurant: The Green Bar')).toBeVisible()
+
+    const orderCard = page.locator('[data-testid^="order-card-"]').filter({ hasText: uniqueNote }).first()
+    await expect(orderCard).toBeVisible()
+
+    // Each item is a compact two-row block: a header line with qty × name and
+    // the line total, plus an inline control row with the edit actions.
+    const line = orderCard.locator('.order-line').first()
+    await expect(line).toBeVisible()
+    await expect(line.locator('.order-line-name')).toContainText('1 × Burger')
+    await expect(line.locator('input[id^="line-qty-"]')).toBeVisible()
+    await expect(line.getByRole('button', { name: 'Save line' })).toBeVisible()
+    await expect(line.getByRole('button', { name: 'Remove line' })).toBeVisible()
+  })
+
   test('home dashboard collapse toggles are visible and collapse the panels', async ({ page }) => {
     await loginAsSuperAdmin(page)
 
@@ -304,5 +364,8 @@ test.describe('orders workspace', () => {
       ),
     ).toBeVisible()
     await expect(orderCard.getByText(/Κατάσταση: (NEW|ACCEPTED|PREPARING|READY|SERVED|CANCELLED|REJECTED)/)).toHaveCount(0)
+
+    // The new-order sound toggle is localized in Greek too.
+    await expect(page.getByRole('button', { name: /Ήχος νέας παραγγελίας: ενεργός/ })).toBeVisible()
   })
 })

@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useLiveOrders } from '@/lib/hooks/use-live-orders'
 import { LoadingBar } from '@/components/app/loading-bar'
 import { useLanguage } from '@/components/app/language-provider'
+import { isNewOrderSoundEnabled, setNewOrderSoundEnabled } from '@/lib/notifications/new-order-alert'
 import { CLOSED_STATUSES, STATUS_OPTIONS, STATUS_PRIORITY, STATUS_TABS } from '@/lib/orders/status'
 
 type RestaurantMembership = {
@@ -163,6 +164,10 @@ export function OrdersConsole() {
     currency: string
   } | null>(null)
   const activeRestaurantIdRef = useRef<string | null>(null)
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    return isNewOrderSoundEnabled()
+  })
 
   // Shared live-orders data layer (fetch + realtime refresh) — the same
   // implementation the home dashboard uses. Realtime events run the handlers
@@ -170,6 +175,7 @@ export function OrdersConsole() {
   const { orders, refreshOrders, initialLoading } = useLiveOrders(restaurantId, {
     onOrderInsert: handleOrderInsert,
     onOrderItemChange: handleOrderItemChange,
+    alertLabel: t('notify.tabTitle'),
   })
 
   // Initialize line/note/add-item drafts once per restaurant, after the shared
@@ -838,6 +844,21 @@ export function OrdersConsole() {
               <option value="status">{t('orders.sort.status')}</option>
             </select>
           </div>
+
+          <button
+            className="button-secondary button-sm"
+            type="button"
+            aria-pressed={soundEnabled}
+            title={t('notify.soundToggle', { state: soundEnabled ? t('notify.soundOn') : t('notify.soundOff') })}
+            onClick={() => {
+              const next = !soundEnabled
+              setSoundEnabled(next)
+              setNewOrderSoundEnabled(next)
+            }}
+          >
+            {soundEnabled ? '🔔' : '🔕'}{' '}
+            {t('notify.soundToggle', { state: soundEnabled ? t('notify.soundOn') : t('notify.soundOff') })}
+          </button>
         </div>
 
         {orders.length === 0 ? <p className="muted">{t('orders.noOrders')}</p> : null}
@@ -942,20 +963,27 @@ export function OrdersConsole() {
 
               <div className="stack" style={{ marginTop: '12px' }}>
                 <span className="eyebrow">{t('orders.itemsEyebrow')}</span>
-                <ul className="list">
+                <ul className="list order-lines">
                   {(order.order_items || []).map((line) => (
-                    <li key={line.id}>
-                      <div className="cart-line-header">
-                        <strong>{line.item_name}</strong>
-                        <span>{formatCurrency(line.unit_price * line.quantity, order.currency)}</span>
+                    <li key={line.id} className="order-line">
+                      <div className="order-line-top">
+                        <span className="order-line-name">
+                          <strong>
+                            {lineDrafts[line.id]?.quantity ?? line.quantity} × {line.item_name}
+                          </strong>
+                          {line.modifiers && line.modifiers.length > 0 ? (
+                            <span className="muted">{line.modifiers.join(' · ')}</span>
+                          ) : null}
+                        </span>
+                        <span className="order-line-total">
+                          {formatCurrency(line.unit_price * line.quantity, order.currency)}
+                        </span>
                       </div>
-                      {line.modifiers && line.modifiers.length > 0 ? (
-                        <p className="muted">{line.modifiers.join(' · ')}</p>
-                      ) : null}
-                      <div className="field">
-                        <label htmlFor={`line-qty-${line.id}`}>{t('orders.quantity')}</label>
+                      <div className="order-line-controls">
                         <input
+                          className="input-sm"
                           id={`line-qty-${line.id}`}
+                          aria-label={t('orders.quantity')}
                           type="number"
                           min="1"
                           step="1"
@@ -967,12 +995,11 @@ export function OrdersConsole() {
                             }))
                           }
                         />
-                      </div>
-                      {line.notes || expandedLineNote[line.id] ? (
-                        <div className="field">
-                          <label htmlFor={`line-notes-${line.id}`}>{t('orders.lineNote')}</label>
-                          <textarea
-                            id={`line-notes-${line.id}`}
+                        {line.notes || expandedLineNote[line.id] ? (
+                          <input
+                            className="input-sm order-line-note"
+                            aria-label={t('orders.lineNote')}
+                            type="text"
                             value={lineDrafts[line.id]?.notes ?? line.notes ?? ''}
                             onChange={(event) =>
                               setLineDrafts((current) => ({
@@ -981,26 +1008,24 @@ export function OrdersConsole() {
                               }))
                             }
                           />
-                        </div>
-                      ) : (
-                        <div style={{ marginTop: '8px' }}>
+                        ) : (
                           <button
-                            className="button-secondary"
+                            className="button-tertiary button-sm"
                             type="button"
                             disabled={saving}
                             onClick={() => setExpandedLineNote((current) => ({ ...current, [line.id]: true }))}
                           >
                             {t('orders.addLineNote')}
                           </button>
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <button className="button-secondary" type="button" disabled={saving} onClick={() => void handleSaveOrderLine(order.id, line)}>
-                          {t('orders.saveLine')}
-                        </button>
-                        <button className="button-danger" type="button" disabled={saving} onClick={() => void handleDeleteOrderLine(order.id, line.id)}>
-                          {t('orders.removeLine')}
-                        </button>
+                        )}
+                        <span className="order-line-actions">
+                          <button className="button-secondary button-sm" type="button" disabled={saving} onClick={() => void handleSaveOrderLine(order.id, line)}>
+                            {t('orders.saveLine')}
+                          </button>
+                          <button className="button-danger button-sm" type="button" disabled={saving} onClick={() => void handleDeleteOrderLine(order.id, line.id)}>
+                            {t('orders.removeLine')}
+                          </button>
+                        </span>
                       </div>
                     </li>
                   ))}

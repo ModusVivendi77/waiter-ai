@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useLiveOrders } from '@/lib/hooks/use-live-orders'
 import { LoadingBar } from '@/components/app/loading-bar'
 import { useLanguage } from '@/components/app/language-provider'
+import { isNewOrderSoundEnabled, setNewOrderSoundEnabled } from '@/lib/notifications/new-order-alert'
 import { HISTORY_STATUSES, OPEN_STATUSES } from '@/lib/orders/status'
 
 type TableRow = {
@@ -213,6 +214,10 @@ export function HomeDashboard() {
   const [expandedHistoryOrderId, setExpandedHistoryOrderId] = useState<string | null>(null)
   const [liveOrdersOpen, setLiveOrdersOpen] = useState(true)
   const [orderHistoryOpen, setOrderHistoryOpen] = useState(true)
+  const [newOrderSoundEnabled, setNewOrderSoundEnabledState] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    return isNewOrderSoundEnabled()
+  })
   const [liveGroup, setLiveGroup] = useState<'list' | 'status' | 'table'>(() => {
     if (typeof window === 'undefined') return 'list'
     return (localStorage.getItem('staffHomeLiveGroup') as 'list' | 'status' | 'table' | null) || 'list'
@@ -235,6 +240,7 @@ export function HomeDashboard() {
   // implementation the Orders workspace uses.
   const { orders, refreshOrders, initialLoading } = useLiveOrders(selectedRestaurantId, {
     onOrderInsert: handleLiveOrderInsert,
+    alertLabel: t('notify.tabTitle'),
   })
 
   // New-order notification for the restaurant owner and the staff member who
@@ -799,6 +805,20 @@ export function HomeDashboard() {
                 {t('home.groupByTable')}
               </button>
             </div>
+            <button
+              type="button"
+              className="button-tertiary"
+              aria-pressed={newOrderSoundEnabled}
+              aria-label={t('notify.soundToggle', { state: newOrderSoundEnabled ? t('notify.soundOn') : t('notify.soundOff') })}
+              title={t('notify.soundToggle', { state: newOrderSoundEnabled ? t('notify.soundOn') : t('notify.soundOff') })}
+              onClick={() => {
+                const next = !newOrderSoundEnabled
+                setNewOrderSoundEnabledState(next)
+                setNewOrderSoundEnabled(next)
+              }}
+            >
+              {newOrderSoundEnabled ? '🔔' : '🔕'}
+            </button>
             <button
               type="button"
               className="button-tertiary"

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { createClient } from '@/lib/supabase/client'
 import { useSupabaseSubscription } from '@/lib/hooks/use-supabase-subscription'
+import { initNewOrderAlertClearing, ringNewOrderAlert } from '@/lib/notifications/new-order-alert'
 
 /**
  * The order row shape used by every live-order surface. This is the superset
@@ -54,6 +55,8 @@ type LiveOrdersHandlers = {
   onOrderInsert?: (payload: any) => void | Promise<void>
   onOrderUpdate?: (payload: any) => void | Promise<void>
   onOrderItemChange?: (payload: any) => void | Promise<void>
+  /** Translated "New order" label used for the tab-title badge. */
+  alertLabel?: string
 }
 
 /**
@@ -111,12 +114,28 @@ export function useLiveOrders(
     }
   }, [restaurantId, fetchOrders])
 
+  // Clear the tab-title badge the moment the tab regains focus.
+  useEffect(() => initNewOrderAlertClearing(), [])
+
   const refreshOrders = useCallback(async () => {
     const target = restaurantIdRef.current
     if (target) {
       await fetchOrders(target)
     }
   }, [fetchOrders])
+
+  // Safety net: if a realtime event is ever missed (socket hiccup, dropped
+  // payload), re-sync the list every 30s while the tab is visible so orders
+  // are never stuck stale. Idempotent — the list is replaced wholesale.
+  useEffect(() => {
+    if (!restaurantId) return
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void refreshOrders()
+      }
+    }, 30_000)
+    return () => window.clearInterval(interval)
+  }, [restaurantId, refreshOrders])
 
   // Realtime: one subscription implementation for both surfaces. Events for
   // other restaurants are ignored, component handlers run, then the list is
@@ -132,6 +151,8 @@ export function useLiveOrders(
       }
       if (payload?.eventType === 'INSERT') {
         await handlersRef.current.onOrderInsert?.(payload)
+        // Tab-title badge + optional chime, regardless of which page we're on.
+        ringNewOrderAlert(handlersRef.current.alertLabel ?? 'New order')
       } else {
         await handlersRef.current.onOrderUpdate?.(payload)
       }

@@ -168,7 +168,7 @@ export const translations: Record<string, Translation> = {
   // Tracking page
   'track.eyebrow': { en: 'Order Status', el: 'Κατάσταση Παραγγελίας' },
   'track.newOrder': { en: 'New order', el: 'Νέα παραγγελία' },
-  'track.orderAgain': { en: 'Order again', el: 'Ξανά παραγγελία' },
+  'track.orderAgain': { en: 'Order again', el: 'παραγγελία ξανά' },
   'track.cancelOrder': { en: 'Cancel order', el: 'Ακύρωση παραγγελίας' },
   'track.cancelling': { en: 'Cancelling...', el: 'Ακύρωση...' },
   'track.cancelConfirm': { en: 'Cancel this order?', el: 'Ακύρωση αυτής της παραγγελίας;' },
@@ -375,6 +375,13 @@ export const translations: Record<string, Translation> = {
   'orders.selectedItem': { en: 'Selected', el: 'Επιλεγμένο' },
   'orders.noMatchingItems': { en: 'No matching items.', el: 'Δεν βρέθηκαν προϊόντα.' },
   'orders.addItemToOrder': { en: 'Add item to order', el: 'Προσθήκη στην παραγγελία' },
+
+  // New-order alerts (tab title badge + optional sound)
+  'notify.tabTitle': { en: 'New order', el: 'Νέα παραγγελία' },
+  'notify.soundToggle': { en: 'New-order sound: {state}', el: 'Ήχος νέας παραγγελίας: {state}' },
+  'notify.soundOn': { en: 'on', el: 'ενεργός' },
+  'notify.soundOff': { en: 'off', el: 'ανενεργός' },
+
   'orders.tabsLabel': { en: 'Filter by status', el: 'Φίλτρο κατάστασης' },
   'orders.tab.ALL': { en: 'All', el: 'Όλες' },
   'orders.tab.NEW': { en: 'New', el: 'Νέες' },
