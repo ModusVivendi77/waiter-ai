@@ -383,10 +383,12 @@ test.describe('orders workspace', () => {
     await page.goto('/platform')
     await expect(page.getByText('Live tables')).toBeVisible()
 
-    // The occupied table card exposes the assign control + close button.
+    // The occupied table card exposes the assign control + close button, and
+    // the old "Claim table" action is gone entirely.
     const tableCard = page.locator('.panel-grid article.metric').filter({ hasText: 'Table 1' }).first()
     await expect(tableCard.getByLabel('Assign table to')).toBeVisible()
     await expect(tableCard.getByRole('button', { name: 'Assign' })).toBeVisible()
+    await expect(tableCard.getByRole('button', { name: /Claim/ })).toHaveCount(0)
     const closeTable = tableCard.getByRole('button', { name: 'Close table' })
     await expect(closeTable).toBeVisible()
 

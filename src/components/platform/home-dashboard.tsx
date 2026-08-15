@@ -8,7 +8,6 @@ import { listTeamMembers, type TeamMember } from '@/lib/auth/team-actions'
 import { createClient } from '@/lib/supabase/client'
 import { useLiveOrders } from '@/lib/hooks/use-live-orders'
 import { LoadingBar } from '@/components/app/loading-bar'
-import { BackToTop } from '@/components/app/back-to-top'
 import { useLanguage } from '@/components/app/language-provider'
 import {
   acknowledgeNewOrder,
@@ -370,30 +369,6 @@ export function HomeDashboard() {
     await loadDashboard(nextRestaurantId)
   }
 
-  async function handleClaimTable(tableId: string) {
-    if (!currentUserId) return
-
-    setSaving(true)
-    setError(null)
-    setNotice(null)
-
-    const { error: rpcError } = await supabase.rpc('claim_table_staff', {
-      target_table_id: tableId,
-      target_user_id: currentUserId,
-    })
-
-    setSaving(false)
-
-    if (rpcError) {
-      setError(rpcError.message)
-      return
-    }
-
-    setNotice(t('home.claimNotice'))
-    await loadDashboard(activeRestaurantIdRef.current || undefined)
-  }
-
-  // Owners/managers directly assign a table to any team member.
   async function handleAssignTable(tableId: string, staffUserId: string) {
     setSaving(true)
     setError(null)
@@ -541,9 +516,28 @@ export function HomeDashboard() {
   }
 
   const activeTables = tables.filter((table) => table.active)
-  // Owners, managers and platform admins can assign tables to any staff member
-  // and close tables; plain staff keep the self-serve "Claim table" action.
+  // Owners, managers and platform admins can close tables; the assign picker
+  // is available to everyone (the owner appears in it as well).
   const canAssignTable = currentUserRole === 'OWNER' || currentUserRole === 'MANAGER' || isPlatformAdmin
+
+  // Assignee picker options: the signed-in user first ("Me"), then every team
+  // member (deduplicated by user id) so owners can assign to themselves.
+  const assigneeOptions = useMemo(() => {
+    const options: Array<{ id: string; label: string }> = []
+    const seen = new Set<string>()
+    const add = (id: string, label: string) => {
+      if (!id || seen.has(id)) return
+      seen.add(id)
+      options.push({ id, label })
+    }
+    if (currentUserId) {
+      add(currentUserId, t('home.assigneeMe'))
+    }
+    for (const member of staff) {
+      add(member.userId, staffNameMap[member.userId] ?? member.email)
+    }
+    return options
+  }, [currentUserId, staff, staffNameMap, t])
   const liveOrders = orders.filter((order) => OPEN_STATUSES.includes(order.status))
   const historyOrders = orders.filter((order) => HISTORY_STATUSES.includes(order.status))
 
@@ -798,41 +792,29 @@ export function HomeDashboard() {
                     </div>
                   ) : null}
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px', alignItems: 'center' }}>
-                    {canAssignTable ? (
-                      <>
-                        <select
-                          className="input-sm"
-                          aria-label={t('home.assignLabel')}
-                          style={{ width: 150 }}
-                          value={assignDrafts[table.id] ?? table.assigned_staff_id ?? ''}
-                          onChange={(event) =>
-                            setAssignDrafts((current) => ({ ...current, [table.id]: event.target.value }))
-                          }
-                        >
-                          <option value="">{t('home.unassigned')}</option>
-                          {staff.map((member) => (
-                            <option key={member.userId} value={member.userId}>
-                              {staffNameMap[member.userId] ?? member.email}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          className="button-secondary button-sm"
-                          type="button"
-                          disabled={saving}
-                          onClick={() => void handleAssignTable(table.id, assignDrafts[table.id] ?? '')}
-                        >
-                          {t('home.assign')}
-                        </button>
-                      </>
-                    ) : null}
+                    <select
+                      className="input-sm"
+                      aria-label={t('home.assignLabel')}
+                      style={{ width: 170 }}
+                      value={assignDrafts[table.id] ?? table.assigned_staff_id ?? ''}
+                      onChange={(event) =>
+                        setAssignDrafts((current) => ({ ...current, [table.id]: event.target.value }))
+                      }
+                    >
+                      <option value="">{t('home.unassigned')}</option>
+                      {assigneeOptions.map((assignee) => (
+                        <option key={assignee.id} value={assignee.id}>
+                          {assignee.label}
+                        </option>
+                      ))}
+                    </select>
                     <button
                       className="button-secondary button-sm"
                       type="button"
                       disabled={saving}
-                      onClick={() => void handleClaimTable(table.id)}
+                      onClick={() => void handleAssignTable(table.id, assignDrafts[table.id] ?? '')}
                     >
-                      {table.assigned_staff_id === currentUserId ? `${t('home.claimed')} ✓` : t('home.claimTable')}
+                      {t('home.assign')}
                     </button>
                     {canAssignTable && hasActiveSession ? (
                       <button
@@ -1053,7 +1035,6 @@ export function HomeDashboard() {
           ) : null}
         </section>
       </div>
-      <BackToTop />
     </main>
   )
 }

@@ -773,6 +773,19 @@ select {
   transform: translateY(-2px);
 }
 
+/* On the customer ordering page the floating cart occupies the corner, so the
+   back-to-top button stacks above it. (Next.js injects a route announcer
+   between <main> and the button, hence the general sibling combinator.) */
+main.ordering-page ~ .up-float {
+  bottom: 84px;
+}
+
+@media (max-width: 560px) {
+  main.ordering-page ~ .up-float {
+    bottom: 76px;
+  }
+}
+
 /* Compact order-line rows in the Orders workspace */
 .order-lines {
   gap: 8px;

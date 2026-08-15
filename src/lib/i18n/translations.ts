@@ -81,8 +81,8 @@ export const translations: Record<string, Translation> = {
   },
   'home.manageTeam': { en: 'Manage team', el: 'Διαχείριση ομάδας' },
   'home.tableAssignmentHelper': {
-    en: 'Owners and managers can assign a table to any staff member directly here, or claim it themselves. Closing a table completes its orders and starts a new visit for the next customer.',
-    el: 'Οι ιδιοκτήτες και οι διαχειριστές μπορούν να αναθέσουν ένα τραπέζι σε οποιοδήποτε μέλος προσωπικού εδώ ή να το αναλάβουν οι ίδιοι. Το κλείσιμο ενός τραπεζιού ολοκληρώνει τις παραγγελίες του και ξεκινά νέα επίσκεψη για τον επόμενο πελάτη.',
+    en: 'Assign a table to any staff member (or yourself) directly here. Closing a table completes its orders and starts a new visit for the next customer.',
+    el: 'Αναθέστε ένα τραπέζι σε οποιοδήποτε μέλος προσωπικού (ή στον εαυτό σας) απευθείας εδώ. Το κλείσιμο ενός τραπεζιού ολοκληρώνει τις παραγγελίες του και ξεκινά νέα επίσκεψη για τον επόμενο πελάτη.',
   },
   'home.restaurantContext': { en: 'Restaurant context', el: 'Εστιατόριο' },
   'home.table': { en: 'Table', el: 'Τραπέζι' },
@@ -90,6 +90,7 @@ export const translations: Record<string, Translation> = {
   'home.claimNotice': { en: 'Table assignment updated.', el: 'Η ανάθεση τραπεζιού ενημερώθηκε.' },
   'home.assign': { en: 'Assign', el: 'Ανάθεση' },
   'home.assignLabel': { en: 'Assign table to', el: 'Ανάθεση τραπεζιού σε' },
+  'home.assigneeMe': { en: 'Me', el: 'Εγώ' },
   'home.closeTable': { en: 'Close table', el: 'Κλείσιμο τραπεζιού' },
   'home.closingTable': { en: 'Closing…', el: 'Κλείσιμο…' },
   'home.confirmCloseTable': {

@@ -122,6 +122,18 @@ test.describe('public ordering journey', () => {
     await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
   })
 
+  test('customer menu shows a back-to-top button after scrolling', async ({ page }) => {
+    await page.goto('/t/X7k91Lm')
+
+    // Hidden at the top; appears after scrolling (stacked above the cart icon).
+    await expect(page.locator('.up-float')).toHaveCount(0)
+    await page.evaluate(() => window.scrollTo(0, 900))
+    await expect(page.locator('.up-float')).toBeVisible()
+    await page.locator('.up-float').click()
+    await page.waitForFunction(() => window.scrollY === 0)
+  })
+
+
   test('quantity selector: +/- sets how many "Add to cart" adds', async ({ page }) => {
     await page.goto('/t/X7k91Lm')
 

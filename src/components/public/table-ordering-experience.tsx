@@ -392,7 +392,7 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
 
   if (restoring) {
     return (
-      <main className="page-shell">
+      <main className="page-shell ordering-page">
         <div className="page-grid">
           <section className="panel stack">
             <span className="eyebrow">{restaurantName}</span>
@@ -405,7 +405,7 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
   }
 
   return (
-    <main className="page-shell">
+    <main className="page-shell ordering-page">
       {cartToast ? <div className="toast">{cartToast}</div> : null}
       <LanguageToggle style={{ position: 'fixed', top: 14, right: 18, zIndex: 30 }} />
       <button

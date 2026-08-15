@@ -8,7 +8,6 @@ import { listTeamMembers } from '@/lib/auth/team-actions'
 import { deleteOrder } from '@/lib/admin/data-actions'
 import { createClient } from '@/lib/supabase/client'
 import { useLiveOrders } from '@/lib/hooks/use-live-orders'
-import { BackToTop } from '@/components/app/back-to-top'
 import { LoadingBar } from '@/components/app/loading-bar'
 import { useLanguage } from '@/components/app/language-provider'
 import {
@@ -1315,7 +1314,6 @@ export function OrdersConsole() {
         ) : null}
       </section>
 
-      <BackToTop />
     </>
   )
 }
