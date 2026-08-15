@@ -122,48 +122,37 @@ test.describe('public ordering journey', () => {
     await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
   })
 
-  test('floating cart icon counts added items and scrolls to the cart', async ({ page }) => {
+  test('quantity selector: +/- sets how many "Add to cart" adds', async ({ page }) => {
     await page.goto('/t/X7k91Lm')
 
-    // No badge until something is added; the icon sits in the corner.
+    // No badge until something is actually added; the icon sits in the corner.
     const cartIcon = page.locator('.cart-float')
     await expect(cartIcon).toBeVisible()
     await expect(cartIcon.locator('.cart-float-count')).toHaveCount(0)
 
     const burgerCard = page.locator('article').filter({ hasText: 'Burger' })
 
-    // The quantity stepper is ALWAYS visible next to "Add to cart", defaulting
-    // to 1 with the minus button disabled.
+    // The stepper is a pure quantity selector: defaults to 1, minus disabled.
     await expect(burgerCard.locator('.cart-stepper span')).toHaveText('1')
     await expect(burgerCard.getByRole('button', { name: 'Remove one' })).toBeDisabled()
-    await expect(burgerCard.getByRole('button', { name: 'Add to cart' })).toBeVisible()
 
-    // "+" adds the first item: badge appears and the stepper becomes 1.
+    // +/- only change the pending quantity — the cart/badge are untouched.
     await burgerCard.getByRole('button', { name: 'Add one' }).click()
-    await expect(cartIcon.locator('.cart-float-count')).toHaveText('1')
-    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('1')
-    await expect(burgerCard.getByRole('button', { name: 'Remove one' })).toBeEnabled()
-
-    // Stepper "+" increments the cart and the badge together.
     await burgerCard.getByRole('button', { name: 'Add one' }).click()
-    await expect(cartIcon.locator('.cart-float-count')).toHaveText('2')
-    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('2')
-
-    // "Remove one" decrements both.
-    await burgerCard.getByRole('button', { name: 'Remove one' }).click()
-    await expect(cartIcon.locator('.cart-float-count')).toHaveText('1')
-    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('1')
-
-    // The "Add to cart" button remains a valid alternative.
-    await burgerCard.getByRole('button', { name: 'Add to cart' }).click()
-    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('2')
-
-    // Removing everything returns the counter to its default of 1 and clears
-    // the cart badge.
-    await burgerCard.getByRole('button', { name: 'Remove one' }).click()
-    await burgerCard.getByRole('button', { name: 'Remove one' }).click()
-    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('1')
+    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('3')
     await expect(cartIcon.locator('.cart-float-count')).toHaveCount(0)
+
+    // "Add to cart" commits the selected quantity at once and resets to 1.
+    await burgerCard.getByRole('button', { name: 'Add to cart' }).click()
+    await expect(cartIcon.locator('.cart-float-count')).toHaveText('3')
+    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('1')
+    await expect(burgerCard.getByRole('button', { name: 'Remove one' })).toBeDisabled()
+
+    // Adjusting again and adding accumulates in the cart.
+    await burgerCard.getByRole('button', { name: 'Add one' }).click()
+    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('2')
+    await burgerCard.getByRole('button', { name: 'Add to cart' }).click()
+    await expect(cartIcon.locator('.cart-float-count')).toHaveText('5')
 
     // Clicking the icon scrolls the cart panel into view.
     await cartIcon.click()

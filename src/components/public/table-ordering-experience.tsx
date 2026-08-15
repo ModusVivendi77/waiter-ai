@@ -117,6 +117,9 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
   const [cart, setCart] = useState<Record<string, CartLine>>({})
   const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string[]>>({})
   const [customerNote, setCustomerNote] = useState('')
+  // Per-card quantity selector (default 1): how many of an item are added when
+  // "Add to cart" is pressed. It never touches the cart by itself.
+  const [pendingQty, setPendingQty] = useState<Record<string, number>>({})
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<OrderResponse['order'] | null>(null)
@@ -291,15 +294,16 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
     })
   }
 
-  function addToCart(item: MenuItem) {
+  function addToCart(item: MenuItem, quantity = 1) {
     const names = selectedModifiers[item.id] || []
+    const amount = Math.max(1, Math.floor(quantity))
     setCart((current) => {
       const existing = current[item.id] || { quantity: 0, notes: '', modifiers: [], unitPrice: item.price }
       return {
         ...current,
         [item.id]: {
           ...existing,
-          quantity: existing.quantity + 1,
+          quantity: existing.quantity + amount,
           modifiers: names,
           unitPrice: unitPriceFor(item, names),
         },
@@ -312,6 +316,9 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
       clearTimeout(toastTimerRef.current)
     }
     toastTimerRef.current = setTimeout(() => setCartToast(null), 2200)
+
+    // Back to the default quantity so the next add starts from 1 again.
+    setPendingQty((current) => ({ ...current, [item.id]: 1 }))
   }
 
   function updateLine(item: MenuItem, updater: (line: CartLine) => CartLine | null) {
@@ -507,26 +514,32 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
                               className="button-secondary"
                               type="button"
                               aria-label={t('customer.removeOne')}
-                              disabled={!cart[item.id]?.quantity}
-                              onClick={() => updateLine(item, (current) => ({ ...current, quantity: current.quantity - 1 }))}
+                              disabled={(pendingQty[item.id] ?? 1) <= 1}
+                              onClick={() =>
+                                setPendingQty((current) => ({
+                                  ...current,
+                                  [item.id]: Math.max(1, (current[item.id] ?? 1) - 1),
+                                }))
+                              }
                             >
                               −
                             </button>
-                            <span>{cart[item.id]?.quantity ?? 1}</span>
+                            <span>{pendingQty[item.id] ?? 1}</span>
                             <button
                               className="button-secondary"
                               type="button"
                               aria-label={t('customer.addOne')}
                               onClick={() =>
-                                cart[item.id]?.quantity
-                                  ? updateLine(item, (current) => ({ ...current, quantity: current.quantity + 1 }))
-                                  : addToCart(item)
+                                setPendingQty((current) => ({
+                                  ...current,
+                                  [item.id]: (current[item.id] ?? 1) + 1,
+                                }))
                               }
                             >
                               +
                             </button>
                           </div>
-                          <button className="button" type="button" onClick={() => addToCart(item)}>
+                          <button className="button" type="button" onClick={() => addToCart(item, pendingQty[item.id] ?? 1)}>
                             {t('customer.addToCart')}
                             {selected.length > 0
                               ? ` · ${formatCurrency(unitPriceFor(item, selected), currency)}`
