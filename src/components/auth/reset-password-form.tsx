@@ -45,8 +45,9 @@ export function ResetPasswordForm() {
       }
 
       setSuccess(t('auth.passwordUpdated'))
-      router.replace('/login')
+      // Refresh first so the middleware sees the updated session before we leave.
       router.refresh()
+      router.replace('/login')
     } catch (clientError) {
       setError(clientError instanceof Error ? clientError.message : t('auth.updateFailed'))
     } finally {

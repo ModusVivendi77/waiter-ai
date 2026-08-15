@@ -61,8 +61,10 @@ export function TopNav() {
     setSigningOut(true)
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.replace('/login')
+    // Refresh first so the middleware drops the cleared session cookies before
+    // we navigate away (avoids bouncing back from the protected page).
     router.refresh()
+    router.replace('/login')
   }
 
   return (
