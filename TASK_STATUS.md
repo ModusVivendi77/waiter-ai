@@ -515,6 +515,11 @@
    - **Realtime robustness**: added a 30-second visibility-aware re-sync fallback in `useLiveOrders` so a dropped websocket event can never leave the list stale
    - Validation: **59 unit + 22 E2E tests green** (incl. new "tab title badge clears on focus" + "compact order lines" tests). Note: repeated rapid E2E runs can trip the in-memory order-submission rate limit (30/10min/IP) — restart `npm run dev` to clear it
 71. **✅ Done** — **Rate limits configurable + correctly keyed**: order submissions are now rate-limited **per table QR token** (default **60 per 10 min per table**, env-tunable via `ORDER_SUBMIT_RATE_LIMIT` / `ORDER_SUBMIT_RATE_WINDOW_MINUTES`) instead of per IP — so customers on shared restaurant Wi-Fi each get their own budget. Order **cancellations** moved from one platform-wide 5/min bucket to **per-order** buckets (`ORDER_CANCEL_RATE_LIMIT` / `ORDER_CANCEL_RATE_WINDOW_MINUTES`). New `envInt()` helper (unit-tested) reads positive integers from env with a fallback; set the vars in Vercel → Settings → Environment Variables to tune in production. 62 unit + 22 E2E tests green
+72. **✅ Done** — **Greek translations for CSV-imported menus**: verified CSV import (and the item editor) previously stored only the English `name`/`description`, leaving `name_el`/`description_el` NULL — live DB confirmed The Green Bar had Greek but the user's restaurants ("Αυτό Μας Έλειπε", "Kounelos") had **null** Greek columns (so the customer menu fell back to English). Fixed end-to-end:
+   - **CSV import now accepts an optional header row** `category,name,description,price,name_el,description_el` — the `name_el`/`description_el` columns populate the Greek menu translation. The legacy headerless 4-column format keeps working (backward compatible), and columns can be in any order
+   - **Item details editor** gains **Name (Greek)** + **Description (Greek)** fields; the **category Rename** flow gains a Greek category-name field
+   - Preview table shows the Greek columns; helper text + placeholder updated (EN+EL)
+   - Parser unit tests (19 incl. header mode) + new E2E "imports CSV with a header row and Greek translation columns" — **23/23 E2E, 66/66 unit tests green**
 49. **✅ Done** — Email confirmation: code already delivers via Resend (primary) with Supabase fallback; staff invitations now auto-confirm (`email_confirm: true`) so they never need a confirmation email. Remaining is dashboard config (verify a Resend domain / Supabase SMTP + set Auth Site URL) — see item 52
 50. **✅ Done** — Anonymous users only see the login page: middleware protection added. **Important:** the app uses `src/` so Next expects middleware at `src/middleware.ts` — the root `middleware.ts` was never loaded; moved it and wired session-check redirects (public: `/t/*`, `/orders/*`, auth + signup routes). Login `next` param hardened against open redirects
 51. **✅ Done** — Staff invited by restaurant owner/manager without a prior account: `addTeamMember` now creates the auth user (`email_confirm: true`) and sends an invitation email with a password-set link (Resend primary, Supabase "Reset Password" fallback)
@@ -564,5 +569,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — configurable, correctly-keyed rate limits (per-table order submissions, per-order cancellations, env-tunable)
+**Last commit:** feat — Greek translations for CSV-imported menus (optional name_el/description_el CSV columns, Greek fields in item/category editors)
 **Next commit:** optional Resend domain verification for welcome/invitation senders (all other manual steps done — migrations 014/015 applied, Auth Site URL set); then documented future work (shift-based table assignment, kitchen view/item routing, payment links, staff-tablet PWA)

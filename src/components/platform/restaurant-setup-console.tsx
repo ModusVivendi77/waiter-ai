@@ -23,6 +23,7 @@ type RestaurantTable = {
 type Category = {
   id: string
   name: string
+  name_el: string | null
 }
 
 type RestaurantOption = {
@@ -33,7 +34,9 @@ type RestaurantOption = {
 type MenuItem = {
   id: string
   name: string
+  name_el: string | null
   description: string | null
+  description_el: string | null
   price: number
   available: boolean
   category_id: string
@@ -139,9 +142,12 @@ export function RestaurantSetupConsole() {
   const [editingTableName, setEditingTableName] = useState('')
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [editingCategoryName, setEditingCategoryName] = useState('')
+  const [editingCategoryNameEl, setEditingCategoryNameEl] = useState('')
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [editingItemName, setEditingItemName] = useState('')
+  const [editingItemNameEl, setEditingItemNameEl] = useState('')
   const [editingItemDescription, setEditingItemDescription] = useState('')
+  const [editingItemDescriptionEl, setEditingItemDescriptionEl] = useState('')
   const [editingItemPrice, setEditingItemPrice] = useState('')
   const [editingItemCategoryId, setEditingItemCategoryId] = useState('')
   const [editingItemAllergens, setEditingItemAllergens] = useState('')
@@ -233,12 +239,12 @@ export function RestaurantSetupConsole() {
           .order('name'),
         supabase
           .from('menu_categories')
-          .select('id, name')
+          .select('id, name, name_el')
           .eq('restaurant_id', activeRestaurantId)
           .order('sort_order'),
         supabase
           .from('menu_items')
-          .select('id, name, description, price, available, category_id, allergens, menu_item_modifiers(id, name, price_delta, active), menu_categories(name)')
+          .select('id, name, name_el, description, description_el, price, available, category_id, allergens, menu_item_modifiers(id, name, price_delta, active), menu_categories(name)')
           .eq('restaurant_id', activeRestaurantId)
           .order('created_at', { ascending: false })
           .limit(50),
@@ -608,7 +614,7 @@ export function RestaurantSetupConsole() {
 
     const { error: updateError } = await supabase
       .from('menu_categories')
-      .update({ name: editingCategoryName.trim() })
+      .update({ name: editingCategoryName.trim(), name_el: editingCategoryNameEl.trim() || null })
       .eq('id', categoryId)
       .eq('restaurant_id', restaurantId)
 
@@ -621,6 +627,7 @@ export function RestaurantSetupConsole() {
 
     setEditingCategoryId(null)
     setEditingCategoryName('')
+    setEditingCategoryNameEl('')
     setNotice(t('setup.notice.categoryRenamed'))
     await loadData()
   }
@@ -757,7 +764,9 @@ export function RestaurantSetupConsole() {
       .from('menu_items')
       .update({
         name: editingItemName.trim(),
+        name_el: editingItemNameEl.trim() || null,
         description: editingItemDescription.trim() || null,
+        description_el: editingItemDescriptionEl.trim() || null,
         price: numericPrice,
         category_id: editingItemCategoryId,
         allergens: parseAllergensText(editingItemAllergens),
@@ -804,7 +813,9 @@ export function RestaurantSetupConsole() {
 
     setEditingItemId(null)
     setEditingItemName('')
+    setEditingItemNameEl('')
     setEditingItemDescription('')
+    setEditingItemDescriptionEl('')
     setEditingItemPrice('')
     setEditingItemCategoryId('')
     setEditingItemAllergens('')
@@ -861,7 +872,9 @@ export function RestaurantSetupConsole() {
     setExpandedItemId(item.id)
     setEditingItemId(item.id)
     setEditingItemName(item.name)
+    setEditingItemNameEl(item.name_el || '')
     setEditingItemDescription(item.description || '')
+    setEditingItemDescriptionEl(item.description_el || '')
     setEditingItemPrice(String(item.price))
     setEditingItemCategoryId(item.category_id)
     setEditingItemAllergens((item.allergens || []).join(', '))
@@ -938,7 +951,9 @@ export function RestaurantSetupConsole() {
         restaurant_id: restaurantId,
         category_id: categoryMap.get(row.category),
         name: row.name,
+        name_el: row.nameEl || null,
         description: row.description || null,
+        description_el: row.descriptionEl || null,
         price: row.price,
         available: true,
       }))
@@ -1293,6 +1308,14 @@ export function RestaurantSetupConsole() {
                         style={{ width: 140 }}
                         required
                       />
+                      <input
+                        id={`edit-category-el-${category.id}`}
+                        aria-label={t('setup.categoryNameEl')}
+                        placeholder={t('setup.categoryNameEl')}
+                        value={editingCategoryNameEl}
+                        onChange={(event) => setEditingCategoryNameEl(event.target.value)}
+                        style={{ width: 160 }}
+                      />
                       <button className="button-secondary" type="button" disabled={saving} onClick={() => void handleSaveCategoryName(category.id)}>
                         Save
                       </button>
@@ -1302,6 +1325,7 @@ export function RestaurantSetupConsole() {
                         onClick={() => {
                           setEditingCategoryId(null)
                           setEditingCategoryName('')
+                          setEditingCategoryNameEl('')
                         }}
                       >
                         Cancel
@@ -1315,6 +1339,7 @@ export function RestaurantSetupConsole() {
                       onClick={() => {
                         setEditingCategoryId(category.id)
                         setEditingCategoryName(category.name)
+                        setEditingCategoryNameEl(category.name_el || '')
                       }}
                     >
                       Rename
@@ -1387,11 +1412,28 @@ export function RestaurantSetupConsole() {
                                 <td colSpan={4}>
                                   <div className="stack">
                                     <div className="field">
+                                      <label htmlFor={`details-name-el-${item.id}`}>{t('setup.itemNameEl')}</label>
+                                      <input
+                                        id={`details-name-el-${item.id}`}
+                                        value={editingItemNameEl}
+                                        onChange={(event) => setEditingItemNameEl(event.target.value)}
+                                        placeholder={t('setup.itemNameElPlaceholder')}
+                                      />
+                                    </div>
+                                    <div className="field">
                                       <label htmlFor={`details-desc-${item.id}`}>{t('setup.itemDescription')}</label>
                                       <textarea
                                         id={`details-desc-${item.id}`}
                                         value={editingItemDescription}
                                         onChange={(event) => setEditingItemDescription(event.target.value)}
+                                      />
+                                    </div>
+                                    <div className="field">
+                                      <label htmlFor={`details-desc-el-${item.id}`}>{t('setup.itemDescriptionEl')}</label>
+                                      <textarea
+                                        id={`details-desc-el-${item.id}`}
+                                        value={editingItemDescriptionEl}
+                                        onChange={(event) => setEditingItemDescriptionEl(event.target.value)}
                                       />
                                     </div>
                                     <div className="field">
@@ -1466,7 +1508,9 @@ export function RestaurantSetupConsole() {
                 setCsvPreviewSource('')
                 setCsvReport(null)
               }}
-              placeholder={'Food,Burger,Beef burger with fries,12.00\nDrinks,"Tonic, Zero","Sugar-free mixer, bottled",4.00'}
+              placeholder={
+                'category,name,description,price,name_el,description_el\nStarters,Burger,Beef burger with fries,12.00,Μπέργκερ,Μπέργκερ με πατάτες\nDrinks,"Tonic, Zero","Sugar-free mixer, bottled",4.00'
+              }
               required
             />
           </div>
@@ -1489,6 +1533,8 @@ export function RestaurantSetupConsole() {
                   <th>{t('setup.csvNameCol')}</th>
                   <th>{t('setup.csvDescriptionCol')}</th>
                   <th>{t('setup.csvPriceCol')}</th>
+                  <th>{t('setup.csvNameElCol')}</th>
+                  <th>{t('setup.csvDescriptionElCol')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1498,6 +1544,8 @@ export function RestaurantSetupConsole() {
                     <td>{row.name}</td>
                     <td>{row.description || t('setup.noDescription')}</td>
                     <td>{t('setup.priceEur', { price: row.price.toFixed(2) })}</td>
+                    <td>{row.nameEl || <span className="muted">—</span>}</td>
+                    <td>{row.descriptionEl || <span className="muted">—</span>}</td>
                   </tr>
                 ))}
               </tbody>

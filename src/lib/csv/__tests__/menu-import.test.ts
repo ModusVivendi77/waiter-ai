@@ -35,8 +35,8 @@ describe('parseCsvRows', () => {
 
     expect(result.errors).toEqual([])
     expect(result.rows).toEqual([
-      { category: 'Food', name: 'Burger', description: 'Beef burger with fries', price: 12 },
-      { category: 'Drinks', name: 'Mythos', description: 'Greek lager', price: 4 },
+      { category: 'Food', name: 'Burger', description: 'Beef burger with fries', price: 12, nameEl: null, descriptionEl: null },
+      { category: 'Drinks', name: 'Mythos', description: 'Greek lager', price: 4, nameEl: null, descriptionEl: null },
     ])
   })
 
@@ -98,5 +98,67 @@ describe('parseCsvRows', () => {
     const result = parseCsvRows('Drinks,Water,Still water,0.00')
     expect(result.rows[0]?.price).toBe(0)
     expect(result.errors).toEqual([])
+  })
+})
+
+describe('parseCsvRows — header row with Greek columns', () => {
+  it('parses name_el and description_el columns', () => {
+    const result = parseCsvRows(
+      'category,name,description,price,name_el,description_el\n' +
+        'Starters,Burger,Beef burger with fries,12.00,Μπέργκερ,Μπέργκερ με πατάτες\n' +
+        'Drinks,Mythos,Greek lager,4.00,Μύθος,Ελληνική λάγερ μπύρα'
+    )
+    expect(result.errors).toEqual([])
+    expect(result.rows).toEqual([
+      {
+        category: 'Starters',
+        name: 'Burger',
+        description: 'Beef burger with fries',
+        price: 12,
+        nameEl: 'Μπέργκερ',
+        descriptionEl: 'Μπέργκερ με πατάτες',
+      },
+      {
+        category: 'Drinks',
+        name: 'Mythos',
+        description: 'Greek lager',
+        price: 4,
+        nameEl: 'Μύθος',
+        descriptionEl: 'Ελληνική λάγερ μπύρα',
+      },
+    ])
+  })
+
+  it('keeps Greek columns null when the header omits them', () => {
+    const result = parseCsvRows('category,name,description,price\nStarters,Burger,Beef burger,12.00')
+    expect(result.errors).toEqual([])
+    expect(result.rows[0]?.nameEl).toBeNull()
+    expect(result.rows[0]?.descriptionEl).toBeNull()
+  })
+
+  it('supports header columns in any order and quoted greek text', () => {
+    const result = parseCsvRows(
+      'price,name_el,name,category,description\n' +
+        '8.00,"Τζατζίκι & Πίτα",Tzatziki & Pita,Starters,"Yogurt, cucumber dip"'
+    )
+    expect(result.errors).toEqual([])
+    expect(result.rows[0]).toMatchObject({
+      category: 'Starters',
+      name: 'Tzatziki & Pita',
+      description: 'Yogurt, cucumber dip',
+      price: 8,
+      nameEl: 'Τζατζίκι & Πίτα',
+    })
+  })
+
+  it('reports header-mode rows missing category or price', () => {
+    const result = parseCsvRows(
+      'category,name,price\nStarters,Burger,12.00\n,NoCategory,5.00\nStarters,NoPrice,'
+    )
+    expect(result.rows).toHaveLength(1)
+    expect(result.errors).toEqual([
+      'Line 3: category and name are required.',
+      'Line 4: invalid price "".',
+    ])
   })
 })

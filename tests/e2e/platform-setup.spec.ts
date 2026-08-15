@@ -123,4 +123,55 @@ test.describe('platform setup workspace', () => {
     await renamedTable.getByRole('button', { name: 'Delete table' }).click()
     await expect(page.locator('li').filter({ hasText: renamedTableName })).toHaveCount(0)
   })
+
+  test('imports CSV with a header row and Greek translation columns', async ({ page }) => {
+    const unique = Date.now().toString()
+    const categoryName = `E2E EL Category ${unique}`
+    const itemName = `E2E EL Item ${unique}`
+    const itemNameEl = `Προϊόν Ε2Ε ${unique}`
+    const descriptionEl = `Περιγραφή προϊόντος ${unique}`
+
+    await loginAsSuperAdmin(page)
+    await page.goto('/platform/setup')
+
+    // Header row format: category,name,description,price,name_el,description_el
+    await page.getByLabel('CSV rows').fill(
+      `category,name,description,price,name_el,description_el\n` +
+        `${categoryName},${itemName},Imported with Greek,6.20,${itemNameEl},${descriptionEl}`
+    )
+    await page.getByRole('button', { name: 'Preview CSV' }).click()
+
+    // The preview table shows the parsed Greek columns. The menu's per-category
+    // tables share the same class, so scope to the one with the Greek headers.
+    const preview = page.locator('table.preview-table').filter({ hasText: 'Name (EL)' })
+    await expect(preview).toBeVisible()
+    await expect(preview.getByText(itemNameEl, { exact: true })).toBeVisible()
+    await expect(preview.getByText(descriptionEl, { exact: true })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Import preview' }).click()
+    await expect(page.getByText('Imported 1 rows from CSV.')).toBeVisible()
+
+    // The imported item appears with its English name in the menu table.
+    await page.locator(`.preview-table input[value="${itemName}"]`).waitFor({ timeout: 10000 })
+    await expect(page.locator(`.preview-table input[value="${itemName}"]`)).toHaveCount(1)
+
+    // Cleanup: remove the imported item and its category.
+    const rows = page.locator('.preview-table tbody tr')
+    const count = await rows.count()
+    for (let i = 0; i < count; i++) {
+      const value = await rows.nth(i).locator('input').first().inputValue().catch(() => '')
+      if (value === itemName) {
+        await rows.nth(i).getByRole('button', { name: 'Delete', exact: true }).click()
+        break
+      }
+    }
+    await expect(page.locator(`.preview-table input[value="${itemName}"]`)).toHaveCount(0)
+
+    const importedCategory = page
+      .locator('div.cart-line-header')
+      .filter({ has: page.getByText(categoryName, { exact: true }) })
+      .first()
+    await importedCategory.getByRole('button', { name: 'Delete category' }).click()
+    await expect(page.getByText(categoryName, { exact: true })).toHaveCount(0)
+  })
 })
