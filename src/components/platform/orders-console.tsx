@@ -8,6 +8,7 @@ import { listTeamMembers } from '@/lib/auth/team-actions'
 import { deleteOrder } from '@/lib/admin/data-actions'
 import { createClient } from '@/lib/supabase/client'
 import { useLiveOrders } from '@/lib/hooks/use-live-orders'
+import { BackToTop } from '@/components/app/back-to-top'
 import { LoadingBar } from '@/components/app/loading-bar'
 import { useLanguage } from '@/components/app/language-provider'
 import {
@@ -182,15 +183,6 @@ export function OrdersConsole() {
     if (typeof window === 'undefined') return true
     return isNewOrderSoundEnabled()
   })
-  const [showBackToTop, setShowBackToTop] = useState(false)
-
-  // Floating "back to top" appears once the order list has been scrolled.
-  useEffect(() => {
-    const onScroll = () => setShowBackToTop(window.scrollY > 400)
-    window.addEventListener('scroll', onScroll, { passive: true })
-    onScroll()
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
 
   // Shared live-orders data layer (fetch + realtime refresh) — the same
   // implementation the home dashboard uses. Realtime events run the handlers
@@ -1323,17 +1315,7 @@ export function OrdersConsole() {
         ) : null}
       </section>
 
-      {showBackToTop ? (
-        <button
-          className="up-float"
-          type="button"
-          aria-label={t('common.backToTop')}
-          title={t('common.backToTop')}
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        >
-          ↑
-        </button>
-      ) : null}
+      <BackToTop />
     </>
   )
 }

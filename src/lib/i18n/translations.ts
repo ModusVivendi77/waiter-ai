@@ -81,13 +81,25 @@ export const translations: Record<string, Translation> = {
   },
   'home.manageTeam': { en: 'Manage team', el: 'Διαχείριση ομάδας' },
   'home.tableAssignmentHelper': {
-    en: 'Assigning staff to a table is optional. Claim a table to show you are handling it — owners can assign any staff member from Setup.',
-    el: 'Η ανάθεση προσωπικού σε τραπέζι είναι προαιρετική. Αναλάβετε ένα τραπέζι για να δείξετε ότι το χειρίζεστε — οι ιδιοκτήτες μπορούν να αναθέσουν οποιοδήποτε μέλος από τις Ρυθμίσεις.',
+    en: 'Owners and managers can assign a table to any staff member directly here, or claim it themselves. Closing a table completes its orders and starts a new visit for the next customer.',
+    el: 'Οι ιδιοκτήτες και οι διαχειριστές μπορούν να αναθέσουν ένα τραπέζι σε οποιοδήποτε μέλος προσωπικού εδώ ή να το αναλάβουν οι ίδιοι. Το κλείσιμο ενός τραπεζιού ολοκληρώνει τις παραγγελίες του και ξεκινά νέα επίσκεψη για τον επόμενο πελάτη.',
   },
   'home.restaurantContext': { en: 'Restaurant context', el: 'Εστιατόριο' },
   'home.table': { en: 'Table', el: 'Τραπέζι' },
   'home.loadingWorkspace': { en: 'Loading your workspace...', el: 'Φόρτωση του χώρου εργασίας...' },
   'home.claimNotice': { en: 'Table assignment updated.', el: 'Η ανάθεση τραπεζιού ενημερώθηκε.' },
+  'home.assign': { en: 'Assign', el: 'Ανάθεση' },
+  'home.assignLabel': { en: 'Assign table to', el: 'Ανάθεση τραπεζιού σε' },
+  'home.closeTable': { en: 'Close table', el: 'Κλείσιμο τραπεζιού' },
+  'home.closingTable': { en: 'Closing…', el: 'Κλείσιμο…' },
+  'home.confirmCloseTable': {
+    en: 'Close table {table}? Its open orders will be marked as completed and the next order starts a new visit.',
+    el: 'Κλείσιμο του τραπεζιού {table}; Οι ανοιχτές παραγγελίες του θα επισημανθούν ως ολοκληρωμένες και η επόμενη παραγγελία θα ξεκινήσει νέα επίσκεψη.',
+  },
+  'home.tableClosed': {
+    en: 'Table {table} closed. Its orders are now completed.',
+    el: 'Το τραπέζι {table} έκλεισε. Οι παραγγελίες του είναι πλέον ολοκληρωμένες.',
+  },
   'home.newOrderBanner': {
     en: '🔔 Order {number} — {table} · {total}',
     el: '🔔 Παραγγελία {number} — {table} · {total}',

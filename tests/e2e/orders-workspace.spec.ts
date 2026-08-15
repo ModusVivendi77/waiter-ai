@@ -366,6 +366,37 @@ test.describe('orders workspace', () => {
     await expect(historyItem.getByText('SERVED', { exact: true })).toBeVisible()
   })
 
+  test('home live tables let the owner assign staff and close a table (completes its orders)', async ({ page }) => {
+    const uniqueNote = `E2E home close ${Date.now()}`
+
+    // Customer: open an active session on Table 1 of the Green Bar.
+    await page.goto('/t/X7k91Lm')
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByLabel('Order note').fill(uniqueNote)
+    await page.getByRole('button', { name: 'Submit order' }).click()
+    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
+
+    await page.addInitScript((restaurantId: string) => {
+      localStorage.setItem('staffHomeRestaurantId', restaurantId)
+    }, greenBarRestaurantId)
+    await loginAsSuperAdmin(page)
+    await page.goto('/platform')
+    await expect(page.getByText('Live tables')).toBeVisible()
+
+    // The occupied table card exposes the assign control + close button.
+    const tableCard = page.locator('.panel-grid article.metric').filter({ hasText: 'Table 1' }).first()
+    await expect(tableCard.getByLabel('Assign table to')).toBeVisible()
+    await expect(tableCard.getByRole('button', { name: 'Assign' })).toBeVisible()
+    const closeTable = tableCard.getByRole('button', { name: 'Close table' })
+    await expect(closeTable).toBeVisible()
+
+    // Closing the table completes its still-open order and starts a new visit.
+    page.once('dialog', (dialog) => void dialog.accept())
+    await closeTable.click()
+    await expect(page.getByText(/Table 1 closed/i)).toBeVisible()
+    await expect(tableCard.getByRole('button', { name: 'Close table' })).toHaveCount(0)
+  })
+
   test('orders page shows a floating back-to-top button after scrolling', async ({ page }) => {
     await loginAsSuperAdmin(page)
     await page.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)

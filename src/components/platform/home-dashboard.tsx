@@ -8,6 +8,7 @@ import { listTeamMembers, type TeamMember } from '@/lib/auth/team-actions'
 import { createClient } from '@/lib/supabase/client'
 import { useLiveOrders } from '@/lib/hooks/use-live-orders'
 import { LoadingBar } from '@/components/app/loading-bar'
+import { BackToTop } from '@/components/app/back-to-top'
 import { useLanguage } from '@/components/app/language-provider'
 import {
   acknowledgeNewOrder,
@@ -233,6 +234,8 @@ export function HomeDashboard() {
   })
   const [tableOrdersExpanded, setTableOrdersExpanded] = useState<Record<string, boolean>>({})
   const [expandedTableOrderId, setExpandedTableOrderId] = useState<string | null>(null)
+  const [assignDrafts, setAssignDrafts] = useState<Record<string, string>>({})
+  const [closingTableId, setClosingTableId] = useState<string | null>(null)
   const [pendingOrders, setPendingOrders] = useState<PendingNewOrder[]>([])
   const [expandedNoticeOrderId, setExpandedNoticeOrderId] = useState<string | null>(null)
   const [currentUserRole, setCurrentUserRole] = useState<'OWNER' | 'MANAGER' | 'STAFF' | null>(null)
@@ -390,6 +393,77 @@ export function HomeDashboard() {
     await loadDashboard(activeRestaurantIdRef.current || undefined)
   }
 
+  // Owners/managers directly assign a table to any team member.
+  async function handleAssignTable(tableId: string, staffUserId: string) {
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('restaurant_tables')
+      .update({ assigned_staff_id: staffUserId || null })
+      .eq('id', tableId)
+
+    setSaving(false)
+
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+
+    setNotice(t('home.claimNotice'))
+    setAssignDrafts((current) => ({ ...current, [tableId]: '' }))
+    await loadDashboard(activeRestaurantIdRef.current || undefined)
+  }
+
+  // Closing a table ends its session AND completes its still-open orders:
+  // they are marked SERVED (leave live orders/history) and the next order on
+  // the table starts a brand-new dining session (a new customer).
+  async function handleCloseTable(tableId: string) {
+    const table = tables.find((entry) => entry.id === tableId)
+    if (!table) return
+    if (!window.confirm(t('home.confirmCloseTable', { table: table.name }))) return
+
+    setClosingTableId(tableId)
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const activeSession = (table.dining_sessions || []).find((session) => session.status === 'ACTIVE')
+    if (activeSession) {
+      await supabase
+        .from('dining_sessions')
+        .update({ status: 'CLOSED', closed_at: new Date().toISOString() })
+        .eq('id', activeSession.id)
+    }
+
+    const openOrders = orders.filter(
+      (order) => order.table_id === tableId && OPEN_STATUSES.includes(order.status)
+    )
+    if (openOrders.length > 0) {
+      const { error: completeError } = await supabase
+        .from('orders')
+        .update({ status: 'SERVED' })
+        .eq('table_id', tableId)
+        .in('status', OPEN_STATUSES)
+
+      if (!completeError) {
+        await supabase.from('order_status_history').insert(
+          openOrders.map((order) => ({
+            order_id: order.id,
+            old_status: order.status,
+            new_status: 'SERVED',
+          }))
+        )
+      }
+    }
+
+    setClosingTableId(null)
+    setSaving(false)
+    setNotice(t('home.tableClosed', { table: table.name }))
+    await loadDashboard(activeRestaurantIdRef.current || undefined)
+  }
+
   // "Accept" on the new-order notification: moves the order to ACCEPTED and
   // records the status history entry, matching the Orders workspace flow.
   async function handleAcceptNewOrder(orderId: string) {
@@ -467,6 +541,9 @@ export function HomeDashboard() {
   }
 
   const activeTables = tables.filter((table) => table.active)
+  // Owners, managers and platform admins can assign tables to any staff member
+  // and close tables; plain staff keep the self-serve "Claim table" action.
+  const canAssignTable = currentUserRole === 'OWNER' || currentUserRole === 'MANAGER' || isPlatformAdmin
   const liveOrders = orders.filter((order) => OPEN_STATUSES.includes(order.status))
   const historyOrders = orders.filter((order) => HISTORY_STATUSES.includes(order.status))
 
@@ -720,14 +797,54 @@ export function HomeDashboard() {
                       </ul>
                     </div>
                   ) : null}
-                  <button
-                    className="button-secondary"
-                    type="button"
-                    disabled={saving}
-                    onClick={() => void handleClaimTable(table.id)}
-                  >
-                    {table.assigned_staff_id === currentUserId ? `${t('home.claimed')} ✓` : t('home.claimTable')}
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px', alignItems: 'center' }}>
+                    {canAssignTable ? (
+                      <>
+                        <select
+                          className="input-sm"
+                          aria-label={t('home.assignLabel')}
+                          style={{ width: 150 }}
+                          value={assignDrafts[table.id] ?? table.assigned_staff_id ?? ''}
+                          onChange={(event) =>
+                            setAssignDrafts((current) => ({ ...current, [table.id]: event.target.value }))
+                          }
+                        >
+                          <option value="">{t('home.unassigned')}</option>
+                          {staff.map((member) => (
+                            <option key={member.userId} value={member.userId}>
+                              {staffNameMap[member.userId] ?? member.email}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className="button-secondary button-sm"
+                          type="button"
+                          disabled={saving}
+                          onClick={() => void handleAssignTable(table.id, assignDrafts[table.id] ?? '')}
+                        >
+                          {t('home.assign')}
+                        </button>
+                      </>
+                    ) : null}
+                    <button
+                      className="button-secondary button-sm"
+                      type="button"
+                      disabled={saving}
+                      onClick={() => void handleClaimTable(table.id)}
+                    >
+                      {table.assigned_staff_id === currentUserId ? `${t('home.claimed')} ✓` : t('home.claimTable')}
+                    </button>
+                    {canAssignTable && hasActiveSession ? (
+                      <button
+                        className="button-danger button-sm"
+                        type="button"
+                        disabled={saving || closingTableId === table.id}
+                        onClick={() => void handleCloseTable(table.id)}
+                      >
+                        {closingTableId === table.id ? t('home.closingTable') : t('home.closeTable')}
+                      </button>
+                    ) : null}
+                  </div>
                 </article>
               )
             })}
@@ -936,6 +1053,7 @@ export function HomeDashboard() {
           ) : null}
         </section>
       </div>
+      <BackToTop />
     </main>
   )
 }
