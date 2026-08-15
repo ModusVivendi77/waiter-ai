@@ -132,20 +132,37 @@ test.describe('public ordering journey', () => {
 
     const burgerCard = page.locator('article').filter({ hasText: 'Burger' })
 
-    // "Add to cart" shows the badge and a quantity stepper on the card.
-    await burgerCard.getByRole('button', { name: 'Add to cart' }).click()
+    // The quantity stepper is ALWAYS visible next to "Add to cart", starting at
+    // 0 with the minus button disabled.
+    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('0')
+    await expect(burgerCard.getByRole('button', { name: 'Remove one' })).toBeDisabled()
+    await expect(burgerCard.getByRole('button', { name: 'Add to cart' })).toBeVisible()
+
+    // "+" adds the first item: badge appears and the stepper becomes 1.
+    await burgerCard.getByRole('button', { name: 'Add one' }).click()
     await expect(cartIcon.locator('.cart-float-count')).toHaveText('1')
     await expect(burgerCard.locator('.cart-stepper span')).toHaveText('1')
+    await expect(burgerCard.getByRole('button', { name: 'Remove one' })).toBeEnabled()
 
-    // The stepper's + button increments the cart and the badge together.
+    // Stepper "+" increments the cart and the badge together.
     await burgerCard.getByRole('button', { name: 'Add one' }).click()
     await expect(cartIcon.locator('.cart-float-count')).toHaveText('2')
     await expect(burgerCard.locator('.cart-stepper span')).toHaveText('2')
 
-    // Removing one decrements both.
+    // "Remove one" decrements both.
     await burgerCard.getByRole('button', { name: 'Remove one' }).click()
     await expect(cartIcon.locator('.cart-float-count')).toHaveText('1')
     await expect(burgerCard.locator('.cart-stepper span')).toHaveText('1')
+
+    // The "Add to cart" button remains a valid alternative.
+    await burgerCard.getByRole('button', { name: 'Add to cart' }).click()
+    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('2')
+
+    // Removing back to zero clears the cart and the badge.
+    await burgerCard.getByRole('button', { name: 'Remove one' }).click()
+    await burgerCard.getByRole('button', { name: 'Remove one' }).click()
+    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('0')
+    await expect(cartIcon.locator('.cart-float-count')).toHaveCount(0)
 
     // Clicking the icon scrolls the cart panel into view.
     await cartIcon.click()
