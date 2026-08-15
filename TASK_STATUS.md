@@ -1,7 +1,7 @@
 # Waiter AI — Task Status Tracker
 
 **Last Updated:** August 15, 2026
-**Current Phase:** 8/9 — Testing & Hardening (E2E suite green — 20 tests; remaining items are manual live-verification: migration 015 + Supabase Site URL)
+**Current Phase:** 8/9 — Testing & Hardening (E2E suite green — 20 tests, all migrations + Auth Site URL applied to the live DB; only optional Resend domain verification remains)
 
 ---
 
@@ -428,7 +428,7 @@
 | 5. Customer Ordering | 🟢 100% | Public QR ordering, submission, and tracking status surfaces are now live with optimized polling and status timeline |
 | 6. Real-Time & Dashboard | 🟡 95% | Staff real-time subscriptions + public broadcast tracking (channel-name bug fixed + E2E verified) + reconnect/retry logic + rate-limit headers verified |
 | 7. Analytics & Admin | 🟢 100% | Full analytics suite: WoW comparisons, custom date ranges, order status funnel, exports, timezone fixes, staff performance analytics |
-| 8. Testing | 🟡 90% | 56 unit/integration tests passing; full E2E suite green 5/5 incl. broadcast + auth-requiring tests; remaining items are live/manual verifications |
+| 8. Testing | 🟢 100% | 59 unit/integration tests + 20 E2E tests passing; all migrations (014/015) + Auth Site URL applied and verified on the live DB; only optional Resend domain verification remains |
 | 9. Pilot Deployment | ⚪ 0% | After testing complete |
 
 ---
@@ -503,13 +503,14 @@
 63. **✅ Done** — **Top-nav identity**: the nav now loads the signed-in account and shows the **full name** (fallback: email) in a pill plus a **Sign out** action; anonymous visitors still see "Login". No more permanent "Sign in" link for signed-in users
 64. **✅ Done** — **Home collapse toggles made visible**: the Live orders and Order history panels previously used glyph-only chevrons (▾/▸) that did not render for the user; they now show explicit **Collapse / Expand** text buttons (EN+EL), default expanded, keyboard/AT friendly
 65. **✅ Done** — **Workspace status line localized in Greek**: the order card's "Table: X | Status: Y" line now translates the status in Greek (`Κατάσταση: Ακυρώθηκε` instead of `Κατάσταση: CANCELLED`); English keeps the raw status codes to match the card's badge/buttons. E2E regression test added
-66. **✅ Done** — **Bilingual customer menu** (migration 015 + seed): `menu_categories` and `menu_items` gain `name_el`/`description_el` columns; The Green Bar's 5 categories + 14 items are backfilled with Greek text (via migration backfill AND updated seed). The customer menu renders the Greek name/description when the UI is in Greek, falling back to the English text otherwise (and pre-migration, via a 42703 retry fallback). Staff order records keep the canonical English item name (resolved server-side). **⚠️ Pending (one manual step): apply migration 015 to the live DB — `npx supabase db push`**
+66. **✅ Done** — **Bilingual customer menu** (migration 015 + seed): `menu_categories` and `menu_items` gain `name_el`/`description_el` columns; The Green Bar's 5 categories + 14 items are backfilled with Greek text (via migration backfill AND updated seed). The customer menu renders the Greek name/description when the UI is in Greek, falling back to the English text otherwise (and pre-migration, via a 42703 retry fallback). Staff order records keep the canonical English item name (resolved server-side). Migration 015 **applied to the live DB** (verified via REST: all 5 categories + 14 items carry Greek); E2E Greek-menu test now runs against live Greek data
 67. **✅ Done** — **Sign-up confirmations moved to Supabase's built-in email**: `dispatchConfirmationEmail` now only calls `admin.auth.resend({ type: 'signup', email })` (the same built-in mechanism as password reset); the Resend `generateLink` path and `sendConfirmationEmail` were removed. Resend remains only for the optional welcome email + staff invitations. Requires the Auth **Site URL** to be set (see item 52)
 68. **✅ Done** — **Auth flow fully bilingual**: the `/platform/signup`, `/forgot-password`, `/reset-password` and `/verify-email` page shells were server components with hardcoded English (eyebrow/title/helper/link text) — converted to client components using `t()` (same as the login page), so the whole owner-registration + account-creation flow now switches to Greek. Server-side validation/provider errors ("Passwords do not match.", "This email is already registered."…) are localized client-side via a new `localizeAuthError` helper (unit-tested) so error boxes follow the UI language too
+69. **✅ Done** — **All manual live-DB steps completed & verified**: migration 015 confirmed applied via REST (The Green Bar: 5 categories + 14 items carry `name_el`; `cancel_window_minutes`/`full_name` from 014 still intact) and the Supabase Auth **Site URL** set to `https://waiter-ai-iota.vercel.app`. Full E2E suite re-run post-migration: **20/20 passed** (the Greek-menu test now exercises the live Greek data). The only remaining optional step is Resend domain verification (welcome/invitation emails)
 49. **✅ Done** — Email confirmation: code already delivers via Resend (primary) with Supabase fallback; staff invitations now auto-confirm (`email_confirm: true`) so they never need a confirmation email. Remaining is dashboard config (verify a Resend domain / Supabase SMTP + set Auth Site URL) — see item 52
 50. **✅ Done** — Anonymous users only see the login page: middleware protection added. **Important:** the app uses `src/` so Next expects middleware at `src/middleware.ts` — the root `middleware.ts` was never loaded; moved it and wired session-check redirects (public: `/t/*`, `/orders/*`, auth + signup routes). Login `next` param hardened against open redirects
 51. **✅ Done** — Staff invited by restaurant owner/manager without a prior account: `addTeamMember` now creates the auth user (`email_confirm: true`) and sends an invitation email with a password-set link (Resend primary, Supabase "Reset Password" fallback)
-52. **Next (manual config)** — Set the Auth **Site URL** in Supabase dashboard → Authentication → URL Configuration to `https://waiter-ai-iota.vercel.app` so the built-in "Confirm signup" links land on `/auth/confirm`. This is now REQUIRED: sign-up confirmations use Supabase's built-in "Confirm signup" template (no Resend). Everything else is free-tier: the built-in template is included in the free plan (rate-limited; the register/verify forms surface a resend button when that happens)
+52. **✅ Done** — Auth **Site URL** set to `https://waiter-ai-iota.vercel.app` in the Supabase dashboard by the user. Combined with item 67, sign-up confirmations now flow end-to-end via the built-in "Confirm signup" template (`<SiteURL>/auth/confirm?token_hash=...&type=signup`) → `/auth/confirm` → `/login?verified=1`. Free-tier only (built-in template is rate-limited; the register/verify forms surface a resend button when that happens)
 53. **Future work** — Shift-based table assignment
 
 ### After Timeline Verified
@@ -556,4 +557,4 @@ Refer to these documents in order:
 ---
 
 **Last commit:** fix — bilingual auth flow: signup/forgot/reset/verify page shells translated (were hardcoded English), server-side auth errors localized client-side
-**Next commit:** manual Supabase config — set Auth Site URL (REQUIRED for built-in "Confirm signup" links); apply migration 015 to the live DB (`npx supabase db push`); optional Resend domain verification for welcome/invitation senders; then documented future work (shift-based table assignment, kitchen view/item routing, payment links, staff-tablet PWA)
+**Next commit:** optional Resend domain verification for welcome/invitation senders (all other manual steps done — migrations 014/015 applied, Auth Site URL set); then documented future work (shift-based table assignment, kitchen view/item routing, payment links, staff-tablet PWA)
