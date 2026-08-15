@@ -16,7 +16,9 @@ import {
 type Category = {
   id: string
   name: string
+  name_el: string | null
   description: string | null
+  description_el: string | null
 }
 
 type Modifier = {
@@ -30,7 +32,9 @@ type MenuItem = {
   id: string
   category_id: string
   name: string
+  name_el: string | null
   description: string | null
+  description_el: string | null
   price: number
   available: boolean
   allergens: string[]
@@ -88,10 +92,27 @@ function formatCurrency(value: number, currency: string) {
   }).format(value)
 }
 
+/**
+ * Menu content (category names/descriptions and item names/descriptions) lives
+ * in the database. When the customer switches the UI to Greek, prefer the
+ * `*_el` column when it exists, otherwise fall back to the default text. This
+ * keeps a fresh clone working before the translation migration is applied.
+ */
+function localizedName(lang: string, entry: { name: string; name_el?: string | null }): string {
+  return lang === 'el' && entry.name_el ? entry.name_el : entry.name
+}
+
+function localizedDescription(
+  lang: string,
+  entry: { description: string | null; description_el?: string | null },
+): string | null {
+  return lang === 'el' && entry.description_el ? entry.description_el : entry.description
+}
+
 const TERMINAL_STATUSES = new Set(['SERVED', 'CANCELLED', 'REJECTED'])
 
 export function TableOrderingExperience({ token, reorderToken, restaurantName, tableName, currency, categories, items }: Props) {
-  const { t } = useLanguage()
+  const { lang, t } = useLanguage()
   const router = useRouter()
   const [cart, setCart] = useState<Record<string, CartLine>>({})
   const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string[]>>({})
@@ -283,7 +304,7 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
     })
 
     // Confirmation toast that the item was added to the cart.
-    setCartToast(t('customer.itemAddedToast', { name: item.name }))
+    setCartToast(t('customer.itemAddedToast', { name: localizedName(lang, item) }))
     if (toastTimerRef.current) {
       clearTimeout(toastTimerRef.current)
     }
@@ -412,15 +433,17 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
                       ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }
                 >
-                  {category.name}
+                  {localizedName(lang, category)}
                 </button>
               ))}
             </nav>
             {itemsByCategory.map((category) => (
               <div className="stack category-section" id={`category-${category.id}`} key={category.id}>
                 <div>
-                  <h2 className="section-title">{category.name}</h2>
-                  {category.description ? <p className="muted">{category.description}</p> : null}
+                  <h2 className="section-title">{localizedName(lang, category)}</h2>
+                  {localizedDescription(lang, category) ? (
+                    <p className="muted">{localizedDescription(lang, category)}</p>
+                  ) : null}
                 </div>
                 <div className="panel-grid">
                   {category.items.map((item) => {
@@ -429,9 +452,11 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
 
                     return (
                       <article className="metric" key={item.id}>
-                        <span className="eyebrow">{category.name}</span>
-                        <strong>{item.name}</strong>
-                        {item.description ? <p className="muted">{item.description}</p> : null}
+                        <span className="eyebrow">{localizedName(lang, category)}</span>
+                        <strong>{localizedName(lang, item)}</strong>
+                        {localizedDescription(lang, item) ? (
+                          <p className="muted">{localizedDescription(lang, item)}</p>
+                        ) : null}
                         {item.allergens && item.allergens.length > 0 ? (
                           <p className="muted">
                             <strong>{t('customer.allergens')}:</strong> {item.allergens.join(', ')}
@@ -511,7 +536,7 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
                 {cartItems.map(({ item, line }) => (
                   <li key={item.id}>
                     <div className="cart-line-header">
-                      <strong>{item.name}</strong>
+                      <strong>{localizedName(lang, item)}</strong>
                       <span>{formatCurrency(line.unitPrice * line.quantity, currency)}</span>
                     </div>
                     {line.modifiers.length > 0 ? <p className="muted">{line.modifiers.join(' · ')}</p> : null}

@@ -1,7 +1,7 @@
 # Waiter AI — Task Status Tracker
 
-**Last Updated:** August 13, 2026
-**Current Phase:** 8/9 — Testing & Hardening (E2E suite green, remaining items are manual live-verification)
+**Last Updated:** August 15, 2026
+**Current Phase:** 8/9 — Testing & Hardening (E2E suite green — 20 tests; remaining items are manual live-verification: migration 015 + Supabase Site URL)
 
 ---
 
@@ -64,20 +64,17 @@
 
 **Implementation details:**
 - `registerRestaurant` creates the auth user with `email_confirm: false` (locked until confirmed)
-- **Confirmation email now dispatched via a hybrid path (`dispatchConfirmationEmail`):**
-  - Primary: `admin.generateLink({ type: 'signup', email, options: { redirectTo: '<app>/auth/callback' } })` → `hashed_token`, then delivered through **Resend** with a link to `<app>/auth/callback?token_hash=...&type=signup` — bypasses Supabase's built-in email rate limits
-  - Fallback: `admin.auth.resend({ type: 'signup', email })` (Supabase "Confirm signup" template) when Resend is not configured
-- **Root cause fixed:** Supabase's built-in email is rate-limited ("email rate limit exceeded" / "you can only request this after 59 seconds"). Resend is currently **not configured** in `.env.local` (placeholder key), so the app falls back to the rate-limited Supabase path — add a real `RESEND_API_KEY` to make confirmation emails reliable
-- **New UX:** when the confirmation email cannot be delivered, the register form now shows a "pending" state ("Account created for …") with a direct **Resend confirmation email** button to `/verify-email?email=...` instead of a dead-end error
-- `verifyOtp({ token_hash, type: 'signup' })` was live-verified: it confirms the user (`email_confirmed_at` set) and establishes the session
-- `/auth/callback` handles the template's `?token_hash=...&type=signup` link, calls `verifyOtp({ token_hash })`, and redirects to `/login?verified=1` on success (or `/verify-email?error=invalid-link` on failure)
-- `resendConfirmationEmail` uses the same hybrid dispatcher and is rate-limited to 3 sends per 10 minutes per email
-- `sendRegistrationEmail` (Resend-backed welcome email) still fires after account provisioning
+- **Confirmation email dispatched via Supabase's built-in "Confirm signup" template** (`admin.auth.resend({ type: 'signup', email })`) — the same mechanism the password-reset flow uses. Resend is no longer involved in confirmations (removed the `generateLink` + Resend primary path). The template's link (`<SiteURL>/auth/confirm?token_hash=...&type=signup`) is handled by `/auth/confirm` which calls `verifyOtp({ token_hash, type: 'signup' })` and redirects to `/login?verified=1`
+- **Rate-limit note:** Supabase's built-in email is rate-limited ("email rate limit exceeded" / "you can only request this after 59 seconds"). When the resend is rejected, the register form shows a "pending" state ("Account created for …") with a direct **Resend confirmation email** button to `/verify-email?email=...` instead of a dead-end error
+- `verifyOtp({ token_hash, type: 'signup' })` was live-verified earlier: it confirms the user (`email_confirmed_at` set) and establishes the session
+- `resendConfirmationEmail` uses the same Supabase dispatcher and is rate-limited to 3 sends per 10 minutes per email
+- `sendRegistrationEmail` (Resend-backed welcome email) still fires after account provisioning; staff invitations also remain Resend-primary with Supabase's built-in recovery email as fallback
+- **Resend remains optional** and is only used for the welcome email + staff invitations (`isResendConfigured` check unchanged)
 
 **What still needs to happen:**
 1. ~~Complete the reset-password flow with a real inbox-backed account~~ — ✅ DONE. User verified the flow works end-to-end (request reset → email link → `/reset-password` → update password → login)
-2. Confirm the "Confirm signup" template's site URL is set to `<APP_URL>/auth/callback` in Supabase Auth settings (no longer required for the Resend path, but keeps the Supabase fallback correct)
-3. **Resend configured** (real `RESEND_API_KEY` in `.env.local` + Vercel). Delivery verified to the owner's address. **Free-plan caveat:** with the default `onboarding@resend.dev` sender, Resend only delivers to the account owner's email — to email customers, verify a domain at resend.com/domains and set `RESEND_FROM_EMAIL` to an address on it
+2. **Set Auth Site URL to `https://waiter-ai-iota.vercel.app` in the Supabase dashboard** — now REQUIRED since confirmations use the built-in "Confirm signup" template, whose link is built from the Site URL (`<SiteURL>/auth/confirm?token_hash=...&type=signup`). Without it, confirmation links point to localhost / a stale host
+3. **Resend (optional, welcome email + invitations only):** set a real `RESEND_API_KEY` in `.env.local` + Vercel to get the welcome email + staff invitations. **Free-plan caveat:** with the default `onboarding@resend.dev` sender, Resend only delivers to the account owner's email — to email customers, verify a domain at resend.com/domains and set `RESEND_FROM_EMAIL` to an address on it
 4. Decide whether to keep the current client-side protected-route strategy or revisit SSR session handling later
 
 **Reference:** See `IMPLEMENTATION_PLAN.md` Part 5
@@ -502,11 +499,16 @@
 59. **✅ Done** — **Loading bar**: new `LoadingBar` component (animated top progress bar) replaces the "Loading your workspace / operational access…" text on Home, Orders, Setup, Team, Settings, Analytics, Platform Analytics and Admin
 60. **✅ Done** — **Customer order cancellation**: customers can cancel from the tracking page while the order is NEW/ACCEPTED and inside the owner-configured window (`restaurants.cancel_window_minutes`, **default 5 min**). New `POST /api/orders/[id]/cancel` (token-authenticated, window + status validated server-side); owner sets the window in Setup → "Ordering settings". Order-status API exposes `cancelWindowMinutes` (defensive fetch so it works pre-migration)
 61. **✅ Done** — **Orders pane UX for waiters**: card header now shows the **current status badge**, **total**, and a **"time since submitted"** badge (`12m`, `2h 05m`) so waiting orders stand out; **Take order** is now a prominent primary button in the header when unassigned
-62. **⚠️ Pending (one manual step)** — Apply migration 014 to the live DB: `npx supabase db push` (prompts for the Supabase DB password). The app already works (cancel window defaults to 5 min, names fall back to email) but the owner-configurable window and stored names fully activate once the migration is applied
+62. **✅ Done** — Migration 014 applied to the live DB by the user (`npx supabase db push` — CLI needs the DB password, which the macOS keychain blocked for me); `restaurant_users.full_name` + `restaurants.cancel_window_minutes` confirmed live. The code was built resilient pre-migration (42703 retry fallback, defensive fetching), so all tests passed before and after
+63. **✅ Done** — **Top-nav identity**: the nav now loads the signed-in account and shows the **full name** (fallback: email) in a pill plus a **Sign out** action; anonymous visitors still see "Login". No more permanent "Sign in" link for signed-in users
+64. **✅ Done** — **Home collapse toggles made visible**: the Live orders and Order history panels previously used glyph-only chevrons (▾/▸) that did not render for the user; they now show explicit **Collapse / Expand** text buttons (EN+EL), default expanded, keyboard/AT friendly
+65. **✅ Done** — **Workspace status line localized in Greek**: the order card's "Table: X | Status: Y" line now translates the status in Greek (`Κατάσταση: Ακυρώθηκε` instead of `Κατάσταση: CANCELLED`); English keeps the raw status codes to match the card's badge/buttons. E2E regression test added
+66. **✅ Done** — **Bilingual customer menu** (migration 015 + seed): `menu_categories` and `menu_items` gain `name_el`/`description_el` columns; The Green Bar's 5 categories + 14 items are backfilled with Greek text (via migration backfill AND updated seed). The customer menu renders the Greek name/description when the UI is in Greek, falling back to the English text otherwise (and pre-migration, via a 42703 retry fallback). Staff order records keep the canonical English item name (resolved server-side). **⚠️ Pending (one manual step): apply migration 015 to the live DB — `npx supabase db push`**
+67. **✅ Done** — **Sign-up confirmations moved to Supabase's built-in email**: `dispatchConfirmationEmail` now only calls `admin.auth.resend({ type: 'signup', email })` (the same built-in mechanism as password reset); the Resend `generateLink` path and `sendConfirmationEmail` were removed. Resend remains only for the optional welcome email + staff invitations. Requires the Auth **Site URL** to be set (see item 52)
 49. **✅ Done** — Email confirmation: code already delivers via Resend (primary) with Supabase fallback; staff invitations now auto-confirm (`email_confirm: true`) so they never need a confirmation email. Remaining is dashboard config (verify a Resend domain / Supabase SMTP + set Auth Site URL) — see item 52
 50. **✅ Done** — Anonymous users only see the login page: middleware protection added. **Important:** the app uses `src/` so Next expects middleware at `src/middleware.ts` — the root `middleware.ts` was never loaded; moved it and wired session-check redirects (public: `/t/*`, `/orders/*`, auth + signup routes). Login `next` param hardened against open redirects
 51. **✅ Done** — Staff invited by restaurant owner/manager without a prior account: `addTeamMember` now creates the auth user (`email_confirm: true`) and sends an invitation email with a password-set link (Resend primary, Supabase "Reset Password" fallback)
-52. **Next (manual config)** — Set the Auth **Site URL** in Supabase dashboard → Authentication → URL Configuration to the production origin (`https://waiter-ai-iota.vercel.app`) so the built-in "Confirm signup" links (now handled by the new `/auth/confirm` route) work. Everything else is free-tier: confirmation emails already flow through Resend's HTTP API (no Supabase SMTP → no Pro needed) and fall back to Supabase's built-in template, which is also included in the free plan (rate-limited)
+52. **Next (manual config)** — Set the Auth **Site URL** in Supabase dashboard → Authentication → URL Configuration to `https://waiter-ai-iota.vercel.app` so the built-in "Confirm signup" links land on `/auth/confirm`. This is now REQUIRED: sign-up confirmations use Supabase's built-in "Confirm signup" template (no Resend). Everything else is free-tier: the built-in template is included in the free plan (rate-limited; the register/verify forms surface a resend button when that happens)
 53. **Future work** — Shift-based table assignment
 
 ### After Timeline Verified
@@ -552,5 +554,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — category accordion menu editor with quick table edits, restored add-restaurant form (see log for hash)
-**Next commit:** confirm "Confirm signup" template site URL; Resend domain verification + shift-based table assignment (future work)
+**Last commit:** polish + ops round — visible collapse toggles, nav account name/sign-out, Greek workspace status, bilingual customer menu (migration 015), sign-up confirmations via Supabase built-in email (Resend removed from that path)
+**Next commit:** manual Supabase config — set Auth Site URL (REQUIRED for built-in "Confirm signup" links); apply migration 015 to the live DB (`npx supabase db push`); optional Resend domain verification for welcome/invitation senders; then documented future work (shift-based table assignment, kitchen view/item routing, payment links, staff-tablet PWA)

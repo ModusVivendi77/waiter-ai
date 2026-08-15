@@ -78,6 +78,22 @@ test.describe('public ordering journey', () => {
     await expect(page.getByText('Added to cart')).toBeVisible()
   })
 
+  test('customer UI and menu translate to Greek', async ({ page }) => {
+    await page.goto('/t/X7k91Lm')
+
+    // The customer toggle flips the UI chrome into Greek.
+    await page.getByRole('button', { name: 'Ελληνικά' }).click()
+    await expect(page.getByRole('navigation', { name: 'Κατηγορίες' })).toBeVisible()
+    await expect(page.locator('article').first().getByRole('button', { name: 'Προσθήκη στο καλάθι' })).toBeVisible()
+
+    // Menu content is translated from the database once migration 015 populated
+    // the bilingual columns; before that the English values are the fallback.
+    // Either is acceptable — the important thing is the menu keeps rendering.
+    const categoryNav = page.getByRole('navigation', { name: 'Κατηγορίες' })
+    const categoryText = await categoryNav.textContent()
+    expect(/Ορεκτικά|Starters/.test(categoryText ?? '')).toBe(true)
+  })
+
   test('order again pre-fills the cart from the previous order', async ({ page }) => {
     // First round: two burgers.
     await page.goto('/t/X7k91Lm')

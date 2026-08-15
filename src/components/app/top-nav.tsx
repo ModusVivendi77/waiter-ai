@@ -1,8 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
+import { getClientUserContext } from '@/lib/auth/client'
+import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/components/app/language-provider'
 
 const navLinks = [
@@ -16,11 +19,40 @@ const navLinks = [
 export function TopNav() {
   const { lang, setLang, t } = useLanguage()
   const pathname = usePathname()
+  const router = useRouter()
+  const [user, setUser] = useState<{ name: string } | null | undefined>(undefined)
+  const [signingOut, setSigningOut] = useState(false)
+
+  // Resolve the signed-in account so the nav can show the person's name and a
+  // sign-out action instead of a "Sign in" link.
+  useEffect(() => {
+    let cancelled = false
+    void getClientUserContext().then((context) => {
+      if (cancelled) return
+      if (context.user) {
+        const metadata = context.user.user_metadata as { full_name?: string } | null
+        setUser({ name: metadata?.full_name || context.user.email || '' })
+      } else {
+        setUser(null)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [pathname])
 
   // Customer-facing surfaces (table menu and order tracking) are intentionally
   // minimal: no platform navigation is shown there.
   if (pathname.startsWith('/t/') || pathname.startsWith('/orders/')) {
     return null
+  }
+
+  async function handleSignOut() {
+    setSigningOut(true)
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.replace('/login')
+    router.refresh()
   }
 
   return (
@@ -48,9 +80,25 @@ export function TopNav() {
             {lang === 'en' ? 'EL' : 'EN'}
           </button>
 
-          <Link className="global-nav-login" href="/login">
-            {t('nav.login')}
-          </Link>
+          {user ? (
+            <>
+              <span className="global-nav-user" title={user.name}>
+                {user.name}
+              </span>
+              <button
+                className="global-nav-link"
+                type="button"
+                disabled={signingOut}
+                onClick={() => void handleSignOut()}
+              >
+                {signingOut ? t('auth.signingOut') : t('auth.signOut')}
+              </button>
+            </>
+          ) : user === null ? (
+            <Link className="global-nav-login" href="/login">
+              {t('nav.login')}
+            </Link>
+          ) : null}
         </div>
       </nav>
     </header>

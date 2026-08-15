@@ -31,7 +31,9 @@ type TableRow = {
 type CategoryRow = {
   id: string
   name: string
+  name_el: string | null
   description: string | null
+  description_el: string | null
   sort_order: number
 }
 
@@ -39,7 +41,9 @@ type MenuItemRow = {
   id: string
   category_id: string
   name: string
+  name_el: string | null
   description: string | null
+  description_el: string | null
   price: number
   available: boolean
   sort_order: number
@@ -75,22 +79,55 @@ export default async function TableTokenPage({ params, searchParams }: Props) {
   const typedTable = table as TableRow
   const restaurant = Array.isArray(typedTable.restaurants) ? typedTable.restaurants[0] : typedTable.restaurants
 
-  const [{ data: categories, error: categoriesError }, { data: items, error: itemsError }] = await Promise.all([
-    admin
+  // Prefer the bilingual columns (`name_el`/`description_el`). They exist only
+  // after migration 015 — on a DB where the migration hasn't been applied yet
+  // the select fails with Postgres error 42703, so retry without those columns
+  // (the component then falls back to the default English text).
+  const fetchCategories = async (): Promise<CategoryRow[] | null> => {
+    const withEl = await admin
       .from('menu_categories')
-      .select('id, name, description, sort_order')
+      .select('id, name, name_el, description, description_el, sort_order')
       .eq('restaurant_id', typedTable.restaurant_id)
       .eq('active', true)
-      .order('sort_order'),
-    admin
+      .order('sort_order')
+    if (withEl.error && withEl.error.code === '42703') {
+      const base = await admin
+        .from('menu_categories')
+        .select('id, name, description, sort_order')
+        .eq('restaurant_id', typedTable.restaurant_id)
+        .eq('active', true)
+        .order('sort_order')
+      if (base.error) return null
+      return (base.data as CategoryRow[]) || []
+    }
+    if (withEl.error) return null
+    return (withEl.data as CategoryRow[]) || []
+  }
+
+  const fetchItems = async (): Promise<MenuItemRow[] | null> => {
+    const withEl = await admin
       .from('menu_items')
-      .select('id, category_id, name, description, price, available, sort_order, allergens, menu_item_modifiers(id, name, price_delta, active)')
+      .select('id, category_id, name, name_el, description, description_el, price, available, sort_order, allergens, menu_item_modifiers(id, name, price_delta, active)')
       .eq('restaurant_id', typedTable.restaurant_id)
       .eq('available', true)
-      .order('sort_order'),
-  ])
+      .order('sort_order')
+    if (withEl.error && withEl.error.code === '42703') {
+      const base = await admin
+        .from('menu_items')
+        .select('id, category_id, name, description, price, available, sort_order, allergens, menu_item_modifiers(id, name, price_delta, active)')
+        .eq('restaurant_id', typedTable.restaurant_id)
+        .eq('available', true)
+        .order('sort_order')
+      if (base.error) return null
+      return (base.data as MenuItemRow[]) || []
+    }
+    if (withEl.error) return null
+    return (withEl.data as MenuItemRow[]) || []
+  }
 
-  if (categoriesError || itemsError) {
+  const [categories, items] = await Promise.all([fetchCategories(), fetchItems()])
+
+  if (!categories || !items) {
     notFound()
   }
 

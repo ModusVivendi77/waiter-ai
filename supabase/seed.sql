@@ -60,21 +60,23 @@ WHERE r.slug = 'the-green-bar'
   AND mc.restaurant_id = r.id
   AND mc.name = 'Food';
 
-INSERT INTO public.menu_categories (restaurant_id, name, description, sort_order, active)
-SELECT r.id, seed.name, seed.description, seed.sort_order, TRUE
+INSERT INTO public.menu_categories (restaurant_id, name, description, name_el, description_el, sort_order, active)
+SELECT r.id, seed.name, seed.description, seed.name_el, seed.description_el, seed.sort_order, TRUE
 FROM public.restaurants r
 CROSS JOIN (
   VALUES
-    ('Starters', 'Appetizers and small plates', 1),
-    ('Mains', 'Burgers, salads, and comfort food', 2),
-    ('Sides', 'Salads, potatoes, and extras', 3),
-    ('Desserts', 'Sweet endings', 4),
-    ('Drinks', 'Beer, wine, soft drinks, and coffee', 5)
-) AS seed(name, description, sort_order)
+    ('Starters', 'Appetizers and small plates', 'Ορεκτικά', 'Ορεκτικά και μικρά πιάτα', 1),
+    ('Mains', 'Burgers, salads, and comfort food', 'Κυρίως πιάτα', 'Μπέργκερ, σαλάτες και comfort food', 2),
+    ('Sides', 'Salads, potatoes, and extras', 'Συνοδευτικά', 'Σαλάτες, πατάτες και συνοδευτικά', 3),
+    ('Desserts', 'Sweet endings', 'Επιδόρπια', 'Γλυκά τελειώματα', 4),
+    ('Drinks', 'Beer, wine, soft drinks, and coffee', 'Ποτά', 'Μπύρα, κρασί, αναψυκτικά και καφές', 5)
+) AS seed(name, description, name_el, description_el, sort_order)
 WHERE r.slug = 'the-green-bar'
 ON CONFLICT (restaurant_id, name) DO UPDATE
 SET
   description = EXCLUDED.description,
+  name_el = EXCLUDED.name_el,
+  description_el = EXCLUDED.description_el,
   sort_order = EXCLUDED.sort_order,
   active = EXCLUDED.active;
 
@@ -85,6 +87,8 @@ INSERT INTO public.menu_items (
   restaurant_id,
   name,
   description,
+  name_el,
+  description_el,
   price,
   available,
   sort_order
@@ -94,27 +98,29 @@ SELECT
   mc.restaurant_id,
   seed.name,
   seed.description,
+  seed.name_el,
+  seed.description_el,
   seed.price,
   TRUE,
   seed.sort_order
 FROM public.menu_categories mc
 JOIN (
   VALUES
-    ('Starters', 'Tzatziki & Pita', 'Yogurt, cucumber, garlic dip with warm pita', 5.50::NUMERIC(10,2), 1),
-    ('Starters', 'Fried Calamari', 'Crispy squid rings with lemon and mayo', 8.00::NUMERIC(10,2), 2),
-    ('Starters', 'Halloumi Fries', 'Grilled halloumi fingers with honey', 6.50::NUMERIC(10,2), 3),
-    ('Mains', 'Burger', 'Beef burger with fries', 12.00::NUMERIC(10,2), 1),
-    ('Mains', 'Greek Salad', 'Tomatoes, cucumber, feta, olives', 8.50::NUMERIC(10,2), 2),
-    ('Mains', 'Chicken Souvlaki', 'Skewers with pita, tzatziki, and fries', 11.00::NUMERIC(10,2), 3),
-    ('Mains', 'Spaghetti Carbonara', 'Creamy pasta with pancetta and egg', 10.50::NUMERIC(10,2), 4),
-    ('Sides', 'Hand-cut Fries', 'Golden fried potatoes with oregano', 3.50::NUMERIC(10,2), 1),
-    ('Sides', 'Village Bread', 'Warm crusty bread with olive oil', 2.00::NUMERIC(10,2), 2),
-    ('Desserts', 'Baklava', 'Layered filo with walnuts and syrup', 4.50::NUMERIC(10,2), 1),
-    ('Desserts', 'Ice Cream Sundae', 'Vanilla, chocolate sauce, and whipped cream', 5.00::NUMERIC(10,2), 2),
-    ('Drinks', 'Mythos', 'Greek lager', 4.00::NUMERIC(10,2), 1),
-    ('Drinks', 'Espresso', 'Single shot espresso', 2.50::NUMERIC(10,2), 2),
-    ('Drinks', 'Fresh Orange Juice', 'Squeezed to order', 3.50::NUMERIC(10,2), 3)
-) AS seed(category_name, name, description, price, sort_order)
+    ('Starters', 'Tzatziki & Pita', 'Yogurt, cucumber, garlic dip with warm pita', 'Τζατζίκι & Πίτα', 'Γιαούρτι, αγγούρι, σκόρδο με ζεστή πίτα', 5.50::NUMERIC(10,2), 1),
+    ('Starters', 'Fried Calamari', 'Crispy squid rings with lemon and mayo', 'Τηγανητά Καλαμάρια', 'Τραγανά καλαμάρια με λεμόνι και μαγιονέζα', 8.00::NUMERIC(10,2), 2),
+    ('Starters', 'Halloumi Fries', 'Grilled halloumi fingers with honey', 'Χαλούμι Τηγανητό', 'Ψητό χαλούμι σε μπαστουνάκια με μέλι', 6.50::NUMERIC(10,2), 3),
+    ('Mains', 'Burger', 'Beef burger with fries', 'Μπέργκερ', 'Μπέργκερ με πατάτες', 12.00::NUMERIC(10,2), 1),
+    ('Mains', 'Greek Salad', 'Tomatoes, cucumber, feta, olives', 'Χωριάτικη Σαλάτα', 'Ντομάτες, αγγούρι, φέτα, ελιές', 8.50::NUMERIC(10,2), 2),
+    ('Mains', 'Chicken Souvlaki', 'Skewers with pita, tzatziki, and fries', 'Κοτόπουλο Σουβλάκι', 'Καλαμάκια με πίτα, τζατζίκι και πατάτες', 11.00::NUMERIC(10,2), 3),
+    ('Mains', 'Spaghetti Carbonara', 'Creamy pasta with pancetta and egg', 'Σπαγγέτι Καρμπονάρα', 'Κρεμώδη ζυμαρικά με πανσέτα και αυγό', 10.50::NUMERIC(10,2), 4),
+    ('Sides', 'Hand-cut Fries', 'Golden fried potatoes with oregano', 'Χειροποίητες Πατάτες', 'Χρυσές τηγανητές πατάτες με ρίγανη', 3.50::NUMERIC(10,2), 1),
+    ('Sides', 'Village Bread', 'Warm crusty bread with olive oil', 'Χωριάτικο Ψωμί', 'Ζεστό χωριάτικο ψωμί με ελαιόλαδο', 2.00::NUMERIC(10,2), 2),
+    ('Desserts', 'Baklava', 'Layered filo with walnuts and syrup', 'Μπακλαβάς', 'Σφολιάτα με καρύδια και σιρόπι', 4.50::NUMERIC(10,2), 1),
+    ('Desserts', 'Ice Cream Sundae', 'Vanilla, chocolate sauce, and whipped cream', 'Παγωτό Σαντέ', 'Βανίλια, σάλτσα σοκολάτας και σαντιγί', 5.00::NUMERIC(10,2), 2),
+    ('Drinks', 'Mythos', 'Greek lager', 'Μύθος', 'Ελληνική λάγερ μπύρα', 4.00::NUMERIC(10,2), 1),
+    ('Drinks', 'Espresso', 'Single shot espresso', 'Εσπρέσο', 'Μονός εσπρέσο', 2.50::NUMERIC(10,2), 2),
+    ('Drinks', 'Fresh Orange Juice', 'Squeezed to order', 'Φρέσκος Χυμός Πορτοκάλι', 'Φρεσκοστυμμένος χυμός', 3.50::NUMERIC(10,2), 3)
+) AS seed(category_name, name, description, name_el, description_el, price, sort_order)
   ON seed.category_name = mc.name
 WHERE mc.restaurant_id = (
   SELECT id

@@ -237,4 +237,72 @@ test.describe('orders workspace', () => {
     await contextA.close()
     await contextB.close()
   })
+
+  test('top nav shows the signed-in account name with a sign-out action', async ({ page }) => {
+    await loginAsSuperAdmin(page)
+
+    // The nav no longer shows a "Sign in" link while a session exists; instead it
+    // shows the account (full name when set, email otherwise) plus sign-out.
+    const navUser = page.locator('.global-nav-user')
+    await expect(navUser).toBeVisible()
+    const accountText = (await navUser.textContent())?.trim()
+    expect(accountText?.length).toBeGreaterThan(0)
+    expect(accountText).not.toMatch(/Sign in/i)
+
+    const signOut = page.getByRole('button', { name: 'Sign out' })
+    await expect(signOut).toBeVisible()
+    await signOut.click()
+    await page.waitForURL(/\/login/)
+    await expect(page.locator('.global-nav-login')).toBeVisible()
+  })
+
+  test('home dashboard collapse toggles are visible and collapse the panels', async ({ page }) => {
+    await loginAsSuperAdmin(page)
+
+    // Both stacked panels expose a visible text toggle (default expanded).
+    const livePanel = page.locator('.panel.stack').filter({ hasText: 'Live orders' }).first()
+    const historyPanel = page.locator('.panel.stack').filter({ hasText: 'Order history' }).first()
+    await expect(livePanel.getByRole('button', { name: 'Collapse' })).toBeVisible()
+    await expect(historyPanel.getByRole('button', { name: 'Collapse' })).toBeVisible()
+
+    // Collapsing the live-orders panel hides its content and flips the toggle.
+    const hadLiveOrders = (await livePanel.locator('ul.list li').count()) > 0
+    await livePanel.getByRole('button', { name: 'Collapse' }).click()
+    await expect(livePanel.getByRole('button', { name: 'Expand' })).toBeVisible()
+    if (hadLiveOrders) {
+      await expect(livePanel.locator('ul.list li').first()).toBeHidden()
+    }
+
+    // Expanding brings the content back.
+    await livePanel.getByRole('button', { name: 'Expand' }).click()
+    await expect(livePanel.getByRole('button', { name: 'Collapse' })).toBeVisible()
+  })
+
+  test('workspace order status line is localized in Greek', async ({ page }) => {
+    const uniqueNote = `E2E greek status ${Date.now()}`
+
+    // Place a fresh order as a customer so there is guaranteed card content.
+    await page.goto('/t/X7k91Lm')
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByLabel('Order note').fill(uniqueNote)
+    await page.getByRole('button', { name: 'Submit order' }).click()
+    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
+
+    await loginAsSuperAdmin(page)
+    await page.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
+    await expect(page.getByText('Restaurant: The Green Bar')).toBeVisible()
+
+    const orderCard = page.locator('[data-testid^="order-card-"]').filter({ hasText: uniqueNote }).first()
+    await expect(orderCard).toBeVisible()
+
+    // In Greek the status line must show the translated label, never the raw
+    // status code (regression: the card previously read "Κατάσταση: CANCELLED").
+    await page.locator('.global-nav-lang').click()
+    await expect(
+      orderCard.getByText(
+        /Κατάσταση: (Η παραγγελία λήφθηκε|Έγινε αποδεκτή|Ετοιμάζεται|Έτοιμη|Εξυπηρετήθηκε|Ακυρώθηκε|Απορρίφθηκε)/,
+      ),
+    ).toBeVisible()
+    await expect(orderCard.getByText(/Κατάσταση: (NEW|ACCEPTED|PREPARING|READY|SERVED|CANCELLED|REJECTED)/)).toHaveCount(0)
+  })
 })

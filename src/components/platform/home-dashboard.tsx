@@ -805,7 +805,7 @@ export function HomeDashboard() {
               aria-label={liveOrdersOpen ? t('home.collapse') : t('home.expand')}
               onClick={() => setLiveOrdersOpen((current) => !current)}
             >
-              {liveOrdersOpen ? '▾' : '▸'}
+              {liveOrdersOpen ? t('home.collapse') : t('home.expand')}
             </button>
           </div>
 
@@ -892,7 +892,7 @@ export function HomeDashboard() {
               aria-label={orderHistoryOpen ? t('home.collapse') : t('home.expand')}
               onClick={() => setOrderHistoryOpen((current) => !current)}
             >
-              {orderHistoryOpen ? '▾' : '▸'}
+              {orderHistoryOpen ? t('home.collapse') : t('home.expand')}
             </button>
           </div>
           {orderHistoryOpen ? (

@@ -132,7 +132,7 @@ function formatTimeAgo(value: string) {
 export function OrdersConsole() {
   const supabase = useMemo(() => createClient(), [])
   const searchParams = useSearchParams()
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -848,7 +848,7 @@ export function OrdersConsole() {
               <div className="cart-line-header">
                 <div>
                   <strong>{t('orders.orderId', { id: getOrderLabel(order) })}</strong>
-                  <p className="muted">{t('orders.tableStatus', { table: getTableName(order), status: order.status })}</p>
+                  <p className="muted">{t('orders.tableStatus', { table: getTableName(order), status: lang === 'el' ? t(`statusLabel.${order.status}`) : order.status })}</p>
                   <p className="muted">
                     {t('orders.timeAgo', { time: formatTimeAgo(order.created_at) })} ·{' '}
                     {t('orders.submitted', { datetime: formatDateTime(order.created_at) })}
