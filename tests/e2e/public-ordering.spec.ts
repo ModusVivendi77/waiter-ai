@@ -105,4 +105,21 @@ test.describe('public ordering journey', () => {
     await page.getByRole('button', { name: 'Submit order' }).click()
     await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
   })
+
+  test('customer can cancel an order within the cancellation window', async ({ page }) => {
+    await page.goto('/t/X7k91Lm')
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByRole('button', { name: 'Submit order' }).click()
+    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
+    await page.getByRole('link', { name: 'Track order status' }).click()
+    await page.waitForURL(/\/orders\//)
+
+    // The order is NEW and inside the default 5-minute window, so the cancel
+    // button is available. Confirm and verify the order becomes CANCELLED.
+    await expect(page.getByRole('button', { name: 'Cancel order' })).toBeVisible()
+    page.once('dialog', (dialog) => void dialog.accept())
+    await page.getByRole('button', { name: 'Cancel order' }).click()
+    await expect(page.getByText(/has been cancelled/i)).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Cancel order' })).toHaveCount(0)
+  })
 })
