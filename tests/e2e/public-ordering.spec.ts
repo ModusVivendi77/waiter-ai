@@ -132,9 +132,9 @@ test.describe('public ordering journey', () => {
 
     const burgerCard = page.locator('article').filter({ hasText: 'Burger' })
 
-    // The quantity stepper is ALWAYS visible next to "Add to cart", starting at
-    // 0 with the minus button disabled.
-    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('0')
+    // The quantity stepper is ALWAYS visible next to "Add to cart", defaulting
+    // to 1 with the minus button disabled.
+    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('1')
     await expect(burgerCard.getByRole('button', { name: 'Remove one' })).toBeDisabled()
     await expect(burgerCard.getByRole('button', { name: 'Add to cart' })).toBeVisible()
 
@@ -158,10 +158,11 @@ test.describe('public ordering journey', () => {
     await burgerCard.getByRole('button', { name: 'Add to cart' }).click()
     await expect(burgerCard.locator('.cart-stepper span')).toHaveText('2')
 
-    // Removing back to zero clears the cart and the badge.
+    // Removing everything returns the counter to its default of 1 and clears
+    // the cart badge.
     await burgerCard.getByRole('button', { name: 'Remove one' }).click()
     await burgerCard.getByRole('button', { name: 'Remove one' }).click()
-    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('0')
+    await expect(burgerCard.locator('.cart-stepper span')).toHaveText('1')
     await expect(cartIcon.locator('.cart-float-count')).toHaveCount(0)
 
     // Clicking the icon scrolls the cart panel into view.

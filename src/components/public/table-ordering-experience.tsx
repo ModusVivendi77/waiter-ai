@@ -512,7 +512,7 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
                             >
                               −
                             </button>
-                            <span>{cart[item.id]?.quantity ?? 0}</span>
+                            <span>{cart[item.id]?.quantity ?? 1}</span>
                             <button
                               className="button-secondary"
                               type="button"
