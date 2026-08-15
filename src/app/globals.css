@@ -747,6 +747,32 @@ select {
   justify-content: center;
 }
 
+/* Floating "back to top" button (Orders workspace) */
+.up-float {
+  position: fixed;
+  bottom: 22px;
+  right: 22px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: #ffffff;
+  color: var(--accent-dark);
+  box-shadow: var(--shadow-sm);
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 140ms ease;
+}
+
+.up-float:hover {
+  transform: translateY(-2px);
+}
+
 /* Compact order-line rows in the Orders workspace */
 .order-lines {
   gap: 8px;

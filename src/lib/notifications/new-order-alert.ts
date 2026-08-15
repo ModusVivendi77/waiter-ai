@@ -50,43 +50,65 @@ function ensureAudioContext(): AudioContext | null {
   const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
   if (!Ctor) return null
   if (!audioCtx) {
-    audioCtx = new Ctor()
+    try {
+      audioCtx = new Ctor()
+    } catch {
+      return null
+    }
   }
   if (audioCtx.state === 'suspended') {
-    void audioCtx.resume()
+    void audioCtx.resume().catch(() => {})
   }
   return audioCtx
 }
 
-// Autoplay policies only allow audio after a user gesture; unlock once at the
-// first interaction so the very first alert can chime.
+// Browsers only allow audio after a user gesture, and the "unlocked" state is
+// per AudioContext — so keep re-arming on every kind of interaction. Once the
+// user clicks/taps anywhere, the context resumes and future chimes play.
 if (typeof window !== 'undefined') {
   const unlock = () => ensureAudioContext()
-  window.addEventListener('pointerdown', unlock, { once: true })
-  window.addEventListener('keydown', unlock, { once: true })
+  const unlockEvents = ['pointerdown', 'mousedown', 'keydown', 'touchstart', 'click'] as const
+  for (const event of unlockEvents) {
+    window.addEventListener(event, unlock, { passive: true })
+  }
 }
 
 /** Two quick, pleasant descending sine notes (a "ding-dong"). */
 export function playNewOrderSound() {
   const ctx = ensureAudioContext()
   if (!ctx) return
-  const now = ctx.currentTime
-  const notes: Array<[number, number]> = [
-    [0, 880],
-    [0.18, 1174.66],
-  ]
-  for (const [delay, frequency] of notes) {
-    const oscillator = ctx.createOscillator()
-    const gain = ctx.createGain()
-    oscillator.type = 'sine'
-    oscillator.frequency.value = frequency
-    gain.gain.setValueAtTime(0.0001, now + delay)
-    gain.gain.exponentialRampToValueAtTime(0.16, now + delay + 0.02)
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.16)
-    oscillator.connect(gain)
-    gain.connect(ctx.destination)
-    oscillator.start(now + delay)
-    oscillator.stop(now + delay + 0.2)
+
+  const schedule = () => {
+    try {
+      const now = ctx.currentTime
+      const notes: Array<[number, number]> = [
+        [0, 880],
+        [0.18, 1174.66],
+      ]
+      for (const [delay, frequency] of notes) {
+        const oscillator = ctx.createOscillator()
+        const gain = ctx.createGain()
+        oscillator.type = 'sine'
+        oscillator.frequency.value = frequency
+        gain.gain.setValueAtTime(0.0001, now + delay)
+        gain.gain.exponentialRampToValueAtTime(0.2, now + delay + 0.02)
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.18)
+        oscillator.connect(gain)
+        gain.connect(ctx.destination)
+        oscillator.start(now + delay)
+        oscillator.stop(now + delay + 0.22)
+      }
+    } catch {
+      // Audio is best-effort; never let it break the notification flow.
+    }
+  }
+
+  if (ctx.state === 'suspended') {
+    // Resume is async — schedule the notes once it settles so they are not
+    // dropped on a suspended clock.
+    void ctx.resume().then(schedule).catch(schedule)
+  } else {
+    schedule()
   }
 }
 

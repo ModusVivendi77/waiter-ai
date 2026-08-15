@@ -388,6 +388,8 @@ export const translations: Record<string, Translation> = {
   'notify.soundToggle': { en: 'New-order sound: {state}', el: 'Ήχος νέας παραγγελίας: {state}' },
   'notify.soundOn': { en: 'on', el: 'ενεργός' },
   'notify.soundOff': { en: 'off', el: 'ανενεργός' },
+  'notify.testSound': { en: 'Test sound', el: 'Δοκιμή ήχου' },
+  'common.backToTop': { en: 'Back to top', el: 'Επιστροφή στην κορυφή' },
 
   'orders.tabsLabel': { en: 'Filter by status', el: 'Φίλτρο κατάστασης' },
   'orders.tab.ALL': { en: 'All', el: 'Όλες' },

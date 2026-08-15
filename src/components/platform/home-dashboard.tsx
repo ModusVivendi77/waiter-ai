@@ -14,6 +14,7 @@ import {
   clearPendingNewOrders,
   getPendingNewOrders,
   isNewOrderSoundEnabled,
+  playNewOrderSound,
   setNewOrderSoundEnabled,
   subscribeNewOrders,
   type PendingNewOrder,
@@ -768,6 +769,15 @@ export function HomeDashboard() {
                 {t('home.groupByTable')}
               </button>
             </div>
+            <button
+              type="button"
+              className="button-tertiary"
+              aria-label={t('notify.testSound')}
+              title={t('notify.testSound')}
+              onClick={() => playNewOrderSound()}
+            >
+              🔊
+            </button>
             <button
               type="button"
               className="button-tertiary"

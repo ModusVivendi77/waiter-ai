@@ -10,7 +10,13 @@ import { createClient } from '@/lib/supabase/client'
 import { useLiveOrders } from '@/lib/hooks/use-live-orders'
 import { LoadingBar } from '@/components/app/loading-bar'
 import { useLanguage } from '@/components/app/language-provider'
-import { acknowledgeNewOrder, clearPendingNewOrders, isNewOrderSoundEnabled, setNewOrderSoundEnabled } from '@/lib/notifications/new-order-alert'
+import {
+  acknowledgeNewOrder,
+  clearPendingNewOrders,
+  isNewOrderSoundEnabled,
+  playNewOrderSound,
+  setNewOrderSoundEnabled,
+} from '@/lib/notifications/new-order-alert'
 import { CLOSED_STATUSES, STATUS_OPTIONS, STATUS_PRIORITY, STATUS_TABS } from '@/lib/orders/status'
 
 type RestaurantMembership = {
@@ -168,6 +174,15 @@ export function OrdersConsole() {
     if (typeof window === 'undefined') return true
     return isNewOrderSoundEnabled()
   })
+  const [showBackToTop, setShowBackToTop] = useState(false)
+
+  // Floating "back to top" appears once the order list has been scrolled.
+  useEffect(() => {
+    const onScroll = () => setShowBackToTop(window.scrollY > 400)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   // Shared live-orders data layer (fetch + realtime refresh) — the same
   // implementation the home dashboard uses. Realtime events run the handlers
@@ -868,6 +883,10 @@ export function OrdersConsole() {
             {soundEnabled ? '🔔' : '🔕'}{' '}
             {t('notify.soundToggle', { state: soundEnabled ? t('notify.soundOn') : t('notify.soundOff') })}
           </button>
+
+          <button className="button-secondary button-sm" type="button" onClick={() => playNewOrderSound()}>
+            🔊 {t('notify.testSound')}
+          </button>
         </div>
 
         {orders.length === 0 ? <p className="muted">{t('orders.noOrders')}</p> : null}
@@ -1142,6 +1161,18 @@ export function OrdersConsole() {
           ))}
         </ul>
       </section>
+
+      {showBackToTop ? (
+        <button
+          className="up-float"
+          type="button"
+          aria-label={t('common.backToTop')}
+          title={t('common.backToTop')}
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        >
+          ↑
+        </button>
+      ) : null}
     </>
   )
 }

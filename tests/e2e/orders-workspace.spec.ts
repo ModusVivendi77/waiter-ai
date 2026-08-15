@@ -300,6 +300,26 @@ test.describe('orders workspace', () => {
     await context.close()
   })
 
+  test('orders page shows a floating back-to-top button after scrolling', async ({ page }) => {
+    await loginAsSuperAdmin(page)
+    await page.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
+    await expect(page.getByText('Restaurant: The Green Bar')).toBeVisible()
+
+    // Hidden at the top of the page.
+    await expect(page.locator('.up-float')).toHaveCount(0)
+
+    // Appears once the order list has been scrolled, and a click returns to top.
+    await page.evaluate(() => window.scrollTo(0, 1200))
+    await expect(page.locator('.up-float')).toBeVisible()
+    await page.locator('.up-float').click()
+    await page.waitForFunction(() => window.scrollY === 0)
+    await expect(page.locator('.up-float')).toHaveCount(0)
+
+    // The "Test sound" button exists in the toolbar (clicking it is a user
+    // gesture, which is what unlocks the chime for later realtime alerts).
+    await expect(page.getByRole('button', { name: /Test sound/ })).toBeVisible()
+  })
+
   test('compact order lines keep their edit controls and render inline', async ({ page }) => {
     const uniqueNote = `E2E compact lines ${Date.now()}`
 
