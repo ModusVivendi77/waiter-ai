@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { getClientUserContext } from '@/lib/auth/client'
 import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/components/app/language-provider'
+import { getPendingNewOrders, subscribeNewOrders } from '@/lib/notifications/new-order-alert'
 
 const navLinks = [
   { href: '/platform', labelKey: 'nav.home' },
@@ -22,6 +23,15 @@ export function TopNav() {
   const router = useRouter()
   const [user, setUser] = useState<{ name: string } | null | undefined>(undefined)
   const [signingOut, setSigningOut] = useState(false)
+  const [pendingOrderCount, setPendingOrderCount] = useState(0)
+
+  // Live "new orders" badge on the Orders link — like a Facebook notification.
+  // Cleared when the Orders workspace mounts (see OrdersConsole).
+  useEffect(() => {
+    setPendingOrderCount(getPendingNewOrders().length)
+    return subscribeNewOrders((pending) => setPendingOrderCount(pending.length))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Resolve the signed-in account so the nav can show the person's name and a
   // sign-out action instead of a "Sign in" link.
@@ -65,6 +75,11 @@ export function TopNav() {
           {navLinks.map((link) => (
             <Link key={link.href} className="global-nav-link" href={link.href}>
               {t(link.labelKey)}
+              {link.href === '/platform/orders' && pendingOrderCount > 0 ? (
+                <span className="global-nav-badge" aria-label={`${pendingOrderCount} new orders`}>
+                  {pendingOrderCount}
+                </span>
+              ) : null}
             </Link>
           ))}
 

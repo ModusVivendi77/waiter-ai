@@ -122,6 +122,25 @@ test.describe('public ordering journey', () => {
     await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
   })
 
+  test('floating cart icon counts added items and scrolls to the cart', async ({ page }) => {
+    await page.goto('/t/X7k91Lm')
+
+    // No badge until something is added; the icon sits at the top.
+    const cartIcon = page.locator('.cart-float')
+    await expect(cartIcon).toBeVisible()
+    await expect(cartIcon.locator('.cart-float-count')).toHaveCount(0)
+
+    // "Add to cart" increments the badge, once per item added.
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await expect(cartIcon.locator('.cart-float-count')).toHaveText('1')
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await expect(cartIcon.locator('.cart-float-count')).toHaveText('2')
+
+    // Clicking the icon scrolls the cart panel into view.
+    await cartIcon.click()
+    await expect(page.getByRole('heading', { name: 'Your order' })).toBeVisible()
+  })
+
   test('customer can cancel an order within the cancellation window', async ({ page }) => {
     await page.goto('/t/X7k91Lm')
     await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()

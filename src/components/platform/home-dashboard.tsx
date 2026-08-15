@@ -9,7 +9,15 @@ import { createClient } from '@/lib/supabase/client'
 import { useLiveOrders } from '@/lib/hooks/use-live-orders'
 import { LoadingBar } from '@/components/app/loading-bar'
 import { useLanguage } from '@/components/app/language-provider'
-import { isNewOrderSoundEnabled, setNewOrderSoundEnabled } from '@/lib/notifications/new-order-alert'
+import {
+  acknowledgeNewOrder,
+  clearPendingNewOrders,
+  getPendingNewOrders,
+  isNewOrderSoundEnabled,
+  setNewOrderSoundEnabled,
+  subscribeNewOrders,
+  type PendingNewOrder,
+} from '@/lib/notifications/new-order-alert'
 import { HISTORY_STATUSES, OPEN_STATUSES } from '@/lib/orders/status'
 
 type TableRow = {
@@ -224,61 +232,24 @@ export function HomeDashboard() {
   })
   const [tableOrdersExpanded, setTableOrdersExpanded] = useState<Record<string, boolean>>({})
   const [expandedTableOrderId, setExpandedTableOrderId] = useState<string | null>(null)
-  const [newOrderNotice, setNewOrderNotice] = useState<{
-    orderId: string
-    orderNumber: number | null
-    tableName: string
-    total: number
-    currency: string
-    items: OrderItemRow[]
-  } | null>(null)
-  const [noticeSummaryOpen, setNoticeSummaryOpen] = useState(false)
+  const [pendingOrders, setPendingOrders] = useState<PendingNewOrder[]>([])
+  const [expandedNoticeOrderId, setExpandedNoticeOrderId] = useState<string | null>(null)
   const [currentUserRole, setCurrentUserRole] = useState<'OWNER' | 'MANAGER' | 'STAFF' | null>(null)
   const [restaurantCurrency, setRestaurantCurrency] = useState('EUR')
 
   // Shared live-orders data layer (fetch + realtime refresh) — the same
-  // implementation the Orders workspace uses.
+  // implementation the Orders workspace uses. New orders are reported to the
+  // shared notification store (nav badge, tab title, chime, this list).
   const { orders, refreshOrders, initialLoading } = useLiveOrders(selectedRestaurantId, {
-    onOrderInsert: handleLiveOrderInsert,
     alertLabel: t('notify.tabTitle'),
   })
 
-  // New-order notification for the restaurant owner and the staff member who
-  // claimed the table. Other staff still see the order refresh but get no banner.
-  async function handleLiveOrderInsert(payload: any) {
-    if (payload?.eventType !== 'INSERT') return
-    const inserted = payload.new as
-      | { id?: string; order_number?: number | null; restaurant_id?: string; table_id?: string; total?: number }
-      | undefined
-    if (
-      inserted &&
-      inserted.restaurant_id === activeRestaurantIdRef.current &&
-      inserted.table_id
-    ) {
-      const table = tables.find((entry) => entry.id === inserted.table_id)
-      const claimedByCurrentUser = Boolean(
-        currentUserId && table && table.assigned_staff_id === currentUserId
-      )
-      const isOwnerOrPlatformAdmin = isPlatformAdmin || currentUserRole === 'OWNER'
-      if (claimedByCurrentUser || isOwnerOrPlatformAdmin) {
-        // The realtime payload truncates the CHAR(3) currency column, so use
-        // the restaurant currency resolved on load instead.
-        const { data: orderItems } = await supabase
-          .from('order_items')
-          .select('id, item_name, quantity, unit_price, notes, modifiers')
-          .eq('order_id', inserted.id || '')
-        setNewOrderNotice({
-          orderId: inserted.id || '',
-          orderNumber: inserted.order_number ?? null,
-          tableName: table?.name ?? 'Unknown table',
-          total: Number(inserted.total) || 0,
-          currency: restaurantCurrency,
-          items: (orderItems as OrderItemRow[]) || [],
-        })
-        setNoticeSummaryOpen(false)
-      }
-    }
-  }
+  // Every new order in the restaurant surfaces here as an expandable line with
+  // Accept / Dismiss, regardless of who claimed the table.
+  useEffect(() => {
+    setPendingOrders(getPendingNewOrders())
+    return subscribeNewOrders((pending) => setPendingOrders(pending))
+  }, [])
 
   async function loadDashboard(restaurantOverrideId?: string) {
     const context = await getClientUserContext()
@@ -423,11 +394,7 @@ export function HomeDashboard() {
   async function handleAcceptNewOrder(orderId: string) {
     const existing = orders.find((entry) => entry.id === orderId)
     const oldStatus = existing?.status ?? 'NEW'
-    const label = existing
-      ? getOrderLabel(existing)
-      : newOrderNotice?.orderNumber != null
-        ? String(newOrderNotice.orderNumber)
-        : orderId.slice(0, 8)
+    const label = existing ? getOrderLabel(existing) : orderId.slice(0, 8)
 
     setSaving(true)
     setError(null)
@@ -448,13 +415,21 @@ export function HomeDashboard() {
       if (!historyError) {
         setNotice(t('orders.notice.statusChanged', { id: label, status: 'ACCEPTED' }))
       }
-      setNewOrderNotice(null)
+      acknowledgeNewOrder(orderId)
+      setExpandedNoticeOrderId(null)
       void refreshOrders()
     } else {
       setError(updateError.message)
     }
 
     setSaving(false)
+  }
+
+  // "Dismiss" on a new-order notification: acknowledge it without changing the
+  // order status (the kitchen may still accept it later).
+  function handleDismissNotification(orderId: string) {
+    acknowledgeNewOrder(orderId)
+    setExpandedNoticeOrderId((current) => (current === orderId ? null : current))
   }
 
   // Reject an order directly from the home dashboard live views.
@@ -555,70 +530,58 @@ export function HomeDashboard() {
           {notice ? <div className="success">{notice}</div> : null}
           {error ? <div className="error-box">{error}</div> : null}
 
-          {newOrderNotice ? (
-            <div
-              className="message"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-                flexWrap: 'wrap',
-              }}
-            >
-              <strong>
-                {t('home.newOrderBanner', {
-                  number: newOrderNotice.orderNumber != null ? String(newOrderNotice.orderNumber) : newOrderNotice.orderId.slice(0, 8),
-                  table: newOrderNotice.tableName,
-                  total: formatCurrency(newOrderNotice.total, newOrderNotice.currency),
+          {pendingOrders.length > 0 ? (
+            <section className="panel stack" style={{ marginTop: '12px' }}>
+              <span className="eyebrow">{t('home.newOrdersEyebrow')}</span>
+              <ul className="list">
+                {pendingOrders.map((entry) => {
+                  const order = orders.find((candidate) => candidate.id === entry.orderId)
+                  const expanded = expandedNoticeOrderId === entry.orderId
+                  const label = entry.orderNumber != null ? String(entry.orderNumber) : entry.orderId.slice(0, 8)
+                  return (
+                    <li key={entry.orderId} className="notice-line">
+                      <div className="notice-line-top">
+                        <strong>
+                          {t('home.newOrderLine', {
+                            number: label,
+                            table: entry.tableName,
+                            total: formatCurrency(entry.total, entry.currency),
+                          })}
+                        </strong>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          <button
+                            className="button-secondary button-sm"
+                            type="button"
+                            onClick={() => setExpandedNoticeOrderId(expanded ? null : entry.orderId)}
+                          >
+                            {expanded ? t('home.hideSummary') : t('home.viewSummary')}
+                          </button>
+                          <button
+                            className="button button-sm"
+                            type="button"
+                            disabled={saving}
+                            onClick={() => void handleAcceptNewOrder(entry.orderId)}
+                          >
+                            {t('home.acceptOrder')}
+                          </button>
+                          <button
+                            className="button-secondary button-sm"
+                            type="button"
+                            disabled={saving}
+                            onClick={() => handleDismissNotification(entry.orderId)}
+                          >
+                            {t('home.dismissOrder')}
+                          </button>
+                        </div>
+                      </div>
+                      {expanded && order ? (
+                        <OrderSummary order={order} t={t} />
+                      ) : null}
+                    </li>
+                  )
                 })}
-              </strong>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <button
-                  className="button-secondary"
-                  type="button"
-                  onClick={() => setNoticeSummaryOpen((current) => !current)}
-                >
-                  {noticeSummaryOpen ? t('home.hideSummary') : t('home.viewSummary')}
-                </button>
-                <button
-                  className="button"
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void handleAcceptNewOrder(newOrderNotice.orderId)}
-                >
-                  {t('home.acceptOrder')}
-                </button>
-                <button
-                  className="button-secondary"
-                  type="button"
-                  disabled={saving}
-                  onClick={() => setNewOrderNotice(null)}
-                >
-                  {t('orders.dismiss')}
-                </button>
-              </div>
-            </div>
-          ) : null}
-          {newOrderNotice && noticeSummaryOpen ? (
-            <div className="panel stack" style={{ marginTop: '12px' }}>
-              <OrderSummary
-                t={t}
-                order={{
-                  id: newOrderNotice.orderId,
-                  order_number: newOrderNotice.orderNumber,
-                  table_id: '',
-                  status: 'NEW',
-                  total: newOrderNotice.total,
-                  currency: newOrderNotice.currency,
-                  customer_note: null,
-                  created_at: '',
-                  public_tracking_token: null,
-                  restaurant_tables: null,
-                  order_items: newOrderNotice.items,
-                }}
-              />
-            </div>
+              </ul>
+            </section>
           ) : null}
 
           <div className="pill-row">

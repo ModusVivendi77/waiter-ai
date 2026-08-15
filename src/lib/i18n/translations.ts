@@ -94,6 +94,11 @@ export const translations: Record<string, Translation> = {
   },
   'home.acceptOrder': { en: 'Accept', el: 'Αποδοχή' },
   'home.dismissOrder': { en: 'Dismiss order', el: 'Απόρριψη παραγγελίας' },
+  'home.newOrdersEyebrow': { en: 'New orders', el: 'Νέες παραγγελίες' },
+  'home.newOrderLine': {
+    en: '🔔 New order #{number} · {table} · {total}',
+    el: '🔔 Νέα παραγγελία #{number} · {table} · {total}',
+  },
   'home.confirmDismissOrder': {
     en: 'Dismiss order {id}? It will be marked as rejected.',
     el: 'Απόρριψη της παραγγελίας {id}; Θα επισημανθεί ως απορριφθείσα.',

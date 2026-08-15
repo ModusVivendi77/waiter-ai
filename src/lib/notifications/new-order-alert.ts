@@ -1,19 +1,38 @@
 'use client'
 
 /**
- * Client-side "new order" alerting: a count badge in the browser tab title
- * (e.g. "(2) 🔔 New order — Waiter AI") plus an optional short chime played
- * through the Web Audio API. Both work without any notification permission.
+ * Client-side "new order" notifications.
  *
- * The tab badge accumulates unacknowledged new orders and clears the moment
- * the tab regains focus / becomes visible. The sound is opt-out via
- * `waiter-ai-new-order-sound` in localStorage (default: on).
+ * Keeps an in-memory list of unacknowledged new orders and drives every
+ * notification surface from it:
+ *  - browser tab title badge: "(2) 🔔 New order — Waiter AI"
+ *  - the top-nav "Orders" link badge: "Orders (2)"
+ *  - the Home dashboard's expandable new-order lines (Accept / Dismiss)
+ *  - an optional short chime via the Web Audio API (opt-out in localStorage)
+ *
+ * Orders are deduplicated by id (`markOrderSeen` seeds the set on the initial
+ * fetch; the 15s re-sync poll and realtime both call `recordNewOrder`), so a
+ * dropped websocket payload still produces a notification within one poll.
  */
 
-const SOUND_STORAGE_KEY = 'waiter-ai-new-order-sound'
+export type PendingNewOrder = {
+  orderId: string
+  orderNumber: number | null
+  tableName: string
+  total: number
+  currency: string
+}
 
-let pendingCount = 0
+type Listener = (pending: PendingNewOrder[]) => void
+
+const SOUND_STORAGE_KEY = 'waiter-ai-new-order-sound'
+const MAX_PENDING = 20
+
+let pending: PendingNewOrder[] = []
+const seenOrderIds = new Set<string>()
+const listeners = new Set<Listener>()
 let originalTitle: string | null = null
+let labelForTitle = 'New order'
 let audioCtx: AudioContext | null = null
 
 export function isNewOrderSoundEnabled(): boolean {
@@ -71,27 +90,81 @@ export function playNewOrderSound() {
   }
 }
 
-/** Called once per new order received via realtime. */
-export function ringNewOrderAlert(label: string) {
+function syncTabTitle() {
   if (typeof document === 'undefined') return
-  pendingCount += 1
   if (originalTitle === null) {
     originalTitle = document.title
   }
   const base = originalTitle || ''
-  document.title = pendingCount > 0 ? `(${pendingCount}) 🔔 ${label} — ${base}` : base
-  if (isNewOrderSoundEnabled()) {
-    playNewOrderSound()
+  document.title = pending.length > 0 ? `(${pending.length}) 🔔 ${labelForTitle} — ${base}` : base
+}
+
+function emit() {
+  for (const listener of listeners) {
+    listener(pending)
   }
 }
 
+/** Seed the dedupe set (e.g. after the initial fetch) without notifying. */
+export function markOrderSeen(orderId: string) {
+  seenOrderIds.add(orderId)
+}
+
+export function isOrderSeen(orderId: string) {
+  return seenOrderIds.has(orderId)
+}
+
+/**
+ * Register a brand-new order and notify every surface. `label` is the
+ * translated "New order" text used in the tab title badge.
+ */
+export function recordNewOrder(order: PendingNewOrder, label: string) {
+  if (seenOrderIds.has(order.orderId)) return
+  seenOrderIds.add(order.orderId)
+  pending = [...pending.filter((entry) => entry.orderId !== order.orderId), order].slice(-MAX_PENDING)
+  labelForTitle = label
+
+  syncTabTitle()
+  if (isNewOrderSoundEnabled()) {
+    playNewOrderSound()
+  }
+  emit()
+}
+
+/** Remove one order from the pending list (Accept / Dismiss / already seen). */
+export function acknowledgeNewOrder(orderId: string) {
+  const before = pending.length
+  pending = pending.filter((entry) => entry.orderId !== orderId)
+  if (pending.length !== before) {
+    syncTabTitle()
+    emit()
+  }
+}
+
+/** Clear the whole pending list (e.g. when the Orders page is opened). */
+export function clearPendingNewOrders() {
+  if (pending.length === 0) return
+  pending = []
+  syncTabTitle()
+  emit()
+}
+
+export function getPendingNewOrders(): PendingNewOrder[] {
+  return pending
+}
+
+export function subscribeNewOrders(listener: Listener): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+/** Clears only the tab-title badge (called on focus / interaction). */
 export function clearNewOrderAlert() {
   if (typeof document === 'undefined') return
-  pendingCount = 0
-  if (originalTitle !== null) {
-    document.title = originalTitle
-    originalTitle = null
-  }
+  originalTitle = null
+  document.title = document.title.replace(/^\(\d+\) 🔔 .*? — /, '')
 }
 
 /** Clears the badge whenever the tab regains focus or the user interacts. Returns a cleanup fn. */

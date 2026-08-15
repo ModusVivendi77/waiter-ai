@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useLiveOrders } from '@/lib/hooks/use-live-orders'
 import { LoadingBar } from '@/components/app/loading-bar'
 import { useLanguage } from '@/components/app/language-provider'
-import { isNewOrderSoundEnabled, setNewOrderSoundEnabled } from '@/lib/notifications/new-order-alert'
+import { acknowledgeNewOrder, clearPendingNewOrders, isNewOrderSoundEnabled, setNewOrderSoundEnabled } from '@/lib/notifications/new-order-alert'
 import { CLOSED_STATUSES, STATUS_OPTIONS, STATUS_PRIORITY, STATUS_TABS } from '@/lib/orders/status'
 
 type RestaurantMembership = {
@@ -369,6 +369,9 @@ export function OrdersConsole() {
       total: order.total,
       currency: order.currency,
     })
+    // The order is already visible in this workspace — drop it from the
+    // unacknowledged list so the nav badge/tab title don't keep counting it.
+    acknowledgeNewOrder(order.id)
 
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       try {
@@ -429,6 +432,12 @@ export function OrdersConsole() {
     void loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
+
+  // Entering the Orders workspace counts as "seen": reset the pending
+  // notification list (nav badge + tab title + home lines).
+  useEffect(() => {
+    clearPendingNewOrders()
+  }, [restaurantId])
 
   // Deep-link support: when the home dashboard sends ?focus=<trackingToken>,
   // always land on the exact order card. Force the "All" tab + newest-first

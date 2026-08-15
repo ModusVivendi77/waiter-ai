@@ -125,13 +125,13 @@ test.describe('orders workspace', () => {
     await customerPage.getByRole('button', { name: 'Submit order' }).click()
     await expect(customerPage.getByText(/submitted with status NEW/i)).toBeVisible()
 
-    // The owner's dashboard must show the realtime new-order banner.
-    await expect(ownerPage.getByText(/🔔 Order \d+ — Table 1/)).toBeVisible({ timeout: 10000 })
+    // The owner's dashboard must show the realtime new-order line.
+    await expect(ownerPage.getByText(/🔔 New order #\d+ · Table 1 ·/)).toBeVisible({ timeout: 10000 })
 
-    // Accept moves the order to ACCEPTED and dismisses the banner.
+    // Accept moves the order to ACCEPTED and dismisses the notification line.
     await ownerPage.getByRole('button', { name: 'Accept' }).click()
     await expect(ownerPage.getByText(/moved to ACCEPTED/i)).toBeVisible()
-    await expect(ownerPage.getByText(/🔔 Order \d+ — Table 1/)).toBeHidden()
+    await expect(ownerPage.getByText(/🔔 New order #\d+ · Table 1 ·/)).toBeHidden()
   })
 
   test('live tables expose orders and expandable order summaries', async ({ page }) => {
@@ -256,15 +256,17 @@ test.describe('orders workspace', () => {
     await expect(page.locator('.global-nav-login')).toBeVisible()
   })
 
-  test('tab title badge appears when a new order drops and clears on focus', async ({ browser }) => {
+  test('new order shows a tab-title + Orders-nav badge and clears when Orders opens', async ({ browser }) => {
     const context = await browser.newContext()
     const adminPage = await context.newPage()
 
-    // Staff: open the Orders workspace and stay there while a customer orders.
+    // Staff: stay on the Home dashboard while a customer orders.
+    await adminPage.addInitScript((restaurantId: string) => {
+      localStorage.setItem('staffHomeRestaurantId', restaurantId)
+    }, greenBarRestaurantId)
     await loginAsSuperAdmin(adminPage)
-    await adminPage.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
-    await expect(adminPage.getByText('Restaurant: The Green Bar')).toBeVisible()
-    await expect(adminPage.locator('.global-nav-lang')).toBeVisible()
+    await adminPage.goto('/platform')
+    await expect(adminPage.getByText('Live orders')).toBeVisible()
 
     const titleBefore = await adminPage.title()
 
@@ -275,16 +277,24 @@ test.describe('orders workspace', () => {
     await customerPage.getByRole('button', { name: 'Submit order' }).click()
     await expect(customerPage.getByText(/submitted with status NEW/i)).toBeVisible()
 
-    // The staff tab (even in the background) must flag it in the document title.
+    // The staff tab (even in the background) flags it in the document title…
     await expect
       .poll(() => adminPage.title())
       .toMatch(/\(1\) 🔔 New order/)
     expect(await adminPage.title()).toContain(titleBefore)
 
-    // Refocusing the staff tab (or any interaction in it) clears the badge and
-    // restores the original title.
+    // …and the "Orders" nav link shows a Facebook-style count badge.
+    const ordersLink = adminPage.locator('.global-nav-link').filter({ hasText: 'Orders' })
+    await expect(ordersLink.locator('.global-nav-badge')).toHaveText('1', { timeout: 10000 })
+
+    // The Home dashboard also surfaces the expandable new-order line.
+    await expect(adminPage.getByText(/🔔 New order #\d+ · Table 1 ·/)).toBeVisible({ timeout: 10000 })
+
+    // Opening the Orders workspace counts as "seen": badge and title clear.
     await adminPage.bringToFront()
-    await adminPage.keyboard.press('Shift')
+    await ordersLink.click()
+    await adminPage.waitForURL(/\/platform\/orders/)
+    await expect(adminPage.locator('.global-nav-badge')).toHaveCount(0)
     await expect.poll(() => adminPage.title()).toBe(titleBefore)
 
     await context.close()

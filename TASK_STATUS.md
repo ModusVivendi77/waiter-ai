@@ -520,6 +520,13 @@
    - **Item details editor** gains **Name (Greek)** + **Description (Greek)** fields; the **category Rename** flow gains a Greek category-name field
    - Preview table shows the Greek columns; helper text + placeholder updated (EN+EL)
    - Parser unit tests (19 incl. header mode) + new E2E "imports CSV with a header row and Greek translation columns" — **23/23 E2E, 66/66 unit tests green**
+73. **✅ Done** — **Notifications rebuilt around a shared store + production-grade fallbacks** (addresses "order placed in production, no notification received"):
+   - **Orders nav badge**: the top-nav **Orders** link now shows a Facebook-style count bubble (`Orders (2)`) for unacknowledged new orders; it clears when the Orders workspace opens (the in-page banner handles orders seen there)
+   - **Home dashboard**: new orders appear as an **expandable list of lines** (`🔔 New order #N · Table · total`) each with **Accept** (sets ACCEPTED + status history + realtime broadcast) and **Dismiss** (acknowledges without changing status); expanded shows the full order summary
+   - **Reliability**: notifications are now driven by a deduplicated **notification store** fed by BOTH realtime AND the **15s re-sync poll** — a dropped websocket payload can no longer swallow a notification. A new **`NewOrdersWatcher`** component subscribes from **every platform page** (Team/Settings/Analytics/Admin too, not just Home/Orders), so the badge appears wherever staff are
+   - Tab-title badge + optional chime retained (sound toggle in Orders toolbar + Home Live-orders header)
+   - E2E: updated home-notification test + new "Orders-nav badge appears on home and clears when Orders opens" test + **24/24 E2E, 66/66 unit tests green**
+74. **✅ Done** — **Customer menu UX**: category pills now render **side-by-side in a horizontally scrollable strip** (sticky, `overflow-x: auto`, pills don't shrink) — clicking still smooth-scrolls to the category. A **floating cart icon (🛒)** sits at the top and shows a **live item-count badge** that increments on every "Add to cart" (total quantity, e.g. 2 burgers = "2"); clicking it scrolls to the cart panel. E2E covered
 49. **✅ Done** — Email confirmation: code already delivers via Resend (primary) with Supabase fallback; staff invitations now auto-confirm (`email_confirm: true`) so they never need a confirmation email. Remaining is dashboard config (verify a Resend domain / Supabase SMTP + set Auth Site URL) — see item 52
 50. **✅ Done** — Anonymous users only see the login page: middleware protection added. **Important:** the app uses `src/` so Next expects middleware at `src/middleware.ts` — the root `middleware.ts` was never loaded; moved it and wired session-check redirects (public: `/t/*`, `/orders/*`, auth + signup routes). Login `next` param hardened against open redirects
 51. **✅ Done** — Staff invited by restaurant owner/manager without a prior account: `addTeamMember` now creates the auth user (`email_confirm: true`) and sends an invitation email with a password-set link (Resend primary, Supabase "Reset Password" fallback)
@@ -569,5 +576,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — Greek translations for CSV-imported menus (optional name_el/description_el CSV columns, Greek fields in item/category editors)
+**Last commit:** feat — notification store (Orders-nav badge, home expandable accept/dismiss lines, 15s poll + global watcher fallbacks) + customer menu horizontal categories + floating cart icon
 **Next commit:** optional Resend domain verification for welcome/invitation senders (all other manual steps done — migrations 014/015 applied, Auth Site URL set); then documented future work (shift-based table assignment, kitchen view/item routing, payment links, staff-tablet PWA)

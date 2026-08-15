@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { createClient } from '@/lib/supabase/client'
 import { useSupabaseSubscription } from '@/lib/hooks/use-supabase-subscription'
-import { initNewOrderAlertClearing, ringNewOrderAlert } from '@/lib/notifications/new-order-alert'
+import {
+  initNewOrderAlertClearing,
+  isOrderSeen,
+  markOrderSeen,
+  recordNewOrder,
+} from '@/lib/notifications/new-order-alert'
 
 /**
  * The order row shape used by every live-order surface. This is the superset
@@ -80,7 +85,7 @@ export function useLiveOrders(
   handlersRef.current = handlers
 
   const fetchOrders = useCallback(
-    async (targetRestaurantId: string) => {
+    async (targetRestaurantId: string, notifyNew = false) => {
       const { data, error } = await supabase
         .from('orders')
         .select(LIVE_ORDERS_SELECT)
@@ -88,13 +93,39 @@ export function useLiveOrders(
         .order('created_at', { ascending: false })
         .limit(LIVE_ORDERS_LIMIT)
       if (!error && data) {
-        setOrders(data as LiveOrderRow[])
+        const rows = data as LiveOrderRow[]
+        setOrders(rows)
+
+        // Drive the notification store from the refreshed list: on the initial
+        // fetch we only seed the dedupe set (existing orders are not "new"),
+        // but every later refresh (realtime or the poll fallback) reports any
+        // order we have not seen yet.
+        const label = handlersRef.current.alertLabel ?? 'New order'
+        for (const order of rows) {
+          if (isOrderSeen(order.id)) continue
+          if (notifyNew) {
+            const table = Array.isArray(order.restaurant_tables) ? order.restaurant_tables[0] : order.restaurant_tables
+            recordNewOrder(
+              {
+                orderId: order.id,
+                orderNumber: order.order_number,
+                tableName: table?.name ?? 'Unknown table',
+                total: order.total,
+                currency: order.currency,
+              },
+              label
+            )
+          } else {
+            markOrderSeen(order.id)
+          }
+        }
       }
     },
     [supabase]
   )
 
-  // Initial fetch + re-fetch whenever the restaurant changes.
+  // Initial fetch + re-fetch whenever the restaurant changes. Seeds the seen
+  // set so pre-existing orders never ring the notification.
   useEffect(() => {
     if (!restaurantId) {
       setOrders([])
@@ -104,7 +135,7 @@ export function useLiveOrders(
     let cancelled = false
     setInitialLoading(true)
     void (async () => {
-      await fetchOrders(restaurantId)
+      await fetchOrders(restaurantId, false)
       if (!cancelled) {
         setInitialLoading(false)
       }
@@ -120,20 +151,21 @@ export function useLiveOrders(
   const refreshOrders = useCallback(async () => {
     const target = restaurantIdRef.current
     if (target) {
-      await fetchOrders(target)
+      await fetchOrders(target, true)
     }
   }, [fetchOrders])
 
   // Safety net: if a realtime event is ever missed (socket hiccup, dropped
-  // payload), re-sync the list every 30s while the tab is visible so orders
-  // are never stuck stale. Idempotent — the list is replaced wholesale.
+  // payload), re-sync every 15s while the tab is visible so orders (and their
+  // notifications) are never stuck stale. Idempotent — the list is replaced
+  // wholesale and `recordNewOrder` dedupes by order id.
   useEffect(() => {
     if (!restaurantId) return
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void refreshOrders()
       }
-    }, 30_000)
+    }, 15_000)
     return () => window.clearInterval(interval)
   }, [restaurantId, refreshOrders])
 
@@ -151,11 +183,11 @@ export function useLiveOrders(
       }
       if (payload?.eventType === 'INSERT') {
         await handlersRef.current.onOrderInsert?.(payload)
-        // Tab-title badge + optional chime, regardless of which page we're on.
-        ringNewOrderAlert(handlersRef.current.alertLabel ?? 'New order')
       } else {
         await handlersRef.current.onOrderUpdate?.(payload)
       }
+      // The refreshed fetch below reports the new order to the notification
+      // store (tab title, nav badge, home lines, chime).
       await refreshOrders()
     },
     [restaurantId, refreshOrders]

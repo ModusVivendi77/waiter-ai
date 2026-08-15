@@ -260,6 +260,9 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
       .filter((entry) => entry.line && entry.line.quantity > 0)
   }, [cart, items])
 
+  // Total item count shown on the floating cart icon badge.
+  const cartCount = cartItems.reduce((sum, entry) => sum + entry.line.quantity, 0)
+
   const total = useMemo(() => {
     return cartItems.reduce((sum, entry) => sum + entry.line.unitPrice * entry.line.quantity, 0)
   }, [cartItems])
@@ -398,6 +401,16 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
     <main className="page-shell">
       {cartToast ? <div className="toast">{cartToast}</div> : null}
       <LanguageToggle style={{ position: 'fixed', top: 14, right: 18, zIndex: 30 }} />
+      <button
+        className="cart-float"
+        type="button"
+        aria-label={t('customer.cart')}
+        title={t('customer.cart')}
+        onClick={() => document.getElementById('customer-cart')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+      >
+        🛒
+        {cartCount > 0 ? <span className="cart-float-count">{cartCount}</span> : null}
+      </button>
       <div className="page-grid">
         {reorderNotice ? (
           <section className="panel stack">
@@ -509,7 +522,7 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
           </section>
 
 
-          <aside className="panel stack">
+          <aside id="customer-cart" className="panel stack">
             <span className="eyebrow">{t('customer.cart')}</span>
             <h2 className="section-title">{t('customer.yourOrder')}</h2>
             {error ? <div className="error-box">{error}</div> : null}
