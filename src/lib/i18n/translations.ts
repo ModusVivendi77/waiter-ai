@@ -112,6 +112,8 @@ export const translations: Record<string, Translation> = {
   'home.groupList': { en: 'List', el: 'Λίστα' },
   'home.groupByStatus': { en: 'By status', el: 'Κατά κατάσταση' },
   'home.groupByTable': { en: 'By table', el: 'Κατά τραπέζι' },
+  'home.collapse': { en: 'Collapse', el: 'Σύμπτυξη' },
+  'home.expand': { en: 'Expand', el: 'Ανάπτυξη' },
 
   // Customer ordering
   'customer.eyebrow': { en: 'Table Ordering', el: 'Παραγγελία Τραπεζιού' },

@@ -331,7 +331,8 @@ select {
 
 .button,
 .button-secondary,
-.button-danger {
+.button-danger,
+.button-tertiary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -486,6 +487,7 @@ select {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
   border-radius: 18px;
+  background: var(--accent-soft);
 }
 
 .loading-bar {

@@ -425,20 +425,38 @@ export function OrdersConsole() {
   }, [searchParams])
 
   // Deep-link support: when the home dashboard sends ?focus=<trackingToken>,
-  // scroll to that order card and flash it once (home "Manage in Orders").
+  // always land on the exact order card. Force the "All" tab + newest-first
+  // sort so the card is never hidden, then scroll to and highlight it.
   const focusToken = searchParams.get('focus')
   const focusedOnceRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!focusToken || orders.length === 0 || focusedOnceRef.current === focusToken) return
-    const card = document.querySelector(`[data-testid="order-card-${focusToken}"]`)
-    if (card) {
-      focusedOnceRef.current = focusToken
-      card.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      card.classList.add('focus-flash')
-      const timer = window.setTimeout(() => card.classList.remove('focus-flash'), 2200)
-      return () => window.clearTimeout(timer)
+    if (focusToken) {
+      setStatusTab('ALL')
+      setSortMode('created_desc')
     }
+  }, [focusToken])
+
+  useEffect(() => {
+    if (!focusToken || orders.length === 0 || focusedOnceRef.current === focusToken) return
+    let attempts = 0
+
+    const attempt = () => {
+      const card = document.querySelector(`[data-testid="order-card-${focusToken}"]`)
+      if (card) {
+        focusedOnceRef.current = focusToken
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        card.classList.add('focus-flash')
+        window.setTimeout(() => card.classList.remove('focus-flash'), 4000)
+        return
+      }
+      attempts += 1
+      if (attempts < 12) {
+        window.setTimeout(attempt, 250)
+      }
+    }
+
+    attempt()
   }, [focusToken, orders])
 
   async function refreshOrderTotals(orderId: string) {
