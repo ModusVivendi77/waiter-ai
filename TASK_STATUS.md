@@ -527,6 +527,7 @@
    - Tab-title badge + optional chime retained (sound toggle in Orders toolbar + Home Live-orders header)
    - E2E: updated home-notification test + new "Orders-nav badge appears on home and clears when Orders opens" test + **24/24 E2E, 66/66 unit tests green**
 74. **✅ Done** — **Customer menu UX**: category pills now render **side-by-side in a horizontally scrollable strip** (sticky, `overflow-x: auto`, pills don't shrink) — clicking still smooth-scrolls to the category. A **floating cart icon (🛒)** sits at the top and shows a **live item-count badge** that increments on every "Add to cart" (total quantity, e.g. 2 burgers = "2"); clicking it scrolls to the cart panel. E2E covered
+75. **✅ Done** — Customer menu refinements: floating cart icon moved to the **bottom-right corner**; each menu card now shows a **quantity stepper (− qty +) left of "Add to cart"** once the item is in the cart (decrement to 0 removes it; badge + cart stay in sync); the sticky category strip reserves right-hand space so the fixed **language toggle no longer overlaps it**. E2E updated to drive the cart through the new stepper — **24/24 E2E, 66/66 unit tests green**
 49. **✅ Done** — Email confirmation: code already delivers via Resend (primary) with Supabase fallback; staff invitations now auto-confirm (`email_confirm: true`) so they never need a confirmation email. Remaining is dashboard config (verify a Resend domain / Supabase SMTP + set Auth Site URL) — see item 52
 50. **✅ Done** — Anonymous users only see the login page: middleware protection added. **Important:** the app uses `src/` so Next expects middleware at `src/middleware.ts` — the root `middleware.ts` was never loaded; moved it and wired session-check redirects (public: `/t/*`, `/orders/*`, auth + signup routes). Login `next` param hardened against open redirects
 51. **✅ Done** — Staff invited by restaurant owner/manager without a prior account: `addTeamMember` now creates the auth user (`email_confirm: true`) and sends an invitation email with a password-set link (Resend primary, Supabase "Reset Password" fallback)
@@ -576,5 +577,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — notification store (Orders-nav badge, home expandable accept/dismiss lines, 15s poll + global watcher fallbacks) + customer menu horizontal categories + floating cart icon
+**Last commit:** feat — customer menu refinements: bottom-right floating cart, per-card quantity stepper, category strip clear of the language toggle
 **Next commit:** optional Resend domain verification for welcome/invitation senders (all other manual steps done — migrations 014/015 applied, Auth Site URL set); then documented future work (shift-based table assignment, kitchen view/item routing, payment links, staff-tablet PWA)

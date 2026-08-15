@@ -151,6 +151,8 @@ export const translations: Record<string, Translation> = {
   'customer.allergens': { en: 'Allergens', el: 'Αλλεργιογόνα' },
   'customer.options': { en: 'Options', el: 'Επιλογές' },
   'customer.addToCart': { en: 'Add to cart', el: 'Προσθήκη στο καλάθι' },
+  'customer.removeOne': { en: 'Remove one', el: 'Αφαίρεση ενός' },
+  'customer.addOne': { en: 'Add one', el: 'Προσθήκη ενός' },
   'customer.total': { en: 'Total', el: 'Σύνολο' },
   'customer.trackOrder': { en: 'Track order status', el: 'Παρακολούθηση παραγγελίας' },
   'customer.orderSubmitted': {

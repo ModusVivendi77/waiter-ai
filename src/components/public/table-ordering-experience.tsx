@@ -501,12 +501,35 @@ export function TableOrderingExperience({ token, reorderToken, restaurantName, t
                           </div>
                         ) : null}
 
-                        <button className="button" type="button" onClick={() => addToCart(item)}>
-                          {t('customer.addToCart')}
-                          {selected.length > 0
-                            ? ` · ${formatCurrency(unitPriceFor(item, selected), currency)}`
-                            : ''}
-                        </button>
+                        <div className="item-actions">
+                          {cart[item.id]?.quantity > 0 ? (
+                            <div className="cart-stepper">
+                              <button
+                                className="button-secondary"
+                                type="button"
+                                aria-label={t('customer.removeOne')}
+                                onClick={() => updateLine(item, (current) => ({ ...current, quantity: current.quantity - 1 }))}
+                              >
+                                −
+                              </button>
+                              <span>{cart[item.id]?.quantity}</span>
+                              <button
+                                className="button-secondary"
+                                type="button"
+                                aria-label={t('customer.addOne')}
+                                onClick={() => updateLine(item, (current) => ({ ...current, quantity: current.quantity + 1 }))}
+                              >
+                                +
+                              </button>
+                            </div>
+                          ) : null}
+                          <button className="button" type="button" onClick={() => addToCart(item)}>
+                            {t('customer.addToCart')}
+                            {selected.length > 0
+                              ? ` · ${formatCurrency(unitPriceFor(item, selected), currency)}`
+                              : ''}
+                          </button>
+                        </div>
                       </article>
                     )
                   })}

@@ -290,7 +290,8 @@ select {
   position: sticky;
   top: 0;
   z-index: 10;
-  padding: 10px 0;
+  /* Keep the last pills clear of the fixed language toggle (top-right). */
+  padding: 10px 60px 10px 0;
   background: linear-gradient(var(--bg) 75%, rgba(246, 248, 251, 0));
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
@@ -696,22 +697,31 @@ select {
   text-align: center;
 }
 
+/* Menu item card actions: quantity stepper (when in cart) + "Add to cart" */
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
 /* Floating cart icon with an item-count badge (customer menu) */
 .cart-float {
   position: fixed;
-  top: 14px;
-  right: 72px;
+  bottom: 18px;
+  right: 18px;
   z-index: 30;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border-radius: 999px;
   border: 1px solid var(--panel-border);
   background: #ffffff;
   box-shadow: var(--shadow-sm);
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   cursor: pointer;
   transition: transform 140ms ease;
 }
