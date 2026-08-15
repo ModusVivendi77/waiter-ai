@@ -1,6 +1,32 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { clearRateLimits, getRateLimitHeaders, rateLimit } from '@/lib/utils/rateLimit'
+import { clearRateLimits, envInt, getRateLimitHeaders, rateLimit } from '@/lib/utils/rateLimit'
+
+describe('envInt', () => {
+  const TEST_ENV = 'TEST_RATE_LIMIT_INT'
+
+  afterEach(() => {
+    delete process.env[TEST_ENV]
+  })
+
+  it('reads a valid positive integer from the environment', () => {
+    process.env[TEST_ENV] = '150'
+    expect(envInt(TEST_ENV, 30)).toBe(150)
+  })
+
+  it('falls back when the variable is unset', () => {
+    expect(envInt(TEST_ENV, 30)).toBe(30)
+  })
+
+  it('falls back when the value is not a positive integer', () => {
+    process.env[TEST_ENV] = 'not-a-number'
+    expect(envInt(TEST_ENV, 30)).toBe(30)
+    process.env[TEST_ENV] = '0'
+    expect(envInt(TEST_ENV, 30)).toBe(30)
+    process.env[TEST_ENV] = '-5'
+    expect(envInt(TEST_ENV, 30)).toBe(30)
+  })
+})
 
 describe('rateLimit', () => {
   afterEach(() => {

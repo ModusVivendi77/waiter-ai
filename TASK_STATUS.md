@@ -514,6 +514,7 @@
    - **Optional chime**: a short two-note ding-dong via Web Audio, on by default, with a **🔔/🔕 toggle** in the Orders toolbar and the Home → Live orders header (persisted in localStorage)
    - **Realtime robustness**: added a 30-second visibility-aware re-sync fallback in `useLiveOrders` so a dropped websocket event can never leave the list stale
    - Validation: **59 unit + 22 E2E tests green** (incl. new "tab title badge clears on focus" + "compact order lines" tests). Note: repeated rapid E2E runs can trip the in-memory order-submission rate limit (30/10min/IP) — restart `npm run dev` to clear it
+71. **✅ Done** — **Rate limits configurable + correctly keyed**: order submissions are now rate-limited **per table QR token** (default **60 per 10 min per table**, env-tunable via `ORDER_SUBMIT_RATE_LIMIT` / `ORDER_SUBMIT_RATE_WINDOW_MINUTES`) instead of per IP — so customers on shared restaurant Wi-Fi each get their own budget. Order **cancellations** moved from one platform-wide 5/min bucket to **per-order** buckets (`ORDER_CANCEL_RATE_LIMIT` / `ORDER_CANCEL_RATE_WINDOW_MINUTES`). New `envInt()` helper (unit-tested) reads positive integers from env with a fallback; set the vars in Vercel → Settings → Environment Variables to tune in production. 62 unit + 22 E2E tests green
 49. **✅ Done** — Email confirmation: code already delivers via Resend (primary) with Supabase fallback; staff invitations now auto-confirm (`email_confirm: true`) so they never need a confirmation email. Remaining is dashboard config (verify a Resend domain / Supabase SMTP + set Auth Site URL) — see item 52
 50. **✅ Done** — Anonymous users only see the login page: middleware protection added. **Important:** the app uses `src/` so Next expects middleware at `src/middleware.ts` — the root `middleware.ts` was never loaded; moved it and wired session-check redirects (public: `/t/*`, `/orders/*`, auth + signup routes). Login `next` param hardened against open redirects
 51. **✅ Done** — Staff invited by restaurant owner/manager without a prior account: `addTeamMember` now creates the auth user (`email_confirm: true`) and sends an invitation email with a password-set link (Resend primary, Supabase "Reset Password" fallback)
@@ -563,5 +564,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — compact order lines + new-order alerts (tab title badge, optional chime), "παραγγελία ξανά" label, 30s re-sync fallback
+**Last commit:** feat — configurable, correctly-keyed rate limits (per-table order submissions, per-order cancellations, env-tunable)
 **Next commit:** optional Resend domain verification for welcome/invitation senders (all other manual steps done — migrations 014/015 applied, Auth Site URL set); then documented future work (shift-based table assignment, kitchen view/item routing, payment links, staff-tablet PWA)

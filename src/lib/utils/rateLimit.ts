@@ -11,6 +11,19 @@ export type RateLimitResult = {
   resetTime: number
 }
 
+/**
+ * Reads a positive integer from the environment for configurable rate limits,
+ * falling back to `fallback` when unset, empty, or invalid. Use it as
+ * `envInt('ORDER_SUBMIT_RATE_LIMIT', 60)` so production limits can be tuned
+ * via Vercel/`process.env` without a deploy.
+ */
+export function envInt(name: string, fallback: number): number {
+  const raw = typeof process !== 'undefined' ? process.env[name] : undefined
+  if (!raw) return fallback
+  const parsed = Number.parseInt(raw, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
 export function rateLimit(
   clientKey: string,
   maxRequests = 20,

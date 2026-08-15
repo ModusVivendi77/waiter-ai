@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { createOrderSchema } from '@/lib/validation/orders'
 import { createAdminClient } from '@/lib/supabase/server'
-import { getRateLimitHeaders, rateLimit } from '@/lib/utils/rateLimit'
+import { envInt, getRateLimitHeaders, rateLimit } from '@/lib/utils/rateLimit'
 
 function rateLimitHeaders(limit: ReturnType<typeof rateLimit>) {
   return getRateLimitHeaders(limit)
@@ -52,7 +52,22 @@ type MenuItemRow = {
 }
 
 export async function POST(request: NextRequest) {
-  const limit = rateLimit(getClientKey(request), 30, 10 * 60 * 1000)
+  const payload = await request.json().catch(() => null)
+  const parsed = createOrderSchema.safeParse(payload)
+
+  // Rate limit per table QR token rather than per IP: customers on a shared
+  // network (restaurant Wi-Fi, mobile data behind one NAT) all share one
+  // external address, so IP-keyed budgets would be exhausted by the room, not
+  // an abuser. Each table token gets its own budget; malformed payloads fall
+  // back to the client IP. Tune via ORDER_SUBMIT_RATE_LIMIT /
+  // ORDER_SUBMIT_RATE_WINDOW_MINUTES (default: 60 per 10 minutes per table).
+  const tableToken = parsed.success ? parsed.data.token : ''
+  const clientKey = tableToken ? `order-submit:${tableToken}` : getClientKey(request)
+  const limit = rateLimit(
+    clientKey,
+    envInt('ORDER_SUBMIT_RATE_LIMIT', 60),
+    envInt('ORDER_SUBMIT_RATE_WINDOW_MINUTES', 10) * 60 * 1000
+  )
 
   if (!limit.allowed) {
     return NextResponse.json(
@@ -63,9 +78,6 @@ export async function POST(request: NextRequest) {
       }
     )
   }
-
-  const payload = await request.json().catch(() => null)
-  const parsed = createOrderSchema.safeParse(payload)
 
   if (!parsed.success) {
     return NextResponse.json(

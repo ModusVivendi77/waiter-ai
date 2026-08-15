@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { createAdminClient } from '@/lib/supabase/server'
-import { getRateLimitHeaders, rateLimit } from '@/lib/utils/rateLimit'
+import { envInt, getRateLimitHeaders, rateLimit } from '@/lib/utils/rateLimit'
 
 type Props = {
   params: Promise<{
@@ -25,7 +25,17 @@ const CANCELLABLE_STATUSES = new Set(['NEW', 'ACCEPTED'])
  * tracking token in the body proves ownership — no auth required.
  */
 export async function POST(request: NextRequest, { params }: Props) {
-  const limit = rateLimit('order-cancel', 5, 60 * 1000)
+  const { id } = await params
+
+  // Per-order budget (the tracking token in the body proves ownership), not a
+  // platform-wide bucket — previously a single `order-cancel` counter of 5/min
+  // was shared by every restaurant and every customer. Tune via
+  // ORDER_CANCEL_RATE_LIMIT / ORDER_CANCEL_RATE_WINDOW_MINUTES.
+  const limit = rateLimit(
+    `order-cancel:${id}`,
+    envInt('ORDER_CANCEL_RATE_LIMIT', 5),
+    envInt('ORDER_CANCEL_RATE_WINDOW_MINUTES', 1) * 60 * 1000
+  )
 
   if (!limit.allowed) {
     return NextResponse.json(
@@ -34,7 +44,6 @@ export async function POST(request: NextRequest, { params }: Props) {
     )
   }
 
-  const { id } = await params
   const body = (await request.json().catch(() => null)) as { trackingToken?: string } | null
   const trackingToken = body?.trackingToken
 
