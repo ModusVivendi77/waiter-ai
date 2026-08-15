@@ -83,9 +83,16 @@ test.describe('orders workspace', () => {
     await page.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
     await expect(page.getByText('Restaurant: The Green Bar')).toBeVisible()
 
-    // Status "categories" render as tabs, each with a count.
-    for (const tabName of ['All', 'New', 'Accepted', 'Preparing', 'Ready', 'Served', 'Closed']) {
+    // Live status "categories" render as tabs, each with a count. Terminal
+    // statuses (Served/Cancelled/Rejected) live under Order history.
+    for (const tabName of ['All', 'New', 'Accepted', 'Preparing', 'Ready']) {
       await expect(page.getByRole('tab', { name: new RegExp(tabName) })).toBeVisible()
+    }
+
+    const historyPanel = page.locator('[data-testid="order-history-panel"]')
+    await historyPanel.getByRole('button', { name: /Show history/ }).click()
+    for (const tabName of ['All', 'Served', 'Cancelled', 'Rejected']) {
+      await expect(historyPanel.getByRole('tab', { name: new RegExp(tabName) })).toBeVisible()
     }
 
     // Sort orders by workflow status.
@@ -200,7 +207,8 @@ test.describe('orders workspace', () => {
     expect(firstNumber).toBeGreaterThan(0)
     const firstTrackHref = await customerA.locator('.success a').first().getAttribute('href')
 
-    // Staff: serve the order, then close the table's dining session.
+    // Staff: close the table's dining session — this completes the still-open
+    // order (SERVED) and moves it out of live orders.
     const adminPage = await contextA.newPage()
     await loginAsSuperAdmin(adminPage)
     await adminPage.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
@@ -208,8 +216,6 @@ test.describe('orders workspace', () => {
 
     const orderCard = adminPage.locator('[data-testid^="order-card-"]').filter({ hasText: noteA }).first()
     await expect(orderCard).toBeVisible()
-    await orderCard.getByRole('button', { name: 'SERVED' }).click()
-    await expect(adminPage.getByText(/moved to SERVED/i)).toBeVisible()
 
     adminPage.once('dialog', (dialog) => void dialog.accept())
     await orderCard.getByRole('button', { name: 'Close table session' }).click()
@@ -298,6 +304,66 @@ test.describe('orders workspace', () => {
     await expect.poll(() => adminPage.title()).toBe(titleBefore)
 
     await context.close()
+  })
+
+  test('terminal orders leave live orders and move to order history', async ({ page }) => {
+    const uniqueNote = `E2E history ${Date.now()}`
+
+    await page.goto('/t/X7k91Lm')
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByLabel('Order note').fill(uniqueNote)
+    await page.getByRole('button', { name: 'Submit order' }).click()
+    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
+
+    await loginAsSuperAdmin(page)
+    await page.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
+    await expect(page.getByText('Restaurant: The Green Bar')).toBeVisible()
+
+    // The fresh NEW order is a live order.
+    const liveCard = page.locator('[data-testid^="order-card-"]').filter({ hasText: uniqueNote }).first()
+    await expect(liveCard).toBeVisible()
+
+    // Mark it SERVED: it must leave the live list immediately.
+    await liveCard.getByRole('button', { name: 'SERVED' }).click()
+    await expect(page.getByText(/moved to SERVED/i)).toBeVisible()
+    await expect(page.locator('[data-testid^="order-card-"]').filter({ hasText: uniqueNote })).toHaveCount(0)
+
+    // And it must appear under Order history with its status.
+    const historyPanel = page.locator('[data-testid="order-history-panel"]')
+    await historyPanel.getByRole('button', { name: /Show history/ }).click()
+    const historyItem = historyPanel.locator('li').filter({ hasText: uniqueNote }).first()
+    await expect(historyItem).toBeVisible()
+    await expect(historyItem.getByText('SERVED', { exact: true })).toBeVisible()
+  })
+
+  test('closing a table session completes its open orders (leaves live orders)', async ({ page }) => {
+    const uniqueNote = `E2E close session ${Date.now()}`
+
+    await page.goto('/t/X7k91Lm')
+    await page.locator('article').filter({ hasText: 'Burger' }).getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByLabel('Order note').fill(uniqueNote)
+    await page.getByRole('button', { name: 'Submit order' }).click()
+    await expect(page.getByText(/submitted with status NEW/i)).toBeVisible()
+
+    await loginAsSuperAdmin(page)
+    await page.goto(`/platform/orders?restaurantId=${greenBarRestaurantId}`)
+    await expect(page.getByText('Restaurant: The Green Bar')).toBeVisible()
+
+    const liveCard = page.locator('[data-testid^="order-card-"]').filter({ hasText: uniqueNote }).first()
+    await expect(liveCard).toBeVisible()
+
+    // Closing the table completes the still-open (NEW) order.
+    page.once('dialog', (dialog) => void dialog.accept())
+    await liveCard.getByRole('button', { name: 'Close table session' }).click()
+    await expect(page.getByText(/session for Table 1 closed/i)).toBeVisible()
+    await expect(page.locator('[data-testid^="order-card-"]').filter({ hasText: uniqueNote })).toHaveCount(0)
+
+    // The order now lives in history as SERVED.
+    const historyPanel = page.locator('[data-testid="order-history-panel"]')
+    await historyPanel.getByRole('button', { name: /Show history/ }).click()
+    const historyItem = historyPanel.locator('li').filter({ hasText: uniqueNote }).first()
+    await expect(historyItem).toBeVisible()
+    await expect(historyItem.getByText('SERVED', { exact: true })).toBeVisible()
   })
 
   test('orders page shows a floating back-to-top button after scrolling', async ({ page }) => {

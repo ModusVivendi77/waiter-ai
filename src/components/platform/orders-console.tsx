@@ -17,7 +17,7 @@ import {
   playNewOrderSound,
   setNewOrderSoundEnabled,
 } from '@/lib/notifications/new-order-alert'
-import { CLOSED_STATUSES, STATUS_OPTIONS, STATUS_PRIORITY, STATUS_TABS } from '@/lib/orders/status'
+import { HISTORY_STATUSES, HISTORY_TABS, OPEN_STATUSES, STATUS_OPTIONS, STATUS_PRIORITY, STATUS_TABS } from '@/lib/orders/status'
 
 type RestaurantMembership = {
   restaurantId: string
@@ -84,8 +84,13 @@ function getOrderLabel(order: OrderRow) {
 }
 
 function orderMatchesTab(order: OrderRow, tab: string) {
-  if (tab === 'ALL') return true
-  if (tab === 'CLOSED') return CLOSED_STATUSES.has(order.status)
+  // "ALL" means all LIVE (open) orders — terminal orders live in history.
+  if (tab === 'ALL') return OPEN_STATUSES.includes(order.status)
+  return order.status === tab
+}
+
+function historyMatchesTab(order: OrderRow, tab: string) {
+  if (tab === 'ALL') return HISTORY_STATUSES.includes(order.status)
   return order.status === tab
 }
 
@@ -152,6 +157,9 @@ export function OrdersConsole() {
   const [selectedRestaurantId, setSelectedRestaurantId] = useState('')
   const [statusTab, setStatusTab] = useState<string>('ALL')
   const [sortMode, setSortMode] = useState<'created_desc' | 'created_asc' | 'status'>('created_desc')
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyTab, setHistoryTab] = useState<string>('ALL')
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null)
   const [menuOptions, setMenuOptions] = useState<MenuOption[]>([])
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({})
   const [lineDrafts, setLineDrafts] = useState<Record<string, LineDraft>>({})
@@ -332,16 +340,19 @@ export function OrdersConsole() {
   }
 
   const tabCounts = useMemo(() => {
-    const counts: Record<string, number> = { ALL: orders.length }
+    const live = orders.filter((order) => OPEN_STATUSES.includes(order.status))
+    const counts: Record<string, number> = { ALL: live.length }
     for (const tab of STATUS_TABS) {
       if (tab === 'ALL') continue
-      counts[tab] = orders.filter((order) => orderMatchesTab(order, tab)).length
+      counts[tab] = live.filter((order) => order.status === tab).length
     }
     return counts
   }, [orders])
 
   const visibleOrders = useMemo(() => {
-    const filtered = orders.filter((order) => orderMatchesTab(order, statusTab))
+    const filtered = orders.filter(
+      (order) => OPEN_STATUSES.includes(order.status) && orderMatchesTab(order, statusTab)
+    )
     const sorted = [...filtered]
 
     if (sortMode === 'created_asc') {
@@ -357,6 +368,29 @@ export function OrdersConsole() {
 
     return sorted
   }, [orders, statusTab, sortMode])
+
+  // Terminal orders (SERVED / CANCELLED / REJECTED) belong to Order history,
+  // newest first, optionally filtered by status.
+  const historyOrders = useMemo(() => {
+    const filtered = orders.filter(
+      (order) => HISTORY_STATUSES.includes(order.status) && historyMatchesTab(order, historyTab)
+    )
+    return [...filtered].sort((a, b) => b.created_at.localeCompare(a.created_at))
+  }, [orders, historyTab])
+
+  const historyTotal = useMemo(
+    () => orders.filter((order) => HISTORY_STATUSES.includes(order.status)).length,
+    [orders]
+  )
+
+  const historyTabCounts = useMemo(() => {
+    const counts: Record<string, number> = { ALL: historyTotal }
+    for (const tab of HISTORY_TABS) {
+      if (tab === 'ALL') continue
+      counts[tab] = orders.filter((order) => order.status === tab).length
+    }
+    return counts
+  }, [orders, historyTotal])
 
   // Handle real-time new orders: show an in-app banner and fire a best-effort
   // browser notification when permission is already granted. The shared hook
@@ -600,6 +634,34 @@ export function OrdersConsole() {
       .from('dining_sessions')
       .update({ status: 'CLOSED', closed_at: new Date().toISOString() })
       .eq('id', sessionId)
+
+    if (!updateError) {
+      // Closing a table completes its still-open orders: mark them SERVED so
+      // they leave "Live orders" and move to "Order history".
+      const { data: openOrders, error: openError } = await supabase
+        .from('orders')
+        .select('id, status')
+        .eq('session_id', sessionId)
+        .in('status', OPEN_STATUSES)
+
+      if (!openError && openOrders && openOrders.length > 0) {
+        const { error: completeError } = await supabase
+          .from('orders')
+          .update({ status: 'SERVED' })
+          .eq('session_id', sessionId)
+          .in('status', OPEN_STATUSES)
+
+        if (!completeError) {
+          await supabase.from('order_status_history').insert(
+            (openOrders as Array<{ id: string; status: string }>).map((order) => ({
+              order_id: order.id,
+              old_status: order.status,
+              new_status: 'SERVED',
+            }))
+          )
+        }
+      }
+    }
 
     setSaving(false)
 
@@ -1160,6 +1222,105 @@ export function OrdersConsole() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="panel stack" data-testid="order-history-panel">
+        <div className="cart-line-header">
+          <span className="eyebrow">{t('orders.historyEyebrow')}</span>
+          <button
+            className="button-secondary button-sm"
+            type="button"
+            aria-label={historyOpen ? t('orders.historyCollapse') : t('orders.historyExpand')}
+            onClick={() => setHistoryOpen((current) => !current)}
+          >
+            {historyOpen ? t('orders.historyCollapse') : t('orders.historyExpand')}
+            <span className="badge">{historyTotal}</span>
+          </button>
+        </div>
+
+        {historyOpen ? (
+          <>
+            <div className="tabs-row" role="tablist" aria-label={t('orders.historyTabsLabel')}>
+              {HISTORY_TABS.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={historyTab === tab}
+                  className={historyTab === tab ? 'filter-tab filter-tab-active' : 'filter-tab'}
+                  onClick={() => setHistoryTab(tab)}
+                  disabled={saving}
+                >
+                  {t(`orders.tab.${tab}`)}
+                  <span className="badge">{historyTabCounts[tab] ?? 0}</span>
+                </button>
+              ))}
+            </div>
+
+            {historyOrders.length === 0 ? (
+              <p className="muted">{t('orders.historyEmpty')}</p>
+            ) : (
+              <ul className="list">
+                {historyOrders.map((order) => {
+                  const expanded = expandedHistoryId === order.id
+                  return (
+                    <li key={order.id}>
+                      <div className="cart-line-header">
+                        <div>
+                          <strong>{t('orders.orderId', { id: getOrderLabel(order) })}</strong>
+                          <p className="muted">
+                            {t('orders.tableStatus', {
+                              table: getTableName(order),
+                              status: lang === 'el' ? t(`statusLabel.${order.status}`) : order.status,
+                            })}{' '}
+                            · {t('orders.submitted', { datetime: formatDateTime(order.created_at) })}
+                          </p>
+                          {order.customer_note ? (
+                            <p className="muted">{t('orders.customerNoteLine', { note: order.customer_note })}</p>
+                          ) : null}
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span className="badge">{t(`status.${order.status}`)}</span>
+                          <span className="badge">{formatCurrency(order.total, order.currency)}</span>
+                          <button
+                            className="button-secondary button-sm"
+                            type="button"
+                            onClick={() => setExpandedHistoryId(expanded ? null : order.id)}
+                          >
+                            {expanded ? t('home.hideSummary') : t('home.viewSummary')}
+                          </button>
+                        </div>
+                      </div>
+                      {expanded ? (
+                        <div className="stack" style={{ marginTop: '12px' }}>
+                          <ul className="list">
+                            {(order.order_items || []).map((line) => (
+                              <li key={line.id}>
+                                <div className="cart-line-header">
+                                  <strong>
+                                    {line.quantity} × {line.item_name}
+                                  </strong>
+                                  <span>{formatCurrency(line.unit_price * line.quantity, order.currency)}</span>
+                                </div>
+                                {line.modifiers && line.modifiers.length > 0 ? (
+                                  <p className="muted">{line.modifiers.join(' · ')}</p>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="cart-line-header">
+                            <strong>{t('common.total')}</strong>
+                            <strong>{formatCurrency(order.total, order.currency)}</strong>
+                          </div>
+                        </div>
+                      ) : null}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </>
+        ) : null}
       </section>
 
       {showBackToTop ? (

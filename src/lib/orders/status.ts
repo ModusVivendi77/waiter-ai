@@ -14,14 +14,14 @@ export const HISTORY_STATUSES = ['SERVED', 'REJECTED', 'CANCELLED']
 /** The full lifecycle (used for per-status groupings). */
 export const STATUS_FLOW = ['NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'REJECTED', 'CANCELLED']
 
-/** Status tabs in the Orders workspace. */
-export const STATUS_TABS = ['ALL', 'NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'CLOSED'] as const
+/** Status tabs in the Orders workspace "Live orders" area (open orders only). */
+export const STATUS_TABS = ['ALL', 'NEW', 'ACCEPTED', 'PREPARING', 'READY'] as const
+
+/** Filter tabs in the Orders workspace "Order history" area (terminal orders). */
+export const HISTORY_TABS = ['ALL', 'SERVED', 'CANCELLED', 'REJECTED'] as const
 
 /** Status-change buttons offered in the Orders workspace. */
 export const STATUS_OPTIONS = ['NEW', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'REJECTED', 'CANCELLED'] as const
-
-/** Statuses that appear under the workspace's "Closed" tab. */
-export const CLOSED_STATUSES = new Set(['REJECTED', 'CANCELLED'])
 
 /** Workflow order used for "sort by status". */
 export const STATUS_PRIORITY: Record<string, number> = {
