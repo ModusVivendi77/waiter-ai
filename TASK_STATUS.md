@@ -558,6 +558,11 @@
    - **Live tables**: cards no longer stretch to the height of the tallest card in their grid row (`align-self: start`), so expanding one table no longer makes its neighbours "expand"; the expanded order summary keeps the table's colored background (translucent white panels) instead of a white box with invisible white text
    - **Greek translations**: all hardcoded English buttons in the Setup menu now use `t()` — Save, Details/Close details, Mark unavailable/available, Available/Unavailable badge, Rename, Cancel (new keys: `setup.save/details/closeDetails/markUnavailable/markAvailable/available/unavailable`)
    - E2E + unit tests — **30/30 E2E, 66/66 unit tests green**
+85. **✅ Done** — **Live tables: orders belong to the current visit only**:
+   - A table's card now lists **only the orders of its current active visit** (filtered by `session_id` of the ACTIVE dining session)
+   - A **free/closed table shows no orders at all** — closing a table starts a new visit, so the previous visit's orders disappear from the card ("No orders yet")
+   - A table **stays occupied while its session is open**, even if every order is already served/completed (guests are still seated) — closing the table is what frees it
+   - E2E: close-table test now asserts the freed card shows no order list + "No orders yet" — **30/30 E2E, 66/66 unit tests green**
 49. **✅ Done** — Email confirmation: code already delivers via Resend (primary) with Supabase fallback; staff invitations now auto-confirm (`email_confirm: true`) so they never need a confirmation email. Remaining is dashboard config (verify a Resend domain / Supabase SMTP + set Auth Site URL) — see item 52
 50. **✅ Done** — Anonymous users only see the login page: middleware protection added. **Important:** the app uses `src/` so Next expects middleware at `src/middleware.ts` — the root `middleware.ts` was never loaded; moved it and wired session-check redirects (public: `/t/*`, `/orders/*`, auth + signup routes). Login `next` param hardened against open redirects
 51. **✅ Done** — Staff invited by restaurant owner/manager without a prior account: `addTeamMember` now creates the auth user (`email_confirm: true`) and sends an invitation email with a password-set link (Resend primary, Supabase "Reset Password" fallback)
@@ -607,5 +612,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — removed top "Add menu item" form, red ✕ delete buttons, live-tables cards keep own height + order summary keeps card coloring, setup menu buttons translated to Greek (fixes empty categories bug)
+**Last commit:** fix — live-tables cards show only the current visit's orders; closed/free tables list no orders
 **Next commit:** optional Resend domain verification for welcome/invitation senders (all other manual steps done — migrations 014/015 applied, Auth Site URL set); then documented future work (shift-based table assignment, kitchen view/item routing, payment links, staff-tablet PWA)

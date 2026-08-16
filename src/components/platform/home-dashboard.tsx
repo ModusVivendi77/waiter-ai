@@ -718,13 +718,20 @@ export function HomeDashboard() {
           {activeTables.length === 0 ? <p className="muted">{t('home.noActiveTables')}</p> : null}
           <div className="panel-grid">
             {activeTables.map((table) => {
-              const hasActiveSession = (table.dining_sessions || []).some((session) => session.status === 'ACTIVE')
+              const activeSession = (table.dining_sessions || []).find((session) => session.status === 'ACTIVE')
+              const hasActiveSession = Boolean(activeSession)
               const assignedName = table.assigned_staff_id
                 ? table.assigned_staff_id === currentUserId
                   ? t('home.handledByYou')
                   : `${t('home.handledBy')} ${staffNameMap[table.assigned_staff_id] ?? t('home.staffMember')}`
                 : t('home.unassigned')
-              const tableOrders = orders.filter((order) => order.table_id === table.id)
+              // Orders belong to a visit (dining session). A free/closed table
+              // starts a new visit, so it shows no orders at all; a table stays
+              // occupied while its session is open even if every order is already
+              // served, because the guests are still seated.
+              const tableOrders = activeSession
+                ? orders.filter((order) => order.table_id === table.id && order.session_id === activeSession.id)
+                : []
               const ordersOpen = Boolean(tableOrdersExpanded[table.id])
 
               return (

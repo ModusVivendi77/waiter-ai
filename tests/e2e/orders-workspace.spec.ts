@@ -404,6 +404,11 @@ test.describe('orders workspace', () => {
     await expect(tableCard.getByRole('button', { name: 'Close table' })).toHaveCount(0)
     await expect(tableCard).toHaveClass(/table-card-free/)
     await expect(tableCard.locator('.table-card-status')).toHaveText('Free')
+
+    // A closed/free table starts a new visit: it must not list the previous
+    // visit's orders anymore.
+    await expect(tableCard.locator('.table-card-order-list')).toHaveCount(0)
+    await expect(tableCard.getByText('No orders yet')).toBeVisible()
   })
 
   test('orders page shows a floating back-to-top button after scrolling', async ({ page }) => {
