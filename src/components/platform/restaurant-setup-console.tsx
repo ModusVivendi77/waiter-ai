@@ -18,6 +18,7 @@ type RestaurantTable = {
   qr_token: string
   active: boolean
   assigned_staff_id: string | null
+  room: string | null
 }
 
 type Category = {
@@ -40,6 +41,7 @@ type MenuItem = {
   price: number
   available: boolean
   category_id: string
+  sort_order: number
   allergens: string[]
   menu_item_modifiers:
     | Array<{
@@ -106,6 +108,17 @@ function parseAllergensText(text: string): string[] {
     .filter(Boolean)
 }
 
+// PostgREST reports a missing column as PGRST204 (sometimes 42703 from Postgres
+// itself). Used to make optional-column queries resilient pre-migration.
+function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
+  return Boolean(
+    error &&
+      (error.code === '42703' ||
+        error.code === 'PGRST204' ||
+        /could not find the .* column.* schema cache/i.test(error.message || ''))
+  )
+}
+
 export function RestaurantSetupConsole() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -123,7 +136,14 @@ export function RestaurantSetupConsole() {
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tableName, setTableName] = useState('')
+  const [tableRoom, setTableRoom] = useState('')
   const [categoryName, setCategoryName] = useState('')
+  // Per-category inline "Add item": the category being added to + the draft row.
+  const [addingItemCategoryId, setAddingItemCategoryId] = useState<string | null>(null)
+  const [inlineItemName, setInlineItemName] = useState('')
+  const [inlineItemDescription, setInlineItemDescription] = useState('')
+  const [inlineItemPrice, setInlineItemPrice] = useState('')
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null)
   const [itemName, setItemName] = useState('')
   const [itemDescription, setItemDescription] = useState('')
   const [itemPrice, setItemPrice] = useState('')
@@ -165,9 +185,41 @@ export function RestaurantSetupConsole() {
       ? window.location.origin
       : process.env.NEXT_PUBLIC_APP_URL || 'https://waiter-ai-iota.vercel.app'
 
+  // Tables grouped by their owner-defined room (e.g. Indoors, Outdoors, Terrace);
+  // tables without a room fall back to a "General" group.
+  const roomGroups = useMemo(() => {
+    const groups = new Map<string, RestaurantTable[]>()
+    for (const table of tables) {
+      const room = table.room?.trim() || t('setup.roomDefault')
+      if (!groups.has(room)) {
+        groups.set(room, [])
+      }
+      groups.get(room)!.push(table)
+    }
+    return Array.from(groups.entries()).map(([room, roomTables]) => ({ room, tables: roomTables }))
+  }, [tables, t])
+
+  // Tables query with a migration-016 resilience fallback: the `room` column
+  // only exists once migration 016 is applied, so retry without it (pre-migration
+  // tables simply have no room grouping).
+  async function fetchTables(targetRestaurantId: string) {
+    const withRoom = await supabase
+      .from('restaurant_tables')
+      .select('id, name, qr_token, active, assigned_staff_id, room')
+      .eq('restaurant_id', targetRestaurantId)
+      .order('name')
+    if (withRoom.error?.code === '42703' || withRoom.error?.code === 'PGRST204' || isMissingColumnError(withRoom.error)) {
+      return supabase
+        .from('restaurant_tables')
+        .select('id, name, qr_token, active, assigned_staff_id')
+        .eq('restaurant_id', targetRestaurantId)
+        .order('name')
+    }
+    return withRoom
+  }
+
   async function loadData(restaurantOverrideId?: string) {
     const context = await getClientUserContext()
-
     if (!context.user) {
       router.replace('/login?next=/platform/setup')
       return
@@ -232,11 +284,7 @@ export function RestaurantSetupConsole() {
 
     const [{ data: tableRows, error: tableError }, { data: categoryRows, error: categoryError }, { data: itemRows, error: itemError }, staffResult, restaurantResult] =
       await Promise.all([
-        supabase
-          .from('restaurant_tables')
-          .select('id, name, qr_token, active, assigned_staff_id')
-          .eq('restaurant_id', activeRestaurantId)
-          .order('name'),
+        fetchTables(activeRestaurantId),
         supabase
           .from('menu_categories')
           .select('id, name, name_el')
@@ -244,10 +292,9 @@ export function RestaurantSetupConsole() {
           .order('sort_order'),
         supabase
           .from('menu_items')
-          .select('id, name, name_el, description, description_el, price, available, category_id, allergens, menu_item_modifiers(id, name, price_delta, active), menu_categories(name)')
+          .select('id, name, name_el, description, description_el, price, available, category_id, sort_order, allergens, menu_item_modifiers(id, name, price_delta, active), menu_categories(name)')
           .eq('restaurant_id', activeRestaurantId)
-          .order('created_at', { ascending: false })
-          .limit(50),
+          .order('sort_order', { ascending: true }),
         listTeamMembers(activeRestaurantId).catch(() => ({ error: undefined, members: undefined })),
         supabase.from('restaurants').select('cancel_window_minutes').eq('id', activeRestaurantId).maybeSingle(),
       ])
@@ -416,12 +463,27 @@ export function RestaurantSetupConsole() {
 
     const token = createQrToken()
 
-    const { error: insertError } = await supabase.from('restaurant_tables').insert({
+    const insertPayload: {
+      restaurant_id: string
+      name: string
+      qr_token: string
+      active: boolean
+      room?: string | null
+    } = {
       restaurant_id: restaurantId,
       name: tableName.trim(),
       qr_token: token,
       active: true,
-    })
+      room: tableRoom.trim() || null,
+    }
+
+    let { error: insertError } = await supabase.from('restaurant_tables').insert(insertPayload)
+    if (isMissingColumnError(insertError)) {
+      // Pre-migration 016: no `room` column yet.
+      const { room: _room, ...fallbackPayload } = insertPayload
+      const retry = await supabase.from('restaurant_tables').insert(fallbackPayload)
+      insertError = retry.error
+    }
 
     setSaving(false)
 
@@ -431,6 +493,7 @@ export function RestaurantSetupConsole() {
     }
 
     setTableName('')
+    setTableRoom('')
     setNotice(t('setup.notice.tableCreated'))
     await loadData()
   }
@@ -690,6 +753,97 @@ export function RestaurantSetupConsole() {
     setItemAllergens('')
     setItemModifiersText('')
     setNotice(t('setup.notice.itemCreated'))
+    await loadData()
+  }
+
+  // Quick per-category "Add item": a single inline row with name/price/description.
+  async function handleAddInlineItem(categoryId: string) {
+    if (!restaurantId || !inlineItemName.trim() || !inlineItemPrice) {
+      return
+    }
+
+    const numericPrice = Number(inlineItemPrice)
+    if (Number.isNaN(numericPrice) || numericPrice < 0) {
+      setError(t('setup.error.invalidPrice'))
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const categoryItems = items.filter((item) => item.category_id === categoryId)
+    const nextOrder = categoryItems.reduce((max, item) => Math.max(max, item.sort_order ?? 0), -1) + 1
+
+    const { error: insertError } = await supabase.from('menu_items').insert({
+      restaurant_id: restaurantId,
+      category_id: categoryId,
+      name: inlineItemName.trim(),
+      description: inlineItemDescription.trim() || null,
+      price: numericPrice,
+      available: true,
+      sort_order: nextOrder,
+    })
+
+    setSaving(false)
+
+    if (insertError) {
+      setError(insertError.message)
+      return
+    }
+
+    setAddingItemCategoryId(null)
+    setInlineItemName('')
+    setInlineItemDescription('')
+    setInlineItemPrice('')
+    setNotice(t('setup.notice.itemCreated'))
+    await loadData()
+  }
+
+  // Drag & drop reordering: persist the new order by renumbering sort_order for
+  // every item in the category (upsert on the primary key).
+  function handleDropOnItem(categoryId: string, targetItemId: string, clientY: number) {
+    if (!draggedItemId || draggedItemId === targetItemId) return
+
+    const categoryItems = items.filter((item) => item.category_id === categoryId)
+    const fromIndex = categoryItems.findIndex((item) => item.id === draggedItemId)
+    const targetIndex = categoryItems.findIndex((item) => item.id === targetItemId)
+    if (fromIndex < 0 || targetIndex < 0) return
+
+    const row = document.getElementById(`menu-item-row-${targetItemId}`)
+    const rect = row?.getBoundingClientRect()
+    const insertAfter = rect ? clientY > rect.top + rect.height / 2 : true
+
+    const reordered = [...categoryItems]
+    const [moved] = reordered.splice(fromIndex, 1)
+    let insertIndex = reordered.findIndex((item) => item.id === targetItemId)
+    if (insertAfter) insertIndex += 1
+    reordered.splice(insertIndex, 0, moved)
+
+    setDraggedItemId(null)
+    void persistItemOrder(reordered)
+  }
+
+  async function persistItemOrder(reordered: MenuItem[]) {
+    setSaving(true)
+    setError(null)
+    setNotice(null)
+
+    const { error: updateError } = await supabase
+      .from('menu_items')
+      .upsert(
+        reordered.map((item, index) => ({ id: item.id, sort_order: index })),
+        { onConflict: 'id' }
+      )
+
+    setSaving(false)
+
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+
+    setNotice(t('setup.notice.orderUpdated'))
     await loadData()
   }
 
@@ -1066,14 +1220,30 @@ export function RestaurantSetupConsole() {
               required
             />
           </div>
+          <div className="field">
+            <label htmlFor="tableRoom">{t('setup.tableRoom')}</label>
+            <input
+              id="tableRoom"
+              value={tableRoom}
+              onChange={(event) => setTableRoom(event.target.value)}
+              placeholder={t('setup.tableRoomPlaceholder')}
+            />
+            <p className="helper-text">{t('setup.tableRoomHelper')}</p>
+          </div>
           <button className="button" type="submit" disabled={saving}>
             {saving ? t('setup.saving') : t('setup.addTable')}
           </button>
         </form>
 
-        <ul className="list">
-          {tables.map((table) => (
-            <li key={table.id}>
+        {roomGroups.map((group) => (
+          <div key={group.room} className="stack">
+            <div className="cart-line-header">
+              <strong>{group.room}</strong>
+              <span className="badge">{t('setup.itemsCount', { count: group.tables.length })}</span>
+            </div>
+            <ul className="list">
+              {group.tables.map((table) => (
+                <li key={table.id}>
               {editingTableId === table.id ? (
                 <div className="field">
                   <label htmlFor={`edit-table-${table.id}`}>{t('setup.tableName')}</label>
@@ -1156,7 +1326,9 @@ export function RestaurantSetupConsole() {
               </div>
             </li>
           ))}
-        </ul>
+              </ul>
+            </div>
+          ))}
       </section>
 
       <section className="panel stack">
@@ -1299,6 +1471,19 @@ export function RestaurantSetupConsole() {
                   <button className="button-secondary" type="button" disabled={saving} onClick={() => toggleCategory(category.id)}>
                     {isOpen ? t('setup.collapse') : t('setup.expand')}
                   </button>
+                  <button
+                    className="button-secondary"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      setAddingItemCategoryId(addingItemCategoryId === category.id ? null : category.id)
+                      setInlineItemName('')
+                      setInlineItemDescription('')
+                      setInlineItemPrice('')
+                    }}
+                  >
+                    {addingItemCategoryId === category.id ? t('setup.cancel') : t('setup.addItem')}
+                  </button>
                   {editingCategoryId === category.id ? (
                     <>
                       <input
@@ -1368,13 +1553,25 @@ export function RestaurantSetupConsole() {
                       <tbody>
                         {categoryItems.map((item) => (
                           <Fragment key={item.id}>
-                            <tr>
+                            <tr
+                              id={`menu-item-row-${item.id}`}
+                              draggable
+                              onDragStart={() => setDraggedItemId(item.id)}
+                              onDragOver={(event) => event.preventDefault()}
+                              onDrop={(event) => handleDropOnItem(category.id, item.id, event.clientY)}
+                              className={draggedItemId === item.id ? 'dragging' : undefined}
+                            >
                               <td>
-                                <input
-                                  value={quickDrafts[item.id]?.name ?? item.name}
-                                  onChange={(event) => updateQuickDraft(item.id, 'name', event.target.value)}
-                                  style={{ width: '100%', minHeight: 36 }}
-                                />
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span className="drag-handle" aria-hidden="true">
+                                    ⠿
+                                  </span>
+                                  <input
+                                    value={quickDrafts[item.id]?.name ?? item.name}
+                                    onChange={(event) => updateQuickDraft(item.id, 'name', event.target.value)}
+                                    style={{ width: '100%', minHeight: 36 }}
+                                  />
+                                </div>
                               </td>
                               <td>
                                 <input
@@ -1487,6 +1684,47 @@ export function RestaurantSetupConsole() {
                     </table>
                   </div>
                 )
+              ) : null}
+
+              {addingItemCategoryId === category.id ? (
+                <div className="stack" style={{ marginTop: '10px', padding: '12px', border: '1px solid rgba(15, 23, 42, 0.1)', borderRadius: '12px' }}>
+                  <div className="field">
+                    <label htmlFor={`inline-name-${category.id}`}>{t('setup.itemName')}</label>
+                    <input
+                      id={`inline-name-${category.id}`}
+                      value={inlineItemName}
+                      onChange={(event) => setInlineItemName(event.target.value)}
+                      placeholder={t('setup.itemNamePlaceholder')}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`inline-price-${category.id}`}>{t('setup.itemPrice')}</label>
+                    <input
+                      id={`inline-price-${category.id}`}
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={inlineItemPrice}
+                      onChange={(event) => setInlineItemPrice(event.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`inline-desc-${category.id}`}>{t('setup.itemDescription')}</label>
+                    <input
+                      id={`inline-desc-${category.id}`}
+                      value={inlineItemDescription}
+                      onChange={(event) => setInlineItemDescription(event.target.value)}
+                    />
+                  </div>
+                  <div className="pill-row">
+                    <button className="button" type="button" disabled={saving} onClick={() => void handleAddInlineItem(category.id)}>
+                      {t('setup.saveChanges')}
+                    </button>
+                    <button className="button-secondary" type="button" onClick={() => setAddingItemCategoryId(null)}>
+                      {t('setup.cancel')}
+                    </button>
+                  </div>
+                </div>
               ) : null}
             </div>
           )

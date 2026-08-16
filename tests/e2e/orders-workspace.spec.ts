@@ -386,6 +386,8 @@ test.describe('orders workspace', () => {
     // The occupied table card exposes the assign control + close button, and
     // the old "Claim table" action is gone entirely.
     const tableCard = page.locator('.panel-grid article.metric').filter({ hasText: 'Table 1' }).first()
+    await expect(tableCard).toHaveClass(/table-card-occupied/)
+    await expect(tableCard.locator('.table-card-status')).toHaveText('Occupied')
     await expect(tableCard.getByLabel('Assign table to')).toBeVisible()
     await expect(tableCard.getByRole('button', { name: 'Assign' })).toBeVisible()
     await expect(tableCard.getByRole('button', { name: /Claim/ })).toHaveCount(0)
@@ -397,6 +399,8 @@ test.describe('orders workspace', () => {
     await closeTable.click()
     await expect(page.getByText(/Table 1 closed/i)).toBeVisible()
     await expect(tableCard.getByRole('button', { name: 'Close table' })).toHaveCount(0)
+    await expect(tableCard).toHaveClass(/table-card-free/)
+    await expect(tableCard.locator('.table-card-status')).toHaveText('Free')
   })
 
   test('orders page shows a floating back-to-top button after scrolling', async ({ page }) => {

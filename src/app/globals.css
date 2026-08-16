@@ -861,6 +861,56 @@ main.ordering-page ~ .up-float {
   box-shadow: 0 0 0 4px var(--ring);
 }
 
+/* Menu item drag & drop reordering (Setup) */
+.drag-handle {
+  cursor: grab;
+  color: var(--muted);
+  font-size: 1.05rem;
+  user-select: none;
+}
+
+tr.dragging {
+  opacity: 0.4;
+}
+
+/* Home Live tables: whole card colored by occupancy */
+.table-card {
+  color: #ffffff;
+  border-radius: 20px;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.table-card-free {
+  background: linear-gradient(135deg, #0d9488, #0f766e);
+}
+
+.table-card-occupied {
+  background: linear-gradient(135deg, #e73671, #c2255c);
+}
+
+.table-card .muted {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.table-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.table-card-status {
+  flex-shrink: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+}
+
 .button-sm {
   min-height: 34px;
   padding: 0 12px;

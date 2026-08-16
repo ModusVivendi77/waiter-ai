@@ -728,15 +728,16 @@ export function HomeDashboard() {
               const ordersOpen = Boolean(tableOrdersExpanded[table.id])
 
               return (
-                <article className="metric" key={table.id}>
-                  <span
-                    className={
-                      hasActiveSession ? 'status-pill status-pill-occupied' : 'status-pill status-pill-free'
-                    }
-                  >
-                    {hasActiveSession ? t('home.occupied') : t('home.free')}
-                  </span>
-                  <strong>{getTableName(table, t('home.unknownTable'))}</strong>
+                <article
+                  key={table.id}
+                  className={`metric table-card ${hasActiveSession ? 'table-card-occupied' : 'table-card-free'}`}
+                >
+                  <div className="table-card-head">
+                    <strong>{getTableName(table, t('home.unknownTable'))}</strong>
+                    <span className="table-card-status">
+                      {hasActiveSession ? t('home.occupied') : t('home.free')}
+                    </span>
+                  </div>
                   <p className="muted">{assignedName}</p>
                   {tableOrders.length === 0 ? (
                     <p className="muted" style={{ marginTop: '10px' }}>

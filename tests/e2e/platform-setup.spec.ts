@@ -174,4 +174,52 @@ test.describe('platform setup workspace', () => {
     await importedCategory.getByRole('button', { name: 'Delete category' }).click()
     await expect(page.getByText(categoryName, { exact: true })).toHaveCount(0)
   })
+
+  test('adds a menu item inline from a category with the per-category Add item', async ({ page }) => {
+    const unique = Date.now().toString()
+    const categoryName = `E2E Inline Category ${unique}`
+    const itemName = `E2E Inline Item ${unique}`
+
+    await loginAsSuperAdmin(page)
+    await page.goto('/platform/setup')
+
+    // Hermetic category.
+    await page.getByLabel('New category').fill(categoryName)
+    await page.getByRole('button', { name: 'Add category' }).click()
+    const categoryHeader = page
+      .locator('div.cart-line-header')
+      .filter({ has: page.getByText(categoryName, { exact: true }) })
+      .first()
+    await expect(categoryHeader).toBeVisible()
+
+    // The per-category "Add item" button opens the inline data-entry row.
+    await categoryHeader.getByRole('button', { name: 'Add item' }).click()
+    const nameInput = page.locator('input[id^="inline-name-"]')
+    const priceInput = page.locator('input[id^="inline-price-"]')
+    await expect(nameInput).toBeVisible()
+    await nameInput.fill(itemName)
+    await priceInput.fill('9.90')
+
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await expect(page.locator('.preview-table input[value="' + itemName + '"]')).toHaveCount(1)
+
+    // Cleanup.
+    const rows = page.locator('.preview-table tbody tr')
+    const count = await rows.count()
+    for (let i = 0; i < count; i++) {
+      const value = await rows.nth(i).locator('input').first().inputValue().catch(() => '')
+      if (value === itemName) {
+        await rows.nth(i).getByRole('button', { name: 'Delete', exact: true }).click()
+        break
+      }
+    }
+    await expect(page.locator('.preview-table input[value="' + itemName + '"]')).toHaveCount(0)
+
+    const importedCategory = page
+      .locator('div.cart-line-header')
+      .filter({ has: page.getByText(categoryName, { exact: true }) })
+      .first()
+    await importedCategory.getByRole('button', { name: 'Delete category' }).click()
+    await expect(page.getByText(categoryName, { exact: true })).toHaveCount(0)
+  })
 })
