@@ -158,11 +158,14 @@ test.describe('orders workspace', () => {
     await expect(page.getByText('Live tables')).toBeVisible()
 
     const tableCard = page.locator('article.metric').filter({ hasText: 'Table 1' }).first()
-    await tableCard.getByRole('button', { name: 'Show orders' }).click()
-    await expect(tableCard.getByRole('button', { name: 'Hide orders' })).toBeVisible()
+    // The compact orders toggle shows the count + total and expands the list.
+    const ordersToggle = tableCard.locator('.table-card-orders-toggle')
+    await expect(ordersToggle).toContainText('item(s)')
+    await ordersToggle.click()
+    await expect(tableCard.locator('.table-card-order-list').first()).toBeVisible()
 
     // Clicking an order row expands the customer-style summary (line items + total).
-    const firstOrderRow = tableCard.locator('ul.list li button').first()
+    const firstOrderRow = tableCard.locator('.table-card-order-list button').first()
     await firstOrderRow.click()
     await expect(tableCard.getByText('Total')).toBeVisible()
     await expect(tableCard.getByText('Burger')).toBeVisible()

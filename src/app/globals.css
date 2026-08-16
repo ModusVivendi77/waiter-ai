@@ -873,8 +873,36 @@ tr.dragging {
   opacity: 0.4;
 }
 
+/* Compact multi-column editing grids (Setup inline add + item Details) */
+.details-grid,
+.inline-add-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  align-items: start;
+  padding: 4px 0;
+}
+
+.details-grid .field textarea {
+  min-height: 64px;
+}
+
+.inline-add-modifiers {
+  grid-column: 1 / -1;
+}
+
+.details-grid .pill-row,
+.inline-add-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+}
+
 /* Home Live tables: whole card colored by occupancy */
 .table-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
   color: #ffffff;
   border-radius: 20px;
   border-color: rgba(255, 255, 255, 0.25);
@@ -885,7 +913,7 @@ tr.dragging {
 }
 
 .table-card-occupied {
-  background: linear-gradient(135deg, #e73671, #c2255c);
+  background: linear-gradient(135deg, #cf4f5a, #b43f49);
 }
 
 .table-card .muted {
@@ -901,7 +929,7 @@ tr.dragging {
 
 .table-card-status {
   flex-shrink: 0;
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -909,6 +937,77 @@ tr.dragging {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
   color: var(--text);
+}
+
+.table-card-assigned {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table-card-orders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.table-card-orders-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.table-card-order-list {
+  display: grid;
+  gap: 6px;
+}
+
+.table-card-order-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.table-card-empty {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.table-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+.table-card-actions .input-sm {
+  flex: 1;
+  min-width: 120px;
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .button-sm {

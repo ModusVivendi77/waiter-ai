@@ -738,65 +738,65 @@ export function HomeDashboard() {
                       {hasActiveSession ? t('home.occupied') : t('home.free')}
                     </span>
                   </div>
-                  <p className="muted">{assignedName}</p>
+
+                  <span className="table-card-assigned">{assignedName}</span>
+
                   {tableOrders.length === 0 ? (
-                    <p className="muted" style={{ marginTop: '10px' }}>
-                      {t('home.noOrdersForTable')}
-                    </p>
+                    <p className="table-card-empty">{t('home.noOrdersForTable')}</p>
                   ) : (
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                    <div className="table-card-orders">
                       <button
-                        className="button-secondary"
+                        className="table-card-orders-toggle"
                         type="button"
                         onClick={() =>
                           setTableOrdersExpanded((current) => ({ ...current, [table.id]: !current[table.id] }))
                         }
                       >
-                        {ordersOpen ? t('home.hideOrders') : t('home.showOrders')}
+                        <span>
+                          {t('home.itemsCount', { count: tableOrders.length })} ·{' '}
+                          {formatCurrency(
+                            tableOrders.reduce((sum, order) => sum + order.total, 0),
+                            tableOrders[0]?.currency ?? restaurantCurrency
+                          )}
+                        </span>
+                        <span aria-hidden="true">{ordersOpen ? '▴' : '▾'}</span>
                       </button>
-                    </div>
-                  )}
-                  {ordersOpen && tableOrders.length > 0 ? (
-                    <div style={{ marginTop: '10px' }}>
-                      <ul className="list">
-                        {tableOrders.map((order) => {
-                          const isSummaryOpen = expandedTableOrderId === order.id
-                          return (
-                            <li key={order.id}>
+                      {ordersOpen ? (
+                        <div className="table-card-order-list">
+                          {tableOrders.map((order) => {
+                            const isSummaryOpen = expandedTableOrderId === order.id
+                            return (
                               <button
-                                className="button-secondary"
+                                key={order.id}
                                 type="button"
-                                style={{
-                                  width: '100%',
-                                  minHeight: '34px',
-                                  justifyContent: 'space-between',
-                                  flexWrap: 'wrap',
-                                }}
                                 onClick={() => setExpandedTableOrderId(isSummaryOpen ? null : order.id)}
                               >
                                 <span>
-                                  <strong>{t(`status.${order.status}`)}</strong>
-                                  <span className="muted">
-                                    {' '}· {t('home.itemsCount', { count: (order.order_items || []).length })} ·{' '}
-                                    {formatCurrency(order.total, order.currency)}
-                                  </span>
+                                  <strong>{t(`status.${order.status}`)}</strong> ·{' '}
+                                  {t('home.itemsCount', { count: (order.order_items || []).length })} ·{' '}
+                                  {formatCurrency(order.total, order.currency)}
                                 </span>
-                                <span className="badge">{formatDateTime(order.created_at)}</span>
+                                <span>{formatDateTime(order.created_at)}</span>
                               </button>
-                              {isSummaryOpen ? (
-                                <OrderSummary order={order} t={t} onDismiss={() => void handleDismissOrder(order.id)} />
-                              ) : null}
-                            </li>
-                          )
-                        })}
-                      </ul>
+                            )
+                          })}
+                          {expandedTableOrderId &&
+                          tableOrders.some((order) => order.id === expandedTableOrderId) ? (
+                            <OrderSummary
+                              order={tableOrders.find((order) => order.id === expandedTableOrderId)!}
+                              t={t}
+                              onDismiss={() => void handleDismissOrder(expandedTableOrderId)}
+                            />
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px', alignItems: 'center' }}>
+                  )}
+
+                  <div className="table-card-actions">
                     <select
                       className="input-sm"
                       aria-label={t('home.assignLabel')}
-                      style={{ width: 170 }}
                       value={assignDrafts[table.id] ?? table.assigned_staff_id ?? ''}
                       onChange={(event) =>
                         setAssignDrafts((current) => ({ ...current, [table.id]: event.target.value }))

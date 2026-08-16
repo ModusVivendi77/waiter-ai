@@ -546,6 +546,12 @@
    - **Bug fixed ("Αυτό μας έλειπε")**: Setup only fetched the **50 most recent** menu items, so older categories (like Drinks - Wine) showed **0 item(s)** while the customer menu (unlimited, `sort_order`) showed them all. The setup menu query now loads **all** items ordered by `sort_order`
    - E2E: new "adds a menu item inline from a category" test + occupied/free color assertions — **30/30 E2E, 66/66 unit tests green**
    - **⚠️ Pending (one manual step): apply migration 016 to the live DB — `npx supabase db push`** (same as 014/015)
+83. **✅ Done** — **Setup/Details polish + Live tables redesign**:
+   - The per-category **inline "Add item" now includes Allergens and Options/modifiers** (one per line "Name +price"), laid out in a compact multi-column grid
+   - The item **Details** editor (Greek name/description, category, allergens, modifiers) is now a compact responsive grid instead of a tall stacked list
+   - Live tables cards redesigned to be **clean and elegant**: header (name + Free/Occupied pill top-right), one-line assignee, a compact **orders toggle** showing "N item(s) · total" that expands into slim order rows (each expandable to the full summary), and a tidy footer with the assign picker / Assign / Close table pinned to the bottom (cards align in equal heights)
+   - Occupied color changed to **#CF4F5A** (free stays teal)
+   - E2E updated for the new orders toggle — **30/30 E2E, 66/66 unit tests green**
 49. **✅ Done** — Email confirmation: code already delivers via Resend (primary) with Supabase fallback; staff invitations now auto-confirm (`email_confirm: true`) so they never need a confirmation email. Remaining is dashboard config (verify a Resend domain / Supabase SMTP + set Auth Site URL) — see item 52
 50. **✅ Done** — Anonymous users only see the login page: middleware protection added. **Important:** the app uses `src/` so Next expects middleware at `src/middleware.ts` — the root `middleware.ts` was never loaded; moved it and wired session-check redirects (public: `/t/*`, `/orders/*`, auth + signup routes). Login `next` param hardened against open redirects
 51. **✅ Done** — Staff invited by restaurant owner/manager without a prior account: `addTeamMember` now creates the auth user (`email_confirm: true`) and sends an invitation email with a password-set link (Resend primary, Supabase "Reset Password" fallback)
@@ -595,5 +601,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — per-category inline Add item + drag-drop menu ordering, table rooms (migration 016), teal/#E73671 live-table cards, setup menu shows all items (fixes empty categories bug)
+**Last commit:** feat — inline Add item gains allergens/modifiers (compact grid), compact Details editor, redesigned elegant Live tables cards with #CF4F5A occupied color (fixes empty categories bug)
 **Next commit:** optional Resend domain verification for welcome/invitation senders (all other manual steps done — migrations 014/015 applied, Auth Site URL set); then documented future work (shift-based table assignment, kitchen view/item routing, payment links, staff-tablet PWA)

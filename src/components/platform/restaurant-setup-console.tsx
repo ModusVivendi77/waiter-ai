@@ -143,6 +143,8 @@ export function RestaurantSetupConsole() {
   const [inlineItemName, setInlineItemName] = useState('')
   const [inlineItemDescription, setInlineItemDescription] = useState('')
   const [inlineItemPrice, setInlineItemPrice] = useState('')
+  const [inlineItemAllergens, setInlineItemAllergens] = useState('')
+  const [inlineItemModifiersText, setInlineItemModifiersText] = useState('')
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null)
   const [itemName, setItemName] = useState('')
   const [itemDescription, setItemDescription] = useState('')
@@ -775,27 +777,51 @@ export function RestaurantSetupConsole() {
     const categoryItems = items.filter((item) => item.category_id === categoryId)
     const nextOrder = categoryItems.reduce((max, item) => Math.max(max, item.sort_order ?? 0), -1) + 1
 
-    const { error: insertError } = await supabase.from('menu_items').insert({
-      restaurant_id: restaurantId,
-      category_id: categoryId,
-      name: inlineItemName.trim(),
-      description: inlineItemDescription.trim() || null,
-      price: numericPrice,
-      available: true,
-      sort_order: nextOrder,
-    })
+    const { data: createdItem, error: insertError } = await supabase
+      .from('menu_items')
+      .insert({
+        restaurant_id: restaurantId,
+        category_id: categoryId,
+        name: inlineItemName.trim(),
+        description: inlineItemDescription.trim() || null,
+        price: numericPrice,
+        available: true,
+        sort_order: nextOrder,
+        allergens: parseAllergensText(inlineItemAllergens),
+      })
+      .select('id')
+      .single()
 
-    setSaving(false)
-
-    if (insertError) {
-      setError(insertError.message)
+    if (insertError || !createdItem) {
+      setSaving(false)
+      setError(insertError?.message ?? 'Unable to create the menu item.')
       return
+    }
+
+    const modifiers = parseModifiersText(inlineItemModifiersText)
+    if (modifiers.length > 0) {
+      const { error: modifiersError } = await supabase.from('menu_item_modifiers').insert(
+        modifiers.map((modifier) => ({
+          menu_item_id: createdItem.id,
+          name: modifier.name,
+          price_delta: modifier.price_delta,
+        }))
+      )
+      setSaving(false)
+      if (modifiersError) {
+        setError(modifiersError.message)
+        return
+      }
+    } else {
+      setSaving(false)
     }
 
     setAddingItemCategoryId(null)
     setInlineItemName('')
     setInlineItemDescription('')
     setInlineItemPrice('')
+    setInlineItemAllergens('')
+    setInlineItemModifiersText('')
     setNotice(t('setup.notice.itemCreated'))
     await loadData()
   }
@@ -1607,7 +1633,7 @@ export function RestaurantSetupConsole() {
                             {expandedItemId === item.id ? (
                               <tr>
                                 <td colSpan={4}>
-                                  <div className="stack">
+                                  <div className="details-grid">
                                     <div className="field">
                                       <label htmlFor={`details-name-el-${item.id}`}>{t('setup.itemNameEl')}</label>
                                       <input
@@ -1687,7 +1713,7 @@ export function RestaurantSetupConsole() {
               ) : null}
 
               {addingItemCategoryId === category.id ? (
-                <div className="stack" style={{ marginTop: '10px', padding: '12px', border: '1px solid rgba(15, 23, 42, 0.1)', borderRadius: '12px' }}>
+                <div className="inline-add-grid">
                   <div className="field">
                     <label htmlFor={`inline-name-${category.id}`}>{t('setup.itemName')}</label>
                     <input
@@ -1716,7 +1742,27 @@ export function RestaurantSetupConsole() {
                       onChange={(event) => setInlineItemDescription(event.target.value)}
                     />
                   </div>
-                  <div className="pill-row">
+                  <div className="field">
+                    <label htmlFor={`inline-allergens-${category.id}`}>{t('setup.itemAllergens')}</label>
+                    <input
+                      id={`inline-allergens-${category.id}`}
+                      value={inlineItemAllergens}
+                      onChange={(event) => setInlineItemAllergens(event.target.value)}
+                      placeholder={t('setup.allergensPlaceholder')}
+                    />
+                  </div>
+                  <div className="field inline-add-modifiers">
+                    <label htmlFor={`inline-modifiers-${category.id}`}>{t('setup.itemModifiers')}</label>
+                    <textarea
+                      id={`inline-modifiers-${category.id}`}
+                      value={inlineItemModifiersText}
+                      onChange={(event) => setInlineItemModifiersText(event.target.value)}
+                      placeholder={t('setup.modifiersPlaceholder')}
+                      style={{ minHeight: 44 }}
+                    />
+                    <p className="helper-text">{t('setup.modifierFormatHelper')}</p>
+                  </div>
+                  <div className="pill-row inline-add-actions">
                     <button className="button" type="button" disabled={saving} onClick={() => void handleAddInlineItem(category.id)}>
                       {t('setup.saveChanges')}
                     </button>
