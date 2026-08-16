@@ -906,6 +906,9 @@ tr.dragging {
   color: #ffffff;
   border-radius: 20px;
   border-color: rgba(255, 255, 255, 0.25);
+  /* Cards keep their own height instead of stretching with the tallest card
+     in the grid row, so expanding one table never makes the neighbours grow. */
+  align-self: start;
 }
 
 .table-card-free {
@@ -918,6 +921,14 @@ tr.dragging {
 
 .table-card .muted {
   color: rgba(255, 255, 255, 0.92);
+}
+
+/* Expanded order summary inside a colored card: keep the card's coloring
+   instead of the default white list boxes (which made the white text invisible). */
+.table-card .list li {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: none;
 }
 
 .table-card-head {
@@ -1015,6 +1026,23 @@ tr.dragging {
   padding: 0 12px;
   font-size: 0.9rem;
   border-radius: 999px;
+}
+
+/* Compact solid-red delete icon (✕) used in the Setup menu tables. */
+.delete-x {
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  font-size: 0.8rem;
+  line-height: 1;
+  background: var(--danger);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.delete-x:hover {
+  background: #b91c1c;
 }
 
 @media (max-width: 560px) {

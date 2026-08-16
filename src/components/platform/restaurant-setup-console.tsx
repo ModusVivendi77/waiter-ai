@@ -146,12 +146,6 @@ export function RestaurantSetupConsole() {
   const [inlineItemAllergens, setInlineItemAllergens] = useState('')
   const [inlineItemModifiersText, setInlineItemModifiersText] = useState('')
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null)
-  const [itemName, setItemName] = useState('')
-  const [itemDescription, setItemDescription] = useState('')
-  const [itemPrice, setItemPrice] = useState('')
-  const [itemCategoryId, setItemCategoryId] = useState('')
-  const [itemAllergens, setItemAllergens] = useState('')
-  const [itemModifiersText, setItemModifiersText] = useState('')
   const [csvText, setCsvText] = useState('')
   const [csvReport, setCsvReport] = useState<string | null>(null)
   const [csvPreviewRows, setCsvPreviewRows] = useState<CsvPreviewRow[]>([])
@@ -320,9 +314,6 @@ export function RestaurantSetupConsole() {
       setTables((tableRows as RestaurantTable[]) || [])
       setCategories(typedCategories)
       setItems(typedItems)
-      if (typedCategories.length > 0) {
-        setItemCategoryId(typedCategories[0].id)
-      }
       // Categories start expanded; quick-edit drafts mirror the loaded items.
       setExpandedCategories((current) => {
         const next = { ...current }
@@ -694,67 +685,6 @@ export function RestaurantSetupConsole() {
     setEditingCategoryName('')
     setEditingCategoryNameEl('')
     setNotice(t('setup.notice.categoryRenamed'))
-    await loadData()
-  }
-
-  async function handleAddMenuItem(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!restaurantId || !itemName.trim() || !itemCategoryId || !itemPrice) {
-      return
-    }
-
-    const numericPrice = Number(itemPrice)
-    if (Number.isNaN(numericPrice) || numericPrice < 0) {
-      setError(t('setup.error.invalidPrice'))
-      return
-    }
-
-    setSaving(true)
-    setError(null)
-    setNotice(null)
-
-    const { data: createdItem, error: insertError } = await supabase
-      .from('menu_items')
-      .insert({
-        restaurant_id: restaurantId,
-        category_id: itemCategoryId,
-        name: itemName.trim(),
-        description: itemDescription.trim() || null,
-        price: numericPrice,
-        available: true,
-        allergens: parseAllergensText(itemAllergens),
-      })
-      .select('id')
-      .single()
-
-    setSaving(false)
-
-    if (insertError || !createdItem) {
-      setError(insertError?.message ?? 'Unable to create the menu item.')
-      return
-    }
-
-    const modifiers = parseModifiersText(itemModifiersText)
-    if (modifiers.length > 0) {
-      const { error: modifiersError } = await supabase.from('menu_item_modifiers').insert(
-        modifiers.map((modifier) => ({
-          menu_item_id: createdItem.id,
-          name: modifier.name,
-          price_delta: modifier.price_delta,
-        }))
-      )
-      if (modifiersError) {
-        setError(modifiersError.message)
-        return
-      }
-    }
-
-    setItemName('')
-    setItemDescription('')
-    setItemPrice('')
-    setItemAllergens('')
-    setItemModifiersText('')
-    setNotice(t('setup.notice.itemCreated'))
     await loadData()
   }
 
@@ -1382,88 +1312,6 @@ export function RestaurantSetupConsole() {
         <span className="eyebrow">{t('setup.menuEyebrow')}</span>
         <p className="helper-text">{t('setup.menuHelper')}</p>
 
-        <span className="eyebrow" style={{ marginTop: '12px' }}>{t('setup.newItemEyebrow')}</span>
-        <form className="stack" onSubmit={handleAddMenuItem}>
-          <div className="field">
-            <label htmlFor="itemName">{t('setup.itemName')}</label>
-            <input
-              id="itemName"
-              value={itemName}
-              onChange={(event) => setItemName(event.target.value)}
-              placeholder={t('setup.itemNamePlaceholder')}
-              required
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="itemDescription">{t('setup.itemDescription')}</label>
-            <textarea
-              id="itemDescription"
-              value={itemDescription}
-              onChange={(event) => setItemDescription(event.target.value)}
-              placeholder={t('setup.itemDescriptionPlaceholder')}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="itemPrice">{t('setup.itemPrice')}</label>
-            <input
-              id="itemPrice"
-              type="number"
-              step="0.01"
-              min="0"
-              value={itemPrice}
-              onChange={(event) => setItemPrice(event.target.value)}
-              placeholder={t('setup.itemPricePlaceholder')}
-              required
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="itemCategoryId">{t('setup.itemCategory')}</label>
-            <select
-              id="itemCategoryId"
-              value={itemCategoryId}
-              onChange={(event) => setItemCategoryId(event.target.value)}
-              required
-            >
-              <option value="" disabled>
-                {t('setup.selectCategory')}
-              </option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="field">
-            <label htmlFor="itemAllergens">{t('setup.itemAllergens')}</label>
-            <input
-              id="itemAllergens"
-              value={itemAllergens}
-              onChange={(event) => setItemAllergens(event.target.value)}
-              placeholder={t('setup.allergensPlaceholder')}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="itemModifiersText">{t('setup.itemModifiers')}</label>
-            <textarea
-              id="itemModifiersText"
-              value={itemModifiersText}
-              onChange={(event) => setItemModifiersText(event.target.value)}
-              placeholder={t('setup.modifiersPlaceholder')}
-            />
-            <p className="helper-text">{t('setup.modifierFormatHelper')}</p>
-          </div>
-
-          <button className="button" type="submit" disabled={saving || categories.length === 0}>
-            {saving ? t('setup.saving') : t('setup.addMenuItem')}
-          </button>
-        </form>
-
         <span className="eyebrow" style={{ marginTop: '16px' }}>{t('setup.categoriesEyebrow')}</span>
         <form className="stack" onSubmit={handleAddCategory}>
           <div className="field">
@@ -1528,7 +1376,7 @@ export function RestaurantSetupConsole() {
                         style={{ width: 160 }}
                       />
                       <button className="button-secondary" type="button" disabled={saving} onClick={() => void handleSaveCategoryName(category.id)}>
-                        Save
+                        {t('setup.saveName')}
                       </button>
                       <button
                         className="button-secondary"
@@ -1539,7 +1387,7 @@ export function RestaurantSetupConsole() {
                           setEditingCategoryNameEl('')
                         }}
                       >
-                        Cancel
+                        {t('setup.cancel')}
                       </button>
                     </>
                   ) : (
@@ -1553,11 +1401,18 @@ export function RestaurantSetupConsole() {
                         setEditingCategoryNameEl(category.name_el || '')
                       }}
                     >
-                      Rename
+                      {t('setup.rename')}
                     </button>
                   )}
-                  <button className="button-danger" type="button" disabled={saving} onClick={() => void handleDeleteCategory(category)}>
-                    {t('setup.deleteCategory')}
+                  <button
+                    className="button-danger button-sm delete-x"
+                    type="button"
+                    disabled={saving}
+                    aria-label={t('setup.deleteCategory')}
+                    title={t('setup.deleteCategory')}
+                    onClick={() => void handleDeleteCategory(category)}
+                  >
+                    ✕
                   </button>
                 </div>
               </div>
@@ -1610,21 +1465,28 @@ export function RestaurantSetupConsole() {
                                 />
                               </td>
                               <td>
-                                <span className="badge">{item.available ? 'Available' : 'Unavailable'}</span>
+                                <span className="badge">{item.available ? t('setup.available') : t('setup.unavailable')}</span>
                               </td>
                               <td>
                                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                                   <button className="button-secondary" type="button" disabled={saving} onClick={() => void handleQuickSaveItem(item)}>
-                                    Save
+                                    {t('setup.save')}
                                   </button>
                                   <button className="button-secondary" type="button" onClick={() => openItemDetails(item)}>
-                                    {expandedItemId === item.id ? 'Close details' : 'Details'}
+                                    {expandedItemId === item.id ? t('setup.closeDetails') : t('setup.details')}
                                   </button>
                                   <button className="button-secondary" type="button" disabled={saving} onClick={() => void handleToggleMenuItemAvailability(item)}>
-                                    {item.available ? 'Mark unavailable' : 'Mark available'}
+                                    {item.available ? t('setup.markUnavailable') : t('setup.markAvailable')}
                                   </button>
-                                  <button className="button-danger" type="button" disabled={saving} onClick={() => void handleDeleteMenuItem(item)}>
-                                    Delete
+                                  <button
+                                    className="button-danger button-sm delete-x"
+                                    type="button"
+                                    disabled={saving}
+                                    aria-label={t('setup.delete')}
+                                    title={t('setup.delete')}
+                                    onClick={() => void handleDeleteMenuItem(item)}
+                                  >
+                                    ✕
                                   </button>
                                 </div>
                               </td>

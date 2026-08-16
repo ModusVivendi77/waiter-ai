@@ -552,6 +552,12 @@
    - Live tables cards redesigned to be **clean and elegant**: header (name + Free/Occupied pill top-right), one-line assignee, a compact **orders toggle** showing "N item(s) · total" that expands into slim order rows (each expandable to the full summary), and a tidy footer with the assign picker / Assign / Close table pinned to the bottom (cards align in equal heights)
    - Occupied color changed to **#CF4F5A** (free stays teal)
    - E2E updated for the new orders toggle — **30/30 E2E, 66/66 unit tests green**
+84. **✅ Done** — **Setup menu cleanup + Live tables fixes + Greek button translations**:
+   - Removed the top **"Add menu item"** form from Setup (item name/price/description/allergens/modifiers + "Add menu item" submit) — per-category **Add item** is now the only way to create items (its handler and the orphaned draft state were deleted)
+   - **Delete → red ✕**: the item-row "Delete" and the category "Delete category" text buttons are now compact **solid-red ✕ icon buttons** (with `aria-label`, so keyboard/screen-reader/E2E still work)
+   - **Live tables**: cards no longer stretch to the height of the tallest card in their grid row (`align-self: start`), so expanding one table no longer makes its neighbours "expand"; the expanded order summary keeps the table's colored background (translucent white panels) instead of a white box with invisible white text
+   - **Greek translations**: all hardcoded English buttons in the Setup menu now use `t()` — Save, Details/Close details, Mark unavailable/available, Available/Unavailable badge, Rename, Cancel (new keys: `setup.save/details/closeDetails/markUnavailable/markAvailable/available/unavailable`)
+   - E2E + unit tests — **30/30 E2E, 66/66 unit tests green**
 49. **✅ Done** — Email confirmation: code already delivers via Resend (primary) with Supabase fallback; staff invitations now auto-confirm (`email_confirm: true`) so they never need a confirmation email. Remaining is dashboard config (verify a Resend domain / Supabase SMTP + set Auth Site URL) — see item 52
 50. **✅ Done** — Anonymous users only see the login page: middleware protection added. **Important:** the app uses `src/` so Next expects middleware at `src/middleware.ts` — the root `middleware.ts` was never loaded; moved it and wired session-check redirects (public: `/t/*`, `/orders/*`, auth + signup routes). Login `next` param hardened against open redirects
 51. **✅ Done** — Staff invited by restaurant owner/manager without a prior account: `addTeamMember` now creates the auth user (`email_confirm: true`) and sends an invitation email with a password-set link (Resend primary, Supabase "Reset Password" fallback)
@@ -601,5 +607,5 @@ Refer to these documents in order:
 
 ---
 
-**Last commit:** feat — inline Add item gains allergens/modifiers (compact grid), compact Details editor, redesigned elegant Live tables cards with #CF4F5A occupied color (fixes empty categories bug)
+**Last commit:** feat — removed top "Add menu item" form, red ✕ delete buttons, live-tables cards keep own height + order summary keeps card coloring, setup menu buttons translated to Greek (fixes empty categories bug)
 **Next commit:** optional Resend domain verification for welcome/invitation senders (all other manual steps done — migrations 014/015 applied, Auth Site URL set); then documented future work (shift-based table assignment, kitchen view/item routing, payment links, staff-tablet PWA)
